@@ -2,10 +2,11 @@ import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { formatCount } from "@/lib/colecoes/acervo";
 import { plateCode, plateLogoKey } from "@/lib/colecoes/free-collection";
-import { collectionHref, collectionProgressView, collectionSpokenSubtitle } from "@/lib/colecoes/colecoes";
+import { collectionProgressView, collectionSpokenSubtitle } from "@/lib/colecoes/colecoes";
+import { libraryItemHref, sharedOwnerText } from "@/lib/colecoes/shared-library";
 import type { CollectionSummary } from "@/lib/colecoes/colecoes-queries";
 import { BinderCover } from "./binder-cover";
-import { CollectionKindLine } from "./collection-kind-badge";
+import { CollectionKindLine, SharedCollectionBadge } from "./collection-kind-badge";
 import styles from "./library-modes.module.css";
 
 /**
@@ -47,6 +48,7 @@ export function LibraryRow({
 }) {
   const progress = collectionProgressView(collection);
   const subtitle = collectionSpokenSubtitle(collection);
+  const owner = sharedOwnerText(collection);
   const logoKey = plateLogoKey(collection);
   const logoUrl = logoKey ? logoUrls[logoKey] ?? null : null;
   const copies = formatCount(collection.copiesCount);
@@ -57,9 +59,9 @@ export function LibraryRow({
       : copiesText;
   return (
     <Link
-      href={collectionHref(collection.id)}
+      href={libraryItemHref(collection)}
       className={styles.row}
-      aria-label={`${collection.name}, ${subtitle}, ${spoken}`}
+      aria-label={`${collection.name}, ${subtitle}${owner ? `, compartilhada ${owner}` : ""}, ${spoken}`}
     >
       <span className={styles.rowCover} aria-hidden="true">
         <BinderCover
@@ -77,6 +79,7 @@ export function LibraryRow({
         <span className={styles.rowKind}>
           <CollectionKindLine collection={collection} />
         </span>
+        {owner ? <SharedCollectionBadge owner={owner} /> : null}
       </span>
       <span className={styles.rowProgress} aria-hidden="true">
         {progress.kind === "goal" ? (

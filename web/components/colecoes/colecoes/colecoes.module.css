@@ -1009,6 +1009,28 @@
   color: hsl(var(--primary));
 }
 
+/* V1-12: coleção compartilhada com você — selo discreto + titular, na
+   metadata do card (mesma pílula do selo de tipo, sem acento dourado). */
+.sharedLine {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.sharedLine .kindBadge {
+  flex: none;
+}
+
+.sharedOwner {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* V1-06 (Fluxo 1.6): ação secundária em texto na conclusão da criação. */
 .inlineLink {
   display: inline;

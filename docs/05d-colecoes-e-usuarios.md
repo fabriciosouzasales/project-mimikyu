@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Modelo de Dados — Coleções e Usuários |
 | **Arquivo** | `docs/05d-colecoes-e-usuarios.md` |
-| **Versão** | 2.28 | **Histórico de Atividades do Fichário (P3-B) — S1–S5 no LIVE e canônicas (5267–5289); S2–S5 encerradas parcialmente com pendências (2026-10-28); S6 implementada localmente; C-201–C-209.** |
+| **Versão** | 2.31 | **Compartilhamento de Coleções (V1-12, 5300–5331) no LIVE e canônico; homologação visual aprovada (2026-10-30); commit e publicação pendentes.** |
 | **Status** | Em elaboração |
 | **Objetivo** | Modelo lógico e físico de Physical Card (nome canônico desde 2026-08-30; ver `domain-modeling/collections/concept-decisions.md` C-47/C-48), Storage/Storage Container, Collection/Collection Entry, User Profile/Reserved Username e Administração de Usuários. |
 | **Escopo** | Parte de `docs/05-modelo-de-dados.md` (índice) — resultado da divisão de 2026-08-06, motivada pelo tamanho do arquivo original (mais de 700 KB, acima do que ferramentas de leitura processam em uma chamada). |
@@ -1289,6 +1289,50 @@ Ordem de aplicação **5225 → 5223 → 5224 → 5226 → 5227 → 5228**. Depo
 - **Histórico de Atividades do Fichário (P3-B, C-201–C-209) — S1 (fundação), S2 (E02–E05), S3 (E08–E10), S4 (E11–E15) e S5 (E06a/E06b/E07) EXECUTADAS NO LIVE / CANÔNICAS (2026-10-25/28, `P3-B-*` → `P3B-S1-E3-LIVE-DRYRUN-V23-01` → instalação definitiva → encerramento).** `5267`–`5270` aplicadas no LIVE (ledger `20261027024607`/`024731`/`024829`/`024918`; texto gravado = corpo da proposta, md5 4/4) e promovidas para `database/schema/` (só o bloco Status difere). Fundação: `binder_activity_event`/`_item` (imutáveis; titular gravado no evento com FK em cascata da conta; chave do fichário sem FK — o histórico sobrevive à desmontagem), `_coverage` (marco mínimo) e `_setting` (cobertura global NULL até a última fatia); gravação interna por operação lógica (`binder_activity_begin/add_item/end`, um evento por chamada do cliente, cabeçalho preguiçoso, teto de itens por capacidade); leituras só do titular (`get_my_binder_activity`, `_coverage`, `list_my_closed_binder_histories`, EXECUTE só `authenticated`); exclusão definitiva sem permissão para clientes; legado L01 importado (1 evento, Chi-Yu). Controles: ensaio transacional E3 v2.3 PASS com rollback comprovado; LIVE_00 6/6; LIVE_90 12/12; Advisor só com achados esperados (RLS sem política intencional; WARN das 3 leituras `SECURITY DEFINER`). Harness `5860` **não executado** (G5b/G5c dispensados sob H-A só para a S1). **S1 não instrumenta nenhuma operação:** nada é gravado e nada aparece na interface até as fatias S2–S6 e a S7 (frontend). **S2 (E02–E05)** aplicada no LIVE (ledger `20261027030638`/`030713`/`030813`/`030849`) e canônica — `5271` (helper interno de item de carta) e `5272`–`5274` (`place_my_physical_card_in_slot`, `move_slot_assignment`, `remove_slot_assignment`, diff mínimo provado por md5); LIVE_S2_90 bloco A 7/7 e bloco B B.1–B.7 PASS; homologação visual de retirar/mover/trocar/desfazer PASS. **Encerramento parcial — pendências:** colocar carta pela interface (ADD) não comprovado; substituição (REPLACE) não testada (sem caminho na interface atual); desempenho P2/P3 não medido; concorrência aceita provisoriamente. **S3 (E08–E10)** aplicada no LIVE (ledger `20261027221555`/`221642`/`221717`/`221757`) e canônica — `5275` (helper interno de item de reserva) e `5276`–`5278` (`set_slot_expected_content`, `clear_slot_expected_content`, `set_slot_lock`); LIVE_S3_90 bloco A 7/7 e bloco B v1.1 6/6. **Pendências:** troca de reserva no mesmo evento não exercitada; concorrência e desempenho não medidos. **S4 (E11–E15)** aplicada no LIVE (ledger `20261027231843`…`232123`) e canônica — `5279` (helper interno de deslocamento) e `5280`–`5284` (`add_layout_page`, `remove_layout_page`, `reorder_layout_pages`, `insert_my_binder_gap`, `close_my_binder_gap`), com página embutida registrada como item da operação externa (R5); correções `5285` (colisão de nome que quebrava toda remoção de página, ledger `20261027235513`) e `5286` (`remove_layout_page` recusa no banco a última página e bolso fixado, ledger `20261028002709`), ambas no LIVE e canônicas; LIVE_S4_90 bloco A 7/7 e bloco B B.1–B.9 PASS. **Pendências:** remoção de página do meio (renumeração), deslocamento de reserva/imagem, recusas da 5286 pelo banco, R-S4-1 (novidades do Catálogo com página nova sem registro completo até a S6 — restrição operacional), concorrência e desempenho. **S5 (E06a, E06b, E07)** aplicada no LIVE (ledger `20261028005513`/`005559`/`005621`) e canônica — `5287`–`5289` (`set_physical_cards_storage`, `organize_my_collection_storage`, `remove_my_physical_card`; as sobrecargas antigas 5024/5222 não tiram carta de bolso, guarda 5256); E06a comprovado pela interface (LIVE_S5_90 B.2–B.7 PASS). **Pendências:** E06b e E07 não exercitados (sem exemplares elegíveis); concorrência e desempenho. A recolocação das cartas comprovou o ADD da S2 pela interface. **S6 (E01, E16–E20)** implementada localmente (`5290`–`5296`), não aplicada. Detalhe: `database/proposals/2026-10-25-p3b-binder-activity-history/README.md` (§28.34–§33).
 ---
 
+# Compartilhamento de Coleções (V1-12, `5300`–`5331`) — EXECUTADO NO LIVE / CANÔNICO
+
+## Status
+
+Aplicado no LIVE em 2026-10-30 e promovido para `database/schema/` (`5300`–`5322`: `V1-12 SCHEMA RECONCILIATION & VISUAL HANDOFF-01`; `5325`–`5331`: `V1-12 FINAL SCHEMA RECONCILIATION & VISUAL HANDOFF`; só o bloco Status das canônicas difere das propostas). Texto do ledger ≡ arquivo da proposta (md5 23/23 + 7/7); corpo efetivo das funções no LIVE ≡ último arquivo canônico de cada uma. Evidência comportamental, todas com resíduo zero: `5861` v1.3 51/51 PASS (5300–5319), `5862` v2.1 33/33 PASS (5320–5322), `5863` v1.2 37/37 PASS (5325–5329, após 5331) e `5864` 7/7 PASS (5330). **Homologação visual aprovada** (`database/proposals/2026-10-30-v1-12-viewer-parity/HOMOLOGATION.md`: A–D, H.1–H.6 e I — coleções compartilhadas na mesma Biblioteca, Cards/Lista/Carrossel). **Não publicado:** commit, `next lint`/`next build` na máquina de Fabrício e deploy pendentes. Autoridade: C-15, C-141–C-165, C-198. Propostas e harnesses: `database/proposals/2026-10-30-v1-12-collection-sharing/`, `…-v1-12-viewer-parity/`, `…-v1-12-shared-binder-visual-assets/` e `…-card-set-logo-public-read/`.
+
+## Contratos (canônicos em `database/schema/`)
+
+- `5300` `collection_membership` (VIEWER; PENDING/ACTIVE/DECLINED) — RLS ligada, nenhuma política, nenhum privilégio de tabela; acesso só por RPC.
+- `5301` `chk_collection_visibility` → `PRIVATE`/`PUBLIC` (padrão segue `PRIVATE`).
+- `5302` `collection_share_role(uuid)` — fronteira única OWNER/VIEWER/PUBLIC/NULL (interna, sem EXECUTE para API).
+- `5303`–`5307` convite por username exato, resposta, remoção, saída e visibilidade (só titular).
+- `5308`–`5311` painel do titular, caixa de convites, progresso compartilhado (`5310`, cópia interna da `5188` com dever de espelho) e "Compartilhadas com você".
+- `5312`/`5313` cabeçalho e galeria de cartas alocadas — só OWNER/VIEWER.
+- `5314` → **substituída pela `5321` v1.2**: cabeçalho do fichário do participante com `binder_name` (só coleção dona) e `show_brand_mark` (convidada → `true`).
+- `5315` núcleo único de bolsos mascarados (CARD/RESERVED/EMPTY; carta e reserva de outra coleção nunca saem) atrás de duas portas: `5316` participante e `5318` pública.
+- `5317` → **substituída pela `5322`**: vitrine pública sanitizada; convidada → nome NULL e logomarca `true`.
+- `5319` revoga 42 grants TRUNCATE/REFERENCES/TRIGGER de anon/authenticated (aplicada antes da 5300; independente).
+- `5320` `get_shared_collection_positions` — Todas/Tenho/Faltam do Set para OWNER/VIEWER, mesma regra da 5071/5169, **sem** `copies_available` (acervo do titular).
+
+Todas `SECURITY DEFINER`, `search_path = ''`; EXECUTE só `authenticated`, exceto as duas portas públicas (`5317`/`5322`, `5318`: anon + authenticated).
+
+### Personalizações visuais compartilhadas e logo do Set (`5325`–`5331`)
+
+Ordem real do ledger: `5325`→`5329`, `5331`, `5330`.
+
+- `5325` `collection_binder_shared_images` — núcleo interno (sem EXECUTE para API): imagens de bolso (1×1) e de mesclagem do fichário **cuja dona é a coleção pedida**; convidada → zero linhas (mesma regra de identidade de 5321/5322); máx. 4 páginas por chamada.
+- `5326` porta do participante (OWNER/VIEWER, só `authenticated`) e `5327` porta da vitrine (PUBLIC + ACTIVE, anon + authenticated) — sem ids internos no retorno.
+- `5328` `get_shared_collection_cover` — `cover_logo_path` + `cover_code` da própria coleção para OWNER/VIEWER ou vitrine.
+- `5329` v1.1 `shared_visual_asset_readable(bucket, name)` + políticas SELECT `binder_slot_image_select_shared` e `collection_cover_select_shared` (anon, authenticated): só o arquivo **vinculado** a bolso/mesclagem do fichário da coleção dona, ou a capa **atual**, na pasta do titular, para VIEWER ACTIVE ou coleção PUBLIC + ACTIVE. Sem escrita; arquivo solto e capa substituída negados; revogação decidida a cada assinatura.
+- `5331` `card_set_logo_admin_select` e `expansion_logo_admin_select` restritas de `public` a `authenticated` (`ALTER POLICY ... TO`, USING inalterado). Corrige bloqueio preexistente: `anon` sem EXECUTE em `is_admin()` derrubava todo SELECT anônimo em `storage.objects`.
+- `5330` `card_set_logo_is_current(name)` + política `card_set_logo_public_current_select` (só anon, só `card-set-logo`): visitante lê apenas o logo **atual** de Card Set (LIVE: 200 de 203 objetos; 3 substituídos negados).
+
+URLs assinadas para terceiros com TTL de 10 min (`SHARED_VISUAL_URL_TTL`); URL já emitida vale até expirar.
+
+## Pendências
+
+- Publicação do frontend V1-12 e commit — aguardam autorização do proprietário (homologação visual aprovada).
+- Hardening (não bloqueador): políticas de escrita admin (INSERT/UPDATE/DELETE) de `card-front`, `card-set-logo`, `expansion-logo` e `pokemon-species-artwork` seguem `TO public` com `(SELECT is_admin())` — fail-closed para anon, sem exposição; alinhar a `authenticated` em rodada própria.
+- Wrappers participantes de Master Set (`5323`) e Pokédex (`5324`) — não escritos/aplicados.
+- EDITOR (V1-13) fora do escopo.
+
+---
+
 # Bulk Operations Foundation (BULK-01)
 
 ## Status
@@ -2269,3 +2313,6 @@ Todas as funções: `SECURITY DEFINER`, `search_path = ''`, `EXECUTE` só `authe
 | 2.26 | **Histórico de Atividades do Fichário — S4 no LIVE, canônica e encerrada parcialmente; S5 local (2026-10-28, P3-B).** 5279–5286 promovidas (inclui as correções 5285 e 5286); LIVE_S4_90 bloco B PASS; pendências residuais explícitas; S5 (5287–5289) proposta, não aplicada. |
 | 2.27 | **Histórico de Atividades do Fichário — S5 no LIVE, canônica e encerrada parcialmente; S6 local (2026-10-28, P3-B).** 5287–5289 promovidas; E06a comprovado; E06b/E07 não exercitados; S6 (5290–5296) proposta, não aplicada. |
 | 2.28 | **BULK-05/BULK-06 retirados do backlog (2026-10-29, decisão do proprietário).** "Pendências / Próximos Passos" da seção BULK-04 atualizado; RPCs `5012`/`5046` canônicas sem prazo de migração. BULK-01 a BULK-04 seguem concluídos. |
+| 2.29 | **V1-12 SCHEMA RECONCILIATION & VISUAL HANDOFF-01 (2026-10-30).** Seção nova "Compartilhamento de Coleções (V1-12, `5300`–`5322`)": 23 migrations aplicadas no LIVE e promovidas para `database/schema/` (ledger ≡ proposta, md5 23/23; corpos efetivos ≡ canônicas, 18/18); 5314/5317 substituídas por 5321/5322; evidência 5861 51/51 e 5862 33/33; homologação visual pendente. |
+| 2.30 | **V1-12 FINAL SCHEMA RECONCILIATION & VISUAL HANDOFF (2026-10-30).** Seção V1-12 ampliada para `5300`–`5331`: `5325`–`5331` (imagens de bolso/mesclagem e capa própria para VIEWER/vitrine, políticas SELECT escopadas de Storage, correção do papel das políticas SELECT admin de logos e leitura anônima só do logo atual de Card Set) promovidas para `database/schema/` (ledger ≡ proposta, md5 7/7; ordem real 5325→5329, 5331, 5330); evidência 5863 v1.2 37/37 e 5864 7/7, resíduo zero; homologação visual (seção H) e publicação pendentes; hardening das políticas de escrita admin registrado como não bloqueador. |
+| 2.31 | **V1-12 FINAL QUALITY GATE & COMMIT READINESS (2026-10-30).** Homologação visual aprovada (A–D, H.1–H.6, biblioteca unificada em Cards/Lista/Carrossel); Quality Gate (2026-10-30): typecheck PASS; testes `lib/colecoes` 36 arquivos 432/432 PASS; ESLint (config `next/core-web-vitals`, CLI direta) 0 erros, 6 avisos preexistentes em arquivos fora do V1-12; `next lint`/`next build` não executáveis no sandbox do agente (binário SWC ausente) — pendentes na máquina de Fabrício; pendências fora do V1-12 mantidas. |

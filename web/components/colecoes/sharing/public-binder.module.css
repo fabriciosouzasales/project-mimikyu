@@ -1,0 +1,164 @@
+/*
+ * Vitrine pública do Fichário Digital (V1-12 PUBLIC BINDER EXPERIENCE).
+ *
+ * A capa é o protagonista: objeto fechado no acabamento da coleção (mesma
+ * BinderCover da biblioteca), texto curto ao lado, um único CTA dourado.
+ * Fundo e brilho vêm dos tokens do fichário (`--binder-page-bg`,
+ * `--binder-ambient-glow`, escopo `.binder-nav-01-scope`) — claro e escuro.
+ * Movimento: só entrada da capa (opacity + translate), desligada por
+ * prefers-reduced-motion. Sem filter/backdrop-filter.
+ */
+
+.coverStage {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 22rem) minmax(0, 26rem);
+  align-items: center;
+  justify-content: center;
+  gap: clamp(2rem, 6vw, 5rem);
+  min-height: calc(100dvh - 5rem);
+  padding: clamp(1.5rem, 4vw, 3rem) clamp(1rem, 4vw, 3rem);
+}
+
+.glow {
+  position: absolute;
+  inset: 0;
+  background: var(--binder-ambient-glow, radial-gradient(60% 55% at 40% 45%, hsl(var(--primary) / 0.08), transparent 70%));
+  pointer-events: none;
+}
+
+.coverObject {
+  position: relative;
+  width: 100%;
+  max-width: 22rem;
+  justify-self: center;
+  animation: coverIn 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.coverText {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  animation: coverIn 420ms 80ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes coverIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.eyebrow {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: hsl(var(--primary-ink, var(--primary)));
+}
+
+.title {
+  font: 700 clamp(1.75rem, 3.6vw, 2.5rem) / 1.1 var(--font-heading);
+  letter-spacing: -0.02em;
+  color: hsl(var(--foreground));
+  overflow-wrap: anywhere;
+}
+
+.owner {
+  font-size: 0.9375rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.owner strong {
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+.facts {
+  margin-top: 0.25rem;
+  font-size: 0.8125rem;
+  color: hsl(var(--muted-foreground));
+  font-variant-numeric: tabular-nums;
+}
+
+.cta {
+  margin-top: 1rem;
+}
+
+.hint {
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.empty {
+  margin-top: 1rem;
+  max-width: 24rem;
+  padding: 1rem 1.125rem;
+  border-radius: 0.75rem;
+  border: 1px dashed hsl(var(--border));
+  background: hsl(var(--surface, var(--card)) / 0.6);
+}
+
+.emptyTitle {
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+.emptyText {
+  margin-top: 0.25rem;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: hsl(var(--muted-foreground));
+}
+
+.cta2 {
+  margin-top: 1.5rem;
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.cta2 a {
+  font-weight: 600;
+  color: hsl(var(--primary-ink, var(--primary)));
+  text-underline-offset: 3px;
+}
+
+.cta2 a:hover {
+  text-decoration: underline;
+}
+
+/* Fichário aberto: ocupa a janela abaixo da faixa da marca. */
+.openStage {
+  height: calc(100dvh - 4rem);
+  min-height: 28rem;
+}
+
+@media (max-width: 767px) {
+  .coverStage {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    text-align: center;
+    min-height: auto;
+  }
+
+  .coverObject {
+    max-width: 15rem;
+  }
+
+  .coverText {
+    align-items: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .coverObject,
+  .coverText {
+    animation: none;
+  }
+}

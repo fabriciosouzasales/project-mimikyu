@@ -4,8 +4,9 @@ import { redirect } from "next/navigation";
 import { LibraryBig } from "lucide-react";
 import { AppShell } from "@/components/app-shell/app-shell";
 import { LibraryView } from "@/components/colecoes/colecoes/library-view";
+import { SharingInbox } from "@/components/colecoes/sharing/sharing-inbox";
 import { getAcervoFilterOptions } from "@/lib/colecoes/acervo-queries";
-import { LIBRARY_MODE_COOKIE, libraryHref, parseLibraryPage, resolveLibraryMode } from "@/lib/colecoes/colecoes";
+import { LIBRARY_MODE_COOKIE, LIBRARY_PAGE_SIZE, libraryHref, parseLibraryPage, resolveLibraryMode } from "@/lib/colecoes/colecoes";
 import {
   attachCoverLogos,
   getCoverLogoUrls,
@@ -16,6 +17,8 @@ import {
   getSetLogoUrls,
 } from "@/lib/colecoes/colecoes-queries";
 import { archivedLibraryHref, isArchivedView } from "@/lib/colecoes/collection-lifecycle";
+import { sharedLibraryItem, sharedLibrarySlice, withSharedIdentity } from "@/lib/colecoes/shared-library";
+import { getCollectionsSharedWithMe, getMyCollectionInvites, getSharedLibraryIdentities } from "@/lib/colecoes/sharing-queries";
 import { createClient } from "@/lib/supabase/server";
 import { getCachedUser, getCachedUserProfile } from "@/lib/supabase/request-auth-cache";
 
@@ -52,16 +55,44 @@ export default async function ColecoesPage({
   // `?arquivadas=1` (V1-04): estante das coleções arquivadas, só leitura e sem reordenar.
   const archivedView = isArchivedView(params);
 
-  const [rawPage, locations, options] = await Promise.all([
+  // V1-12: convites recebidos e coleções compartilhadas com você — só na estante ativa,
+  // em paralelo; sem as funções no banco, as listas chegam vazias e a estante é só a sua.
+  const [rawPage, locations, options, invites, sharedWithMe] = await Promise.all([
     archivedView ? getMyArchivedCollections(supabase, pageNumber) : getMyCollections(supabase, pageNumber),
     archivedView ? Promise.resolve(null) : getMyStorageLocations(supabase),
     archivedView ? Promise.resolve(null) : getAcervoFilterOptions(supabase),
+    archivedView ? Promise.resolve([]) : getMyCollectionInvites(supabase),
+    archivedView ? Promise.resolve([]) : getCollectionsSharedWithMe(supabase),
   ]);
   // Entrada "Arquivadas" da estante ativa: reaproveita o total de ativas já lido.
   const archivedCount = archivedView || !rawPage ? null : await getMyArchivedCount(supabase, rawPage.total);
 
-  // Coleção livre com capa enviada (desligado até 5176–5178 no LIVE).
-  const page = rawPage ? { ...rawPage, items: await attachCoverLogos(supabase, rawPage.items) } : null;
+  // V1-12: as coleções compartilhadas com você entram na MESMA estante, depois das
+  // suas (que seguem na sua ordem), como cards normais com selo "Compartilhada".
+  // Só a fatia que cabe nesta página recebe a identidade da placa (logo/capa).
+  const slice = rawPage
+    ? sharedLibrarySlice({
+        ownedTotal: rawPage.total,
+        ownedOnPage: rawPage.items.length,
+        sharedCount: sharedWithMe.length,
+        pageNumber,
+        pageSize: LIBRARY_PAGE_SIZE,
+      })
+    : null;
+  const sharedOnPage = slice ? sharedWithMe.slice(slice.offset, slice.offset + slice.count).map(sharedLibraryItem) : [];
+
+  // Coleção livre com capa enviada (desligado até 5176–5178 no LIVE) + identidade das compartilhadas, em paralelo.
+  const [ownedItems, sharedIdentities] = await Promise.all([
+    rawPage ? attachCoverLogos(supabase, rawPage.items) : Promise.resolve([]),
+    getSharedLibraryIdentities(supabase, sharedOnPage),
+  ]);
+  const sharedCovers = new Map<string, string>();
+  const sharedItems = sharedOnPage.map((item) => {
+    const applied = withSharedIdentity(item, sharedIdentities.get(item.id));
+    if (applied.coverUrl) sharedCovers.set(applied.coverUrl[0], applied.coverUrl[1]);
+    return applied.item;
+  });
+  const page = rawPage && slice ? { items: [...ownedItems, ...sharedItems], total: slice.total } : null;
 
   // Página além do fim (link antigo): volta para a primeira em vez de um vazio enganoso.
   if (page && page.items.length === 0 && pageNumber > 1) redirect(archivedView ? archivedLibraryHref(1) : libraryHref(1));
@@ -73,12 +104,13 @@ export default async function ColecoesPage({
         getCoverLogoUrls(supabase, page.items.map((item) => item.coverLogoPath)),
       ])
     : [new Map<string, string>(), new Map<string, string>()];
-  const logoUrls = new Map<string, string>([...setLogos, ...coverLogos]);
+  const logoUrls = new Map<string, string>([...setLogos, ...coverLogos, ...sharedCovers]);
 
   const ownedSets = (options?.sets ?? []).map((set) => ({ code: set.value, name: set.label, count: set.count }));
 
   return (
     <AppShell title={archivedView ? "Coleções arquivadas" : "Minhas coleções"} icon={LibraryBig}>
+      {archivedView ? null : <SharingInbox invites={invites} />}
       <LibraryView
         page={page}
         pageNumber={pageNumber}
@@ -88,6 +120,7 @@ export default async function ColecoesPage({
         mode={mode}
         view={archivedView ? "archived" : "active"}
         archivedCount={archivedCount}
+        ownedTotal={rawPage?.total ?? null}
       />
     </AppShell>
   );

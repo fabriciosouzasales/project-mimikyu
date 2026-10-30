@@ -1,6 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import { MobileNav } from "@/components/app-shell/mobile-nav";
 import { GlobalSearch } from "@/components/app-shell/global-search";
+import { InvitesInbox } from "@/components/app-shell/invites-inbox";
 import { UserAvatarBadge } from "@/components/app-shell/user-avatar-badge";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { getCachedUser, getCachedUserProfile } from "@/lib/supabase/request-auth-cache";
@@ -53,6 +54,10 @@ export async function Header({ title, icon: Icon, isAdmin }: { title: string; ic
           overlay dedicado (ver GlobalSearch). */}
       {user && <GlobalSearch />}
       <div className="flex shrink-0 items-center gap-2">
+        {/* Inbox global de convites (V1-12): componente cliente, lê depois da
+            página (não atrasa este Server Component nem adiciona leitura ao
+            caminho crítico de nenhuma rota). */}
+        {user && <InvitesInbox />}
         {user && <UserAvatarBadge avatarUrl={avatarUrl} initial={initial} />}
         <ThemeToggle />
       </div>

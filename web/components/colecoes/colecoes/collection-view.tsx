@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CollectionShareButton } from "@/components/colecoes/sharing/share-panel";
 import { BinderCoverLink, BinderEntry } from "@/components/colecoes/fichario/binder-entry";
 import { type BinderHeader, binderEntryVisible } from "@/lib/colecoes/binder";
 import type { ReactNode } from "react";
@@ -125,6 +126,7 @@ export function CollectionView({
           {canManage ? (
             <div className={manageStyles.heroBarActions}>
               <ReactivatedStatus collectionId={collection.id} />
+              <CollectionShareButton collectionId={collection.id} collectionName={collection.name} />
               <CollectionSettingsButton
                 collectionId={collection.id}
                 collectionName={collection.name}
@@ -327,7 +329,8 @@ export function CollectionView({
   );
 }
 
-function PositionTile({
+/** Carta da grade (titular; também a grade do participante VIEWER, com `manageable=false` e sem acervo). */
+export function PositionTile({
   position,
   priority,
   setCode,

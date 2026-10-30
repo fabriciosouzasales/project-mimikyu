@@ -82,7 +82,10 @@ export function LibraryModes({
   const canReorder = LIBRARY_REORDER_ENABLED && reorderable;
   const router = useRouter();
   const [mode, setMode] = useState<LibraryMode>(initialMode);
-  const serverOrder = useMemo(() => items.map((item) => item.id), [items]);
+  // V1-12: só as coleções PRÓPRIAS entram na ordem manual (5183); as
+  // compartilhadas com você vêm depois, na mesma estante, sem alça de mover.
+  const serverOrder = useMemo(() => items.filter((item) => !item.sharedBy).map((item) => item.id), [items]);
+  const sharedIds = useMemo(() => items.filter((item) => item.sharedBy).map((item) => item.id), [items]);
   const [order, setOrder] = useState<string[]>(serverOrder);
   const [saving, setSaving] = useState(false);
   const [orderStatus, setOrderStatus] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
@@ -99,9 +102,10 @@ export function LibraryModes({
   }, [orderStatus]);
 
   const byId = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
+  const shelfOrder = useMemo(() => [...order, ...sharedIds], [order, sharedIds]);
   const orderedItems = useMemo(
-    () => order.map((id) => byId.get(id)).filter((item): item is CollectionSummary => item !== undefined),
-    [order, byId],
+    () => shelfOrder.map((id) => byId.get(id)).filter((item): item is CollectionSummary => item !== undefined),
+    [shelfOrder, byId],
   );
   const labels = useMemo(() => Object.fromEntries(items.map((item) => [item.id, item.name])), [items]);
 
@@ -195,12 +199,13 @@ export function LibraryModes({
               className={libraryStyles.library ?? ""}
               ariaLabel="Suas coleções"
               busy={saving}
+              trailing={sharedIds}
               renderItem={(id) => cardNodes[id] ?? null}
               onCommit={(next, moved) => void commitOrder(next, moved)}
             />
           ) : (
             <ul className={libraryStyles.library} aria-label="Suas coleções">
-              {order.map((id) => (
+              {shelfOrder.map((id) => (
                 <li key={id}>{cardNodes[id]}</li>
               ))}
             </ul>
@@ -215,6 +220,7 @@ export function LibraryModes({
               className={styles.list ?? ""}
               ariaLabel="Suas coleções"
               busy={saving}
+              trailing={sharedIds}
               renderItem={(id) => {
                 const collection = byId.get(id);
                 return collection ? <LibraryRow collection={collection} logoUrls={logoUrls} /> : null;

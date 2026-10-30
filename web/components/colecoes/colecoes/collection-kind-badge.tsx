@@ -1,4 +1,4 @@
-import { Gem, Layers, Sparkles } from "lucide-react";
+import { Gem, Layers, Sparkles, Users } from "lucide-react";
 import { Pokeball } from "@/components/icons/pokeball-icon";
 import { collectionKindBadge, collectionKindDetail } from "@/lib/colecoes/colecoes";
 import styles from "./colecoes.module.css";
@@ -34,5 +34,22 @@ export function CollectionKindLine({ collection }: { collection: KindSource }) {
       <CollectionKindBadge policy={collection.completionPolicy} />
       {collectionKindDetail(collection)}
     </>
+  );
+}
+
+/**
+ * V1-12: identificação discreta da coleção compartilhada com você — o mesmo
+ * selo do tipo (mesma pílula, sem cor de destaque) + o titular. Visual: o
+ * nome acessível do card já diz "compartilhada de Fulano".
+ */
+export function SharedCollectionBadge({ owner }: { owner: string }) {
+  return (
+    <span className={styles.sharedLine} aria-hidden="true">
+      <span className={styles.kindBadge} data-kind="shared">
+        <Users className={styles.kindBadgeIcon} strokeWidth={2} />
+        Compartilhada
+      </span>
+      <span className={styles.sharedOwner}>{owner}</span>
+    </span>
   );
 }

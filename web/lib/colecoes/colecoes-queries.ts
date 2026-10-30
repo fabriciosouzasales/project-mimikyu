@@ -49,6 +49,12 @@ export type CollectionSummary = {
   copiesCount: number;
   coverImagePath: string | null;
   createdAt: string;
+  /**
+   * V1-12: presente só quando a coleção foi compartilhada com você — nome de
+   * exibição do titular. O card é o mesmo da coleção própria; muda o destino
+   * (página só leitura), o selo discreto e a metadata "de Fulano".
+   */
+  sharedBy?: string | null;
 };
 
 export type CollectionsPage = { items: CollectionSummary[]; total: number };

@@ -12,7 +12,9 @@ import { BINDER_OPEN_ON_ARRIVAL_KEY } from "@/lib/colecoes/binder-lifecycle";
 import { BinderOverlay } from "./binder-overlay";
 import styles from "./binder-entry.module.css";
 
-const OPEN_EVENT = "mmkyu:open-binder";
+/** Evento que a capa do hero dispara para abrir o fichário (titular e participante). */
+export const BINDER_OPEN_EVENT = "mmkyu:open-binder";
+const OPEN_EVENT = BINDER_OPEN_EVENT;
 
 /**
  * Entrada do Fichário Digital no hero da coleção.
@@ -201,7 +203,7 @@ function BinderEntryCard({
 }
 
 /** Miniatura da grade do modelo: duas folhas abertas, bolsos em 8:11. */
-function Glyph({ columns, rows, filled = false }: { columns: number; rows: number; filled?: boolean }) {
+export function Glyph({ columns, rows, filled = false }: { columns: number; rows: number; filled?: boolean }) {
   const pockets = Array.from({ length: columns * rows });
   return (
     <span className={styles.glyph} data-filled={filled || undefined} style={{ "--cols": columns } as React.CSSProperties} aria-hidden="true">

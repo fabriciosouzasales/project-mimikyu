@@ -1,0 +1,745 @@
+/*
+ * Compartilhamento de coleções (V1-12). Painel "Compartilhar" (drawer do
+ * Gerenciar), caixa de convites e selos da coleção compartilhada. Só tokens;
+ * botões são os canônicos (components/ui/button) — V1-UX-01.
+ */
+
+.live:empty {
+  display: none;
+}
+
+.lead,
+.help {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: hsl(var(--muted-foreground));
+}
+
+.lead strong {
+  color: hsl(var(--foreground));
+  font-weight: 600;
+}
+
+.help {
+  font-size: 0.75rem;
+}
+
+.error {
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: hsl(var(--destructive));
+}
+
+:global(.dark) .error {
+  color: hsl(var(--destructive-foreground));
+}
+
+.label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+.inviteForm {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.inviteRow {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.handle {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.at {
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.875rem;
+  color: hsl(var(--muted-foreground));
+  pointer-events: none;
+}
+
+.handleInput {
+  padding-left: 1.75rem;
+}
+
+/* ---- pessoas ---- */
+
+.members {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+.member {
+  display: grid;
+  grid-template-columns: 2.25rem minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.75rem 0.875rem;
+  min-height: 3.5rem;
+}
+
+.member + .member {
+  border-top: 1px solid hsl(var(--border));
+}
+
+.member[data-status="declined"] .memberName {
+  color: hsl(var(--muted-foreground));
+}
+
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 999px;
+  background: hsl(var(--surface-muted));
+  color: hsl(var(--foreground));
+  font: 700 0.875rem/1 var(--font-heading);
+}
+
+.member[data-owner] .avatar {
+  background: hsl(var(--primary) / 0.14);
+  color: hsl(var(--primary-ink, var(--primary)));
+}
+
+.memberText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.memberName {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.memberSub {
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.memberActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.25rem;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.4375rem;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1.25rem;
+  background: hsl(var(--surface-muted));
+  color: hsl(var(--muted-foreground));
+}
+
+.chip[data-status="active"] {
+  background: hsl(var(--success) / 0.14);
+  color: hsl(var(--success));
+}
+
+.chip[data-status="pending"] {
+  background: hsl(var(--primary) / 0.14);
+  color: hsl(var(--primary-ink, var(--primary)));
+}
+
+/* ---- visibilidade ---- */
+
+.options {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.option {
+  display: grid;
+  grid-template-columns: 1rem 1.25rem minmax(0, 1fr);
+  gap: 0.625rem;
+  align-items: start;
+  padding: 0.75rem 0.875rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.75rem;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease;
+}
+
+.option:hover {
+  background: hsl(var(--surface-muted) / 0.5);
+}
+
+.option[data-selected] {
+  border-color: hsl(var(--primary));
+  background: hsl(var(--primary) / 0.06);
+}
+
+.option[data-disabled] {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.option input {
+  margin-top: 0.1875rem;
+  width: 1rem;
+  height: 1rem;
+  accent-color: hsl(var(--primary));
+}
+
+.option input:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+.optionIcon {
+  width: 1.125rem;
+  height: 1.125rem;
+  margin-top: 0.0625rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.option[data-selected] .optionIcon {
+  color: hsl(var(--primary-ink, var(--primary)));
+}
+
+.optionText {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.optionTitle {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+.optionSub {
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: hsl(var(--muted-foreground));
+}
+
+.current {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: hsl(var(--muted-foreground));
+}
+
+.confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  padding: 0.75rem 0.875rem;
+  border-radius: 0.75rem;
+  background: hsl(var(--primary) / 0.06);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: hsl(var(--foreground));
+}
+
+.confirmActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.linkRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.5rem 0.5rem 0.875rem;
+  border: 1px dashed hsl(var(--border));
+  border-radius: 0.75rem;
+}
+
+.link {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.privacy {
+  display: flex;
+  gap: 0.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid hsl(var(--border));
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: hsl(var(--muted-foreground));
+}
+
+.privacy svg {
+  color: hsl(var(--success));
+  margin-top: 0.0625rem;
+}
+
+/* ---- carregamento e erro ---- */
+
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.skeleton span {
+  height: 3.5rem;
+  border-radius: 0.75rem;
+  background: hsl(var(--surface-muted));
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.readError {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+  font-size: 0.8125rem;
+  color: hsl(var(--muted-foreground));
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+/* ---- caixa de convites e compartilhadas comigo (Minhas coleções) ---- */
+
+.inbox {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 0 auto 1.5rem;
+  max-width: 72rem;
+}
+
+.inboxTitle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font: 700 0.9375rem/1.25 var(--font-heading);
+  color: hsl(var(--foreground));
+}
+
+.inboxCount {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.375rem;
+  border-radius: 999px;
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  font: 700 0.6875rem/1 var(--font-sans);
+}
+
+.inviteList,
+.sharedList {
+  display: grid;
+  gap: 0.625rem;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr));
+}
+
+.invite {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem 1.125rem;
+  border: 1px solid hsl(var(--primary) / 0.45);
+  border-radius: 0.875rem;
+  background:
+    linear-gradient(135deg, hsl(var(--primary) / 0.08), transparent 60%),
+    hsl(var(--surface));
+  transition:
+    opacity 200ms ease,
+    transform 200ms ease;
+}
+
+.invite[data-leaving] {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+.inviteHead {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.inviteIcon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.625rem;
+  background: hsl(var(--primary) / 0.14);
+  color: hsl(var(--primary-ink, var(--primary)));
+}
+
+.inviteText {
+  min-width: 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: hsl(var(--muted-foreground));
+}
+
+.inviteText strong {
+  display: block;
+  font: 700 0.9375rem/1.3 var(--font-heading);
+  color: hsl(var(--foreground));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inviteActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.shared {
+  display: grid;
+  grid-template-columns: 2.5rem minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.875rem;
+  background: hsl(var(--surface));
+  color: inherit;
+  text-decoration: none;
+  transition:
+    border-color 160ms ease,
+    transform 160ms ease;
+}
+
+.shared:hover {
+  border-color: hsl(var(--primary) / 0.55);
+  transform: translateY(-1px);
+}
+
+.shared:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+.sharedMark {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.75rem;
+  background: hsl(var(--surface-muted));
+  color: hsl(var(--muted-foreground));
+}
+
+.sharedName {
+  display: block;
+  font: 700 0.9375rem/1.3 var(--font-heading);
+  color: hsl(var(--foreground));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sharedSub {
+  display: block;
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sharedProgress {
+  font: 700 0.875rem/1 var(--font-heading);
+  color: hsl(var(--foreground));
+  white-space: nowrap;
+}
+
+/* ---- coleção compartilhada ---- */
+
+.accessBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.625rem;
+  border-radius: 999px;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--surface) / 0.8);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+.accessBadge svg {
+  width: 0.875rem;
+  height: 0.875rem;
+  color: hsl(var(--primary-ink, var(--primary)));
+}
+
+/* Selo de acesso com menu (VIEWER EXPERIENCE PARITY CORRECTION-02): mesma
+   pílula do selo; o painel guarda o titular, a explicação e "Sair". */
+.accessMenu {
+  position: relative;
+}
+
+/* A barra do hero (z-index 1) é um contexto de empilhamento; o leque de
+   cartas (z 3–5) ficava por cima do painel do menu. Só na página do
+   participante, a barra sobe acima do palco. */
+.heroBarRaised.heroBarRaised {
+  z-index: 20;
+}
+
+.accessTrigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 2.25rem;
+  padding: 0.25rem 0.5rem 0.25rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--surface) / 0.8);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease;
+}
+
+.accessTrigger:hover,
+.accessTrigger[aria-expanded="true"] {
+  border-color: hsl(var(--primary) / 0.6);
+}
+
+.accessTrigger:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px hsl(var(--background)),
+    0 0 0 4px hsl(var(--ring));
+}
+
+.accessTrigger > svg:first-child {
+  width: 0.875rem;
+  height: 0.875rem;
+  color: hsl(var(--primary-ink, var(--primary)));
+}
+
+.accessChevron {
+  width: 0.875rem;
+  height: 0.875rem;
+  color: hsl(var(--muted-foreground));
+  transition: transform 160ms ease;
+}
+
+.accessTrigger[aria-expanded="true"] .accessChevron {
+  transform: rotate(180deg);
+}
+
+.accessPanel {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  z-index: 40;
+  display: flex;
+  width: 19rem;
+  flex-direction: column;
+  gap: 0.625rem;
+  padding: 0.875rem;
+  border-radius: 1rem;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--surface));
+  box-shadow:
+    0 1px 2px hsl(0 0% 0% / 0.06),
+    0 12px 24px -8px hsl(0 0% 0% / 0.14),
+    0 32px 64px -24px hsl(0 0% 0% / 0.28);
+  transform-origin: top right;
+  animation: accessIn 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes accessIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+
+.accessOwner {
+  font-size: 0.875rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.accessOwner strong {
+  color: hsl(var(--foreground));
+  font-weight: 600;
+}
+
+.accessHelp {
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: hsl(var(--muted-foreground));
+}
+
+.accessLeave {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  align-self: flex-start;
+  min-height: 2.25rem;
+  padding: 0 0.625rem;
+  margin-left: -0.625rem;
+  border-radius: 0.625rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: hsl(var(--muted-foreground));
+  transition:
+    background-color 160ms ease,
+    color 160ms ease;
+}
+
+.accessLeave:hover {
+  background: hsl(var(--destructive) / 0.08);
+  color: hsl(var(--destructive));
+}
+
+.accessLeave:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px hsl(var(--ring));
+}
+
+.accessLeave svg {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+@media (max-width: 639px) {
+  .accessTriggerMode {
+    display: none;
+  }
+
+  .accessPanel {
+    position: fixed;
+    top: auto;
+    right: 0.75rem;
+    left: 0.75rem;
+    margin-top: 0.5rem;
+    width: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .accessPanel,
+  .accessChevron,
+  .accessTrigger {
+    animation: none;
+    transition: none;
+  }
+}
+
+.ownerLine {
+  font-size: 0.875rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.ownerLine strong {
+  color: hsl(var(--foreground));
+  font-weight: 600;
+}
+
+.publicFrame {
+  min-height: 100dvh;
+  padding: 1.5rem;
+  background: hsl(var(--background));
+}
+
+.publicTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  max-width: 72rem;
+  margin: 0 auto 1rem;
+}
+
+.brand {
+  font: 800 1rem/1 var(--font-heading);
+  letter-spacing: 0.08em;
+  color: hsl(var(--foreground));
+  text-decoration: none;
+}
+
+@media (max-width: 480px) {
+  .member {
+    grid-template-columns: 2.25rem minmax(0, 1fr);
+  }
+
+  .memberActions {
+    grid-column: 2;
+    justify-content: flex-start;
+  }
+
+  .inviteRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .option,
+  .invite,
+  .shared,
+  .skeleton span {
+    transition: none;
+    animation: none;
+  }
+}
+
+/* ---- Vitrine pública do fichário (/fichario/[id]) ---- */
+
+.publicBinderFrame {
+  min-height: 100dvh;
+  background: hsl(var(--binder-page-bg, var(--background)));
+}
+
+.publicBinderTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  height: 4rem;
+  padding-inline: clamp(1rem, 3vw, 2rem);
+}

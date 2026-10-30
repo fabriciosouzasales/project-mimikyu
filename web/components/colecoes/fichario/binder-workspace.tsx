@@ -68,7 +68,6 @@ import {
   viewForPage,
   viewLabel,
   viewSides,
-  BINDER_UNITS,
   addPagesResultMessage,
   type BinderFit,
   type BinderRole,
@@ -80,7 +79,6 @@ import {
   applyPlaceAvailable,
   canReceiveAvailable,
   isAddablePocket,
-  isForeignSlot,
   mergeAvailable,
 } from "@/lib/colecoes/binder-share";
 import { applySlotImage, imageFailureMessage } from "@/lib/colecoes/binder-images";
@@ -98,7 +96,9 @@ import {
 } from "@/lib/colecoes/binder-page-removal";
 import { usePrefersReducedMotion } from "@/lib/use-prefers-reduced-motion";
 import { cn } from "@/lib/utils";
-import { INTERIOR_HUE, InsideCoverFace, SideArrowButton, insideCoverSurface, TopNavControls, leatherSurface, darkZipperTeeth, FOCUS_RING } from "./binder-chrome";
+import { SideArrowButton, TopNavControls, FOCUS_RING } from "./binder-chrome";
+import { BINDER_SPREAD_MEDIA, BinderObjectFrame } from "./binder-object";
+import { PageGrid } from "./binder-page-grid";
 import type { BinderFinish } from "@/lib/colecoes/binder-finish";
 import { AddPagesDialog } from "./binder-add-pages";
 import { AvailablePanel, type AvailableState } from "./binder-available";
@@ -111,10 +111,7 @@ import { BinderControlPanel, CONTROL_PANEL_ID } from "./binder-control";
 import { BinderOverview } from "./binder-overview";
 import {
   BinderPortalContext,
-  BinderSlotView,
-  GapGutter,
   type RegionDialogMode,
-  RegionPocketView,
   type SlotDragData,
   type SlotHandlers,
   SpeciesReferenceVisibleContext,
@@ -127,7 +124,6 @@ import ws from "./workspace.module.css";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 /** Duas páginas só com largura de desktop/tablet deitado; abaixo, uma. */
-const SPREAD_MEDIA = "(min-width: 900px)";
 /** Pausa sobre a seta, arrastando, para virar a página (spike: ~650 ms). */
 const EDGE_FLIP_MS = 650;
 /** A 5128 reserva um bolso por chamada: lote de reservas limitado. */
@@ -258,7 +254,7 @@ export function BinderWorkspace({
   const [allowSpread, setAllowSpread] = useState(true);
   const [box, setBox] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
   useLayoutEffect(() => {
-    const media = window.matchMedia(SPREAD_MEDIA);
+    const media = window.matchMedia(BINDER_SPREAD_MEDIA);
     const apply = () => setAllowSpread(media.matches);
     apply();
     media.addEventListener("change", apply);
@@ -2169,9 +2165,9 @@ function Message({ tone, role, children }: { tone: "success" | "error" | "info";
 }
 
 /**
- * O objeto fichário (spike `binder-pages-nav.tsx`): couro preto com trama,
- * zíper nas quatro bordas, puxador, duas folhas com leve inclinação 3D,
- * lombada escura. A geometria vem de `--pocket` (encaixe calculado).
+ * O objeto fichário do titular: a moldura é a peça compartilhada
+ * `BinderObjectFrame` (mesma do leitor do participante); aqui entram só os
+ * bolsos editáveis e o atalho "Adicionar páginas" da contracapa.
  */
 function BinderObject({
   finish,
@@ -2229,121 +2225,42 @@ function BinderObject({
   /** Contracapa traseira (fim do fichário): atalho discreto para acrescentar páginas. */
   onAddPages: (() => void) | null;
 }) {
-  const p = fit.pocket;
-  const pad = p * BINDER_UNITS.pad;
-  const pagePad = p * BINDER_UNITS.pagePad;
-  const gap = p * BINDER_UNITS.gap;
-  const spine = p * BINDER_UNITS.spine;
-  const two = sides.length === 2;
   return (
-    <div
-      className="relative overflow-hidden rounded-[22px]"
-      style={{
-        width: fit.width,
-        height: fit.height,
-        // A borda de 1px entra na conta (border-box): o miolo fica com a medida exata do encaixe.
-        padding: Math.max(0, pad - 1),
-        backgroundImage: leatherSurface(finish),
-        boxShadow: ["inset 0 1px 0 hsl(0 0% 100% / 0.08)", "inset 0 -2px 10px hsl(0 0% 0% / 0.5)", "0 40px 60px -20px rgba(0,0,0,0.65)"].join(", "),
-        border: "1px solid hsl(0 0% 0% / 0.5)",
-      }}
-    >
-      <div className="pointer-events-none absolute left-[8%] right-[8%] top-[6px] h-[2.5px] rounded-full opacity-70" style={{ backgroundImage: darkZipperTeeth(false) }} aria-hidden />
-      <div className="pointer-events-none absolute bottom-[6px] left-[8%] right-[8%] h-[2.5px] rounded-full opacity-70" style={{ backgroundImage: darkZipperTeeth(false) }} aria-hidden />
-      <div className="pointer-events-none absolute bottom-[12%] left-[5px] top-[12%] w-[2.5px] rounded-full opacity-70" style={{ backgroundImage: darkZipperTeeth(true) }} aria-hidden />
-      <div className="pointer-events-none absolute bottom-[12%] right-[5px] top-[12%] w-[2.5px] rounded-full opacity-70" style={{ backgroundImage: darkZipperTeeth(true) }} aria-hidden />
-      <div
-        className="pointer-events-none absolute left-[3px] top-[7%] h-3.5 w-2 rounded-[2px] opacity-80"
-        style={{ background: "linear-gradient(160deg, hsl(0 0% 46%), hsl(0 0% 16%))", boxShadow: "0 1px 2px rgba(0,0,0,0.5)" }}
-        aria-hidden
-      />
-
-      <div className="relative flex h-full" style={{ perspective: "2000px" }}>
-        {sides.map((side, index) => {
-          const position: "left" | "right" | "single" = !two ? "single" : index === 0 ? "left" : "right";
-          const panel = (
-            <div
-              key={`${view}-${index}`}
-              className="relative h-full flex-1"
-              style={two ? { transform: position === "left" ? "rotateY(2deg)" : "rotateY(-2deg)", transformOrigin: position === "left" ? "right center" : "left center" } : undefined}
-            >
-              {/* Sombra projetada (folha solta sobre o couro). A contracapa é rebaixada na moldura: não projeta sombra (P3-A correção de volume). */}
-              {side === "inner" ? null : (
-                <div
-                  className={cn("absolute inset-0", position === "left" ? "rounded-l-lg" : position === "right" ? "rounded-r-lg" : "rounded-lg")}
-                  style={{ transform: "translate(2px, 3px)", background: `hsl(${INTERIOR_HUE} 10% 4%)` }}
-                  aria-hidden
-                />
-              )}
-              <div
-                className={cn("relative h-full overflow-hidden", position === "left" ? "rounded-l-lg" : position === "right" ? "rounded-r-lg" : "rounded-lg")}
-                style={{
-                  // Respiro extra (BINDER_MARGIN) só no alto, embaixo e na lateral externa; o lado da lombada fica como estava.
-                  paddingTop: pagePad + fit.marginY,
-                  paddingBottom: pagePad + fit.marginY,
-                  paddingLeft: pagePad + (position === "right" ? 0 : fit.marginX),
-                  paddingRight: pagePad + (position === "left" ? 0 : fit.marginX),
-                  ...(side === "inner" ? insideCoverSurface(position) : pageSurface(position)),
-                }}
-              >
-                <PanelTransition direction={direction} animate={animate}>
-                  {side === "inner" ? (
-                    <>
-                      <InsideCoverFace name={coverName} showBrandMark={coverBrandMark} />
-                      {/* Vista > 1: é a contracapa traseira — o fim do fichário. */}
-                      {view > 1 && onAddPages ? <AddPagesCue onClick={onAddPages} /> : null}
-                    </>
-                  ) : (
-                    <PageGrid
-                      pageNumber={side}
-                      page={cache.get(side) ?? null}
-                      failed={failed.has(readBatchStart(side))}
-                      columns={columns}
-                      rows={rows}
-                      pocket={p}
-                      gap={gap}
-                      sizes={sizes}
-                      editable={editable}
-                      selected={selected}
-                      selectionActive={selectionActive}
-                      trayIds={trayIds}
-                      armed={armed}
-                      dragging={dragging}
-                      placing={placing}
-                      placingAvailable={placingAvailable}
-                      focusCollectionId={focusCollectionId}
-                      insertEnabled={insertEnabled}
-                      handlers={handlers}
-                      onRetry={() => onRetry(side)}
-                    />
-                  )}
-                </PanelTransition>
-              </div>
-            </div>
-          );
-          if (index === 0 && two) {
-            return [
-              panel,
-              <div key="spine" className="pointer-events-none relative flex-shrink-0" style={{ width: spine }} aria-hidden>
-                <div
-                  className="absolute inset-0"
-                  style={{
-                    background: `linear-gradient(90deg, transparent, hsl(${INTERIOR_HUE} 22% 5%) 30%, hsl(${INTERIOR_HUE} 16% 3%) 50%, hsl(${INTERIOR_HUE} 22% 5%) 70%, transparent)`,
-                  }}
-                />
-                <div
-                  className="absolute inset-0"
-                  style={{ background: "radial-gradient(ellipse 60% 100% at 50% 50%, hsl(0 0% 0% / 0.55) 0%, transparent 70%)", boxShadow: "0 0 20px 6px rgba(0,0,0,0.55)" }}
-                />
-                <div className="absolute inset-y-2 left-[22%] w-px" style={{ background: "hsl(0 0% 100% / 0.07)" }} />
-                <div className="absolute inset-y-2 right-[22%] w-px" style={{ background: "hsl(0 0% 100% / 0.07)" }} />
-              </div>,
-            ];
-          }
-          return panel;
-        })}
-      </div>
-    </div>
+    <BinderObjectFrame
+      finish={finish}
+      fit={fit}
+      sides={sides}
+      view={view}
+      direction={direction}
+      animate={animate}
+      coverName={coverName}
+      coverBrandMark={coverBrandMark}
+      innerExtra={onAddPages ? <AddPagesCue onClick={onAddPages} /> : null}
+      renderPage={(side, metrics) => (
+        <PageGrid
+          pageNumber={side}
+          page={cache.get(side) ?? null}
+          failed={failed.has(readBatchStart(side))}
+          columns={columns}
+          rows={rows}
+          pocket={metrics.pocket}
+          gap={metrics.gap}
+          sizes={sizes}
+          editable={editable}
+          selected={selected}
+          selectionActive={selectionActive}
+          trayIds={trayIds}
+          armed={armed}
+          dragging={dragging}
+          placing={placing}
+          placingAvailable={placingAvailable}
+          focusCollectionId={focusCollectionId}
+          insertEnabled={insertEnabled}
+          handlers={handlers}
+          onRetry={() => onRetry(side)}
+        />
+      )}
+    />
   );
 }
 
@@ -2369,153 +2286,6 @@ function AddPagesCue({ onClick }: { onClick: () => void }) {
         <Plus className="h-3.5 w-3.5" aria-hidden />
         Adicionar páginas
       </button>
-    </div>
-  );
-}
-
-/** Troca de vista do spike: deslocamento curto + opacidade (~200 ms), nunca virada 3D. */
-function PanelTransition({ direction, animate, children }: { direction: 1 | -1; animate: boolean; children: React.ReactNode }) {
-  const [entered, setEntered] = useState(!animate);
-  useEffect(() => {
-    if (!animate) return;
-    const raf = requestAnimationFrame(() => setEntered(true));
-    return () => cancelAnimationFrame(raf);
-  }, [animate]);
-  return (
-    <div
-      className={cn("h-full", animate && "transition-all duration-200 ease-out")}
-      style={animate ? { transform: entered ? "translateX(0)" : `translateX(${direction * 8}px)`, opacity: entered ? 1 : 0 } : undefined}
-    >
-      {children}
-    </div>
-  );
-}
-
-function PageGrid({
-  pageNumber,
-  page,
-  failed,
-  columns,
-  rows,
-  pocket,
-  gap,
-  sizes,
-  editable,
-  selected,
-  selectionActive,
-  trayIds,
-  armed,
-  dragging,
-  placing,
-  placingAvailable,
-  focusCollectionId,
-  insertEnabled,
-  handlers,
-  onRetry,
-}: {
-  pageNumber: number;
-  page: BinderPage | null;
-  failed: boolean;
-  columns: number;
-  rows: number;
-  pocket: number;
-  gap: number;
-  sizes: string;
-  editable: boolean;
-  selected: Set<string>;
-  selectionActive: boolean;
-  trayIds: Set<string>;
-  armed: string | null;
-  dragging: SlotDragData | null;
-  placing: boolean;
-  placingAvailable: boolean;
-  focusCollectionId: string | null;
-  insertEnabled: boolean;
-  handlers: SlotHandlers;
-  onRetry: () => void;
-}) {
-  const cells = useMemo(() => (page ? regionCells(page) : null), [page]);
-  const height = (pocket * 11) / 8;
-  const control = Math.round(Math.min(26, Math.max(18, pocket * 0.2)));
-  return (
-    <div
-      role="list"
-      aria-label={`Página ${pageNumber}`}
-      aria-busy={!page || undefined}
-      className="relative grid"
-      style={{ gridTemplateColumns: `repeat(${columns}, ${pocket}px)`, gridAutoRows: `${(pocket * 11) / 8}px`, gap }}
-    >
-      {page && cells
-        ? page.slots.map((slot, index) => {
-            // Bolso coberto por uma imagem em 2 bolsos: a âncora desenha a peça inteira.
-            if (cells.covered.has(slot.slotId)) return null;
-            const region = cells.anchors.get(slot.slotId);
-            if (region) {
-              return (
-                <div role="listitem" key={slot.slotId} style={{ gridColumn: `span ${region.width}` }}>
-                  <RegionPocketView
-                    regionId={region.regionId}
-                    region={region.region}
-                    anchor={slot}
-                    width={region.width}
-                    pocket={pocket}
-                    gap={gap}
-                    pageNumber={pageNumber}
-                    priority={index < columns * 2}
-                    editable={editable}
-                    showActions={!selectionActive}
-                    placing={placing}
-                    dimmed={focusCollectionId !== null}
-                    handlers={handlers}
-                  />
-                </div>
-              );
-            }
-            const inTray = trayIds.has(slot.slotId);
-            // Abrir espaço só antes de um bolso com conteúdo e fora de barreira (fixado/mesclado).
-            const insertable =
-              insertEnabled && !inTray && !slot.locked && !slot.regionId && (isOccupied(slot) || Boolean(slot.expectedCardId) || Boolean(slot.image));
-            return (
-            <div role="listitem" key={slot.slotId} className="relative">
-              {insertable && slot.column > 1 ? (
-                <GapGutter gap={gap} height={height} size={control} label={`Abrir espaço antes do bolso da linha ${slot.row}, coluna ${slot.column}`} onInsert={() => handlers.onInsertGap(slot)} />
-              ) : null}
-              <BinderSlotView
-                slot={slot}
-                sizes={sizes}
-                priority={index < columns * 2}
-                editable={editable}
-                selected={selected.has(slot.slotId)}
-                selectionActive={selectionActive}
-                inTray={inTray}
-                placing={placing}
-                isSource={dragging?.slotId === slot.slotId || armed === slot.slotId}
-                pocket={pocket}
-                handlers={handlers}
-                placingAvailable={placingAvailable}
-                dimmed={focusCollectionId !== null && isForeignSlot(slot, focusCollectionId)}
-                canInsertGap={insertable}
-              />
-            </div>
-            );
-          })
-        : Array.from({ length: columns * rows }).map((_, index) => (
-            <div
-              key={index}
-              aria-hidden
-              className={cn("rounded-[4px]", !failed && "animate-pulse")}
-              style={{ background: "hsl(0 0% 0% / 0.32)", boxShadow: "inset 0 3px 7px rgba(0,0,0,0.55), inset 0 0 0 1px hsl(0 0% 100% / 0.06)" }}
-            />
-          ))}
-      {!page && failed ? (
-        <div role="alert" className="absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-md p-4 text-center text-sm text-white/75" style={{ background: "hsl(0 0% 0% / 0.55)" }}>
-          <p>Não conseguimos abrir esta página.</p>
-          <Button variant="outline" size="sm" className="border-white/25 bg-transparent text-white hover:bg-white/10" onClick={onRetry}>
-            <RotateCcw className="h-3.5 w-3.5" aria-hidden />
-            Tentar de novo
-          </Button>
-        </div>
-      ) : null}
     </div>
   );
 }
@@ -2556,15 +2326,4 @@ function DragPreview({
       )}
     </div>
   );
-}
-
-/** Folha com bolsos: acabamento original (inalterado). */
-function pageSurface(position: "left" | "right" | "single"): React.CSSProperties {
-  return {
-    background: `linear-gradient(${position === "right" ? "260deg" : "100deg"}, hsl(${INTERIOR_HUE} 14% 11%) 0%, hsl(${INTERIOR_HUE} 18% 6%) 100%)`,
-    boxShadow: [
-      position === "left" ? "inset -26px 0 30px -22px rgba(0,0,0,0.85)" : "inset 26px 0 30px -22px rgba(0,0,0,0.85)",
-      "inset 0 2px 6px rgba(0,0,0,0.4)",
-    ].join(", "),
-  };
 }

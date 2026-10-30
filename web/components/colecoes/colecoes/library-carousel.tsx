@@ -15,12 +15,13 @@ import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatCount } from "@/lib/colecoes/acervo";
 import { plateCode, plateLogoKey } from "@/lib/colecoes/free-collection";
-import { collectionHref, collectionProgressView, collectionSpokenSubtitle } from "@/lib/colecoes/colecoes";
+import { collectionProgressView, collectionSpokenSubtitle } from "@/lib/colecoes/colecoes";
+import { libraryItemHref, sharedOwnerText } from "@/lib/colecoes/shared-library";
 import type { CollectionSummary } from "@/lib/colecoes/colecoes-queries";
 import { BinderCover } from "./binder-cover";
 import { isPokedexCollection } from "@/lib/colecoes/pokedex";
 import coverStyles from "./binder-cover.module.css";
-import { CollectionKindLine } from "./collection-kind-badge";
+import { CollectionKindLine, SharedCollectionBadge } from "./collection-kind-badge";
 import styles from "./library-carousel.module.css";
 
 /**
@@ -109,6 +110,12 @@ function poseStyle(pose: Pose): CSSProperties {
   };
 }
 
+/** ", compartilhada de Fulano" — só para coleção compartilhada com você (V1-12). */
+function sharedSpoken(collection: CollectionSummary): string {
+  const owner = sharedOwnerText(collection);
+  return owner ? `, compartilhada ${owner}` : "";
+}
+
 function spokenProgress(collection: CollectionSummary): string {
   const view = collectionProgressView(collection);
   return view.kind === "goal"
@@ -134,6 +141,11 @@ function FocusDetails({
       <p className={styles.focusKind}>
         <CollectionKindLine collection={collection} />
       </p>
+      {collection.sharedBy ? (
+        <p className={styles.focusKind}>
+          <SharedCollectionBadge owner={sharedOwnerText(collection) ?? ""} />
+        </p>
+      ) : null}
       {identityOnly ? null : progress.kind === "goal" ? (
         <div className={styles.focusProgress} data-compact={compact || undefined}>
           <span className={styles.track}>
@@ -185,9 +197,9 @@ function LibrarySpotlight({
     <section className={styles.carousel} aria-label="Sua coleção">
       <div className={styles.spotlight}>
         <Link
-          href={collectionHref(collection.id)}
+          href={libraryItemHref(collection)}
           className={`${styles.spotlightCover} ${coverStyles.trigger}`}
-          aria-label={`Abrir ${collection.name}, ${collectionSpokenSubtitle(collection)}, ${spokenProgress(collection)}`}
+          aria-label={`Abrir ${collection.name}, ${collectionSpokenSubtitle(collection)}${sharedSpoken(collection)}, ${spokenProgress(collection)}`}
         >
           <span className={styles.spotlightGlow} aria-hidden="true" />
           <BinderCover
@@ -205,7 +217,7 @@ function LibrarySpotlight({
           <FocusDetails collection={collection} />
           <div className={styles.focusActions}>
             <Button asChild variant="outline-primary" className="h-10 px-4">
-              <Link href={collectionHref(collection.id)}>
+              <Link href={libraryItemHref(collection)}>
                 Abrir coleção
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </Link>
@@ -561,12 +573,12 @@ function LibraryFilmstrip({
                   ref={(element) => {
                     linkRefs.current[index] = element;
                   }}
-                  href={collectionHref(collection.id)}
+                  href={libraryItemHref(collection)}
                   className={styles.slideLink}
                   tabIndex={isActive ? 0 : -1}
                   draggable={false}
                   onClick={(event) => onCardClick(event, index)}
-                  aria-label={`${collection.name}, ${collectionSpokenSubtitle(collection)}, ${spokenProgress(collection)}${
+                  aria-label={`${collection.name}, ${collectionSpokenSubtitle(collection)}${sharedSpoken(collection)}, ${spokenProgress(collection)}${
                     isActive ? "" : ". Trazer para a frente"
                   }`}
                 >

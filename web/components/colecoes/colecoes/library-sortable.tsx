@@ -46,6 +46,7 @@ export function LibrarySortable({
   busy,
   renderItem,
   onCommit,
+  trailing = [],
 }: {
   ids: readonly string[];
   labels: Readonly<Record<string, string>>;
@@ -57,6 +58,11 @@ export function LibrarySortable({
   renderItem: (id: string) => ReactNode;
   /** Ordem final + coleção movida (uma por gesto). */
   onCommit: (next: string[], movedId: string) => void;
+  /**
+   * Itens fixos depois dos reordenáveis, na mesma lista (mesma grade): V1-12,
+   * coleções compartilhadas com você — não entram na sua ordem manual.
+   */
+  trailing?: readonly string[];
 }) {
   const [preview, setPreview] = useState<string[]>(() => [...ids]);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -204,6 +210,11 @@ export function LibrarySortable({
           >
             {renderItem(id)}
           </SortableItem>
+        ))}
+        {trailing.map((id) => (
+          <li key={id} className={styles.item} data-layout={layout}>
+            {renderItem(id)}
+          </li>
         ))}
       </ul>
       <DragOverlay dropAnimation={null}>

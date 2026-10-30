@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { AlertTriangle, Archive, ArrowLeft, Layers, ShieldCheck, TrendingUp } from "lucide-react";
+import { libraryItemHref, sharedOwnerText } from "@/lib/colecoes/shared-library";
 import { Button } from "@/components/ui/button";
 import { formatCount } from "@/lib/colecoes/acervo";
 import {
   FREE_COLLECTION_ENABLED,
   type LibraryMode,
   type StorageOption,
-  collectionHref,
   collectionSpokenSubtitle,
   LIBRARY_PAGE_SIZE,
   libraryHref,
@@ -25,7 +25,7 @@ import { isPokedexCollection } from "@/lib/colecoes/pokedex";
 import coverStyles from "./binder-cover.module.css";
 import { CreateCollectionLauncher, type OwnedSet } from "./create-collection";
 import { LibraryModes } from "./library-modes";
-import { CollectionKindLine } from "./collection-kind-badge";
+import { CollectionKindLine, SharedCollectionBadge } from "./collection-kind-badge";
 import styles from "./colecoes.module.css";
 import lifecycleStyles from "./collection-lifecycle.module.css";
 import { archivedLibraryHref } from "@/lib/colecoes/collection-lifecycle";
@@ -50,12 +50,18 @@ export function LibraryView({
   mode = "cards",
   view = "active",
   archivedCount = null,
+  ownedTotal = null,
 }: {
   page: CollectionsPage | null;
   /** Estante ativa (padrão) ou coleções arquivadas (V1-04). */
   view?: "active" | "archived";
   /** Quantas arquivadas existem (só na estante ativa); `null`/0 = entrada some. */
   archivedCount?: number | null;
+  /**
+   * V1-12: total só das coleções PRÓPRIAS. `page.total` soma as compartilhadas
+   * (mesma estante); os agregados de cartas do painel usam só as suas.
+   */
+  ownedTotal?: number | null;
   /** Modo inicial (URL › cookie › Cards), resolvido no servidor para não piscar. */
   mode?: LibraryMode;
   /** Logos de Set assinados para esta página (vazio quando a sessão não pode lê-los). */
@@ -172,7 +178,7 @@ export function LibraryView({
         </div>
         {page && !isEmpty ? (
           <div className={acervoStyles.heroRow}>
-            <LibraryLedger page={page} />
+            <LibraryLedger page={page} ownedTotal={ownedTotal ?? page.total} />
             <CreateCollectionLauncher locations={locations} ownedSets={ownedSets} layout="hero" />
           </div>
         ) : null}
@@ -220,14 +226,19 @@ export function LibraryView({
  * Os agregados só aparecem quando a página contém todas as coleções; numa página
  * parcial ficaria errado somar, então resta só o total (que vem do banco).
  */
-function LibraryLedger({ page }: { page: CollectionsPage }) {
-  const summary = librarySummary(page.items, page.total);
+function LibraryLedger({ page, ownedTotal }: { page: CollectionsPage; ownedTotal: number }) {
+  // As compartilhadas contam na estante, mas não nos agregados de cartas: o que
+  // elas reúnem é do acervo de outra pessoa (C-157).
+  const summary = librarySummary(
+    page.items.filter((item) => !item.sharedBy),
+    ownedTotal,
+  );
   const items: { key: string; value: string; name: string; hint: string; lead?: boolean }[] = [
     {
       key: "collections",
       value: formatCount(page.total),
       name: page.total === 1 ? "coleção" : "coleções",
-      hint: page.total === 1 ? "objetivo na estante" : "objetivos na estante",
+      hint: "na sua biblioteca",
       lead: true,
     },
   ];
@@ -333,12 +344,13 @@ function Shelf({
       ? `${formatCount(view.copies)} ${view.copies === 1 ? "carta reunida" : "cartas reunidas"}`
       : progressLabel(collection.satisfiedPositions, collection.totalPositions);
   const subtitle = collectionSpokenSubtitle(collection);
+  const owner = sharedOwnerText(collection);
 
   return (
     <Link
-      href={collectionHref(collection.id)}
+      href={libraryItemHref(collection)}
       className={`${styles.shelfItem} ${coverStyles.trigger}`}
-      aria-label={`${collection.name}, ${subtitle}, ${label}${collection.isComplete ? ", completa" : ""}${collection.lifecycleStatus === "ARCHIVED" ? ", arquivada" : ""}`}
+      aria-label={`${collection.name}, ${subtitle}${owner ? `, compartilhada ${owner}` : ""}, ${label}${collection.isComplete ? ", completa" : ""}${collection.lifecycleStatus === "ARCHIVED" ? ", arquivada" : ""}`}
     >
       <BinderCover
         finish={collection.finish}
@@ -355,6 +367,7 @@ function Shelf({
         <span className={styles.shelfKind}>
           <CollectionKindLine collection={collection} />
         </span>
+        {owner ? <SharedCollectionBadge owner={owner} /> : null}
         {collection.lifecycleStatus === "ARCHIVED" ? (
           <span className={lifecycleStyles.archivedTag}>
             <Archive className="h-3 w-3" aria-hidden="true" />
