@@ -39,6 +39,7 @@ import {
   masterSetTotalPages,
   parseMasterSetPage,
 } from "@/lib/colecoes/master-set";
+import { getVariantPrices } from "@/lib/pricing/variant-pricing-queries";
 import { createClient } from "@/lib/supabase/server";
 import { getCachedUser, getCachedUserProfile } from "@/lib/supabase/request-auth-cache";
 
@@ -110,9 +111,13 @@ export default async function ColecaoPage({
       summary.lifecycleStatus === "ACTIVE" ? getAvailableGroupCount(supabase) : Promise.resolve(null),
     ]);
     const freeSummary = withCover ?? summary;
-    const coverLogoUrl = freeSummary.coverLogoPath
-      ? (await getCoverLogoUrls(supabase, [freeSummary.coverLogoPath])).get(freeSummary.coverLogoPath) ?? null
-      : null;
+    // V1-09: preço NM por variante (3983) dos grupos exibidos (≤ 48), junto com a capa.
+    const [coverLogoUrl, prices] = await Promise.all([
+      freeSummary.coverLogoPath
+        ? getCoverLogoUrls(supabase, [freeSummary.coverLogoPath]).then((urls) => urls.get(freeSummary.coverLogoPath as string) ?? null)
+        : Promise.resolve(null),
+      getVariantPrices(supabase, (items?.items ?? []).map((item) => item.cardVariantId)),
+    ]);
     return (
       <AppShell title={summary.name} icon={LibraryBig}>
         <FreeCollectionView
@@ -125,6 +130,8 @@ export default async function ColecaoPage({
           coverLogoUrl={coverLogoUrl}
           userId={user.id}
           binder={binder}
+          prices={prices}
+          priceNow={Date.now()}
         />
       </AppShell>
     );

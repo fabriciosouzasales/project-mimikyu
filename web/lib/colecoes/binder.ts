@@ -264,7 +264,12 @@ export type BinderSlot = {
   /** Carta reservada (reserva por carta, carta + acabamento ou variante). */
   expected: BinderCardFace | null;
   /** Exemplar no bolso. */
-  present: (BinderCardFace & { languageCode: string | null; variantLabel: string | null }) | null;
+  present: (BinderCardFace & {
+    languageCode: string | null;
+    variantLabel: string | null;
+    /** V1-09: variante do exemplar (5252 `present_card_variant_id`) — chave do preço NM. Ausente em conteúdo otimista. */
+    cardVariantId?: string | null;
+  }) | null;
   /** Identidades usadas pelas ferramentas de organização (nunca exibidas). */
   assignmentId: string | null;
   allocationId: string | null;
@@ -393,6 +398,7 @@ export function parseBinderPages(rows: unknown): BinderPage[] | null {
               finishName: null,
               languageCode: str(r.present_language_code),
               variantLabel: str(r.present_variant_label),
+              cardVariantId: str(r.present_card_variant_id),
             }
           : null,
       assignmentId: str(r.assignment_id),

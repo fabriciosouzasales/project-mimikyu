@@ -19,6 +19,8 @@ import type { CollectionSummary } from "@/lib/colecoes/colecoes-queries";
 import { FREE_COVER_CODE_ENABLED, FREE_COVER_UPLOAD_ENABLED, distinctSetCount, freeCollectionHref, freeHeroCards, freeTotalPages } from "@/lib/colecoes/free-collection";
 import { CardZoomProvider, CardZoomTrigger } from "@/components/card/card-zoom";
 import { CardArt } from "../acervo/card-art";
+import { VariantPriceSummary } from "@/components/card/variant-price-summary";
+import { type VariantPrice, priceAccessibleText } from "@/lib/pricing/variant-pricing";
 import acervoStyles from "../acervo/acervo.module.css";
 import { BinderCover } from "./binder-cover";
 import { CollectionHeroBackdrop, CollectionHeroFan } from "./collection-hero-fan";
@@ -66,6 +68,8 @@ export function FreeCollectionView({
   userId = null,
   binder = null,
   registerMode = null,
+  prices = null,
+  priceNow = 0,
 }: {
   collection: CollectionSummary;
   /** Cartas da coleção (5159); `null` = leitura falhou. */
@@ -83,6 +87,10 @@ export function FreeCollectionView({
   binder?: BinderHeader | null;
   /** V1-06: `?cadastrar=` — abre o cadastro de cartas novas ao chegar. */
   registerMode?: RegisterMode | null;
+  /** V1-09: preço NM por variante (3983) das cartas exibidas; `null` = sem leitura. */
+  prices?: Map<string, VariantPrice> | null;
+  /** Instante da regra de 14 dias (servidor). */
+  priceNow?: number;
 }) {
   const active = collection.lifecycleStatus === "ACTIVE";
   const copies = collection.copiesCount;
@@ -233,7 +241,13 @@ export function FreeCollectionView({
               <ul className={acervoStyles.grid} aria-label="Cartas da coleção">
                 {items.items.map((item, index) => (
                   <li key={`${item.cardVariantId}.${item.languageCode}`}>
-                    <FreeTile item={item} priority={page === 1 && index < PRIORITY_CARD_COUNT} manageable={canManage} />
+                    <FreeTile
+                      item={item}
+                      priority={page === 1 && index < PRIORITY_CARD_COUNT}
+                      manageable={canManage}
+                      price={prices?.get(item.cardVariantId.toLowerCase()) ?? null}
+                      priceNow={priceNow}
+                    />
                   </li>
                 ))}
               </ul>
@@ -260,13 +274,26 @@ export function FreeCollectionView({
   );
 }
 
-function FreeTile({ item, priority, manageable }: { item: AcervoItem; priority: boolean; manageable: boolean }) {
+function FreeTile({
+  item,
+  priority,
+  manageable,
+  price,
+  priceNow,
+}: {
+  item: AcervoItem;
+  priority: boolean;
+  manageable: boolean;
+  /** V1-09: preço NM da variante (unitário). */
+  price: VariantPrice | null;
+  priceNow: number;
+}) {
   const number = formatCollectorNumber(item.collectorNumber, item.collectorTotal);
   const caption = `${item.cardSetCode.toUpperCase()} · ${number}`;
   const tag = variantTag(item.isDefaultVariant, item.variantLabel);
   const copies = item.copiesCount;
   const imageUrl = cardFrontUrl(SUPABASE_URL, item.imagePath);
-  const spoken = [item.cardName, caption, tag, item.languageName, pluralize(copies, "exemplar nesta coleção", "exemplares nesta coleção")]
+  const spoken = [item.cardName, caption, tag, item.languageName, pluralize(copies, "exemplar nesta coleção", "exemplares nesta coleção"), priceAccessibleText(price, priceNow)]
     .filter(Boolean)
     .join(", ");
   return (
@@ -282,6 +309,19 @@ function FreeTile({ item, priority, manageable }: { item: AcervoItem; priority: 
             <CardArt src={imageUrl} alt="" name={item.cardName} caption={caption} priority={priority} sizes={GRID_SIZES} />
           </div>
         </CardZoomTrigger>
+        {/* V1-09 (UNIFICATION-08): etiqueta sobre a arte, canto inferior esquerdo — mesma linguagem do
+            Acervo e do fichário. Botão irmão da ampliação (nunca aninhado): abre o detalhe do preço. */}
+        <VariantPriceSummary
+          price={price}
+          cardName={item.cardName}
+          variantName={tag}
+          languageCode={item.languageCode}
+          now={priceNow}
+          interactive
+          appearance="overlay"
+          className={`${acervoStyles.priceTag} ${freeStyles.priceTagButton}`}
+          glyphClassName={acervoStyles.priceTagGlyph}
+        />
         {copies > 1 ? (
           <span className={acervoStyles.qty} aria-hidden="true">
             ×{formatCount(copies)}

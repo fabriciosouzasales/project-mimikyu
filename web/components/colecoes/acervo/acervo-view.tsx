@@ -47,6 +47,8 @@ import { CardFinishLayers, finishDataAttribute } from "./card-finish-layers";
 import { FinishPointer } from "./finish-pointer";
 import { CopyQuantityControl } from "./copy-quantity-control";
 import { CopyStorageList } from "./copy-storage-list";
+import { AcervoPriceCompact, AcervoPriceTag } from "./acervo-price";
+import { type VariantPrice, priceAccessibleText } from "@/lib/pricing/variant-pricing";
 import regionStyles from "../colecoes/library-modes.module.css";
 import styles from "./acervo.module.css";
 import selectionStyles from "./acervo-selection.module.css";
@@ -86,6 +88,8 @@ export function AcervoView({
   addLanguages,
   storage = null,
   locations = null,
+  prices = null,
+  priceNow = 0,
 }: {
   state: AcervoState;
   summary: AcervoSummary | null;
@@ -99,6 +103,10 @@ export function AcervoView({
   storage?: CopyStorageContext | null;
   /** WHERE-04: locais do usuário (5219) para o filtro; `null` = lista indisponível. */
   locations?: StorageLocation[] | null;
+  /** V1-09: preço NM por variante (3983) da página e do detalhe; `null` = leitura indisponível. */
+  prices?: Map<string, VariantPrice> | null;
+  /** Instante de referência da regra de 14 dias (servidor → mesmo texto na hidratação). */
+  priceNow?: number;
 }) {
   const canAdd = addLanguages.length > 0;
   const isEmptyAcervo = summary !== null && summary.totalCopies === 0;
@@ -197,6 +205,8 @@ export function AcervoView({
                         state={state}
                         storageKind={storageKind}
                         priority={state.page === 1 && index < PRIORITY_CARD_COUNT}
+                        price={prices?.get(item.cardVariantId.toLowerCase()) ?? null}
+                        priceNow={priceNow}
                       />
                     </li>
                   ))}
@@ -220,6 +230,8 @@ export function AcervoView({
             closeHref={closeHref}
             addLanguages={addLanguages}
             storage={storage}
+            price={prices ? (prices.get(state.detail.cardVariantId.toLowerCase()) ?? null) : undefined}
+            priceNow={priceNow}
             storageFilter={
               state.storage.kind === "all" ? null : { filter: state.storage, name: storageFilterName(storageStatus) }
             }
@@ -298,12 +310,17 @@ function AcervoTile({
   state,
   storageKind,
   priority,
+  price,
+  priceNow,
 }: {
   item: AcervoItem;
   state: AcervoState;
   /** WHERE-04: filtro de local ativo → "2 aqui · 5 no total". */
   storageKind: "location" | "none" | null;
   priority: boolean;
+  /** V1-09: preço NM da variante (unitário). */
+  price: VariantPrice | null;
+  priceNow: number;
 }) {
   const number = formatCollectorNumber(item.collectorNumber, item.collectorTotal);
   // Variante sempre visível, inclusive a padrão ("Holográfica"), para distinguir versões irmãs.
@@ -322,6 +339,7 @@ function AcervoTile({
       : copies === 1
         ? "1 exemplar"
         : `${formatCount(copies)} exemplares`,
+    priceAccessibleText(price, priceNow),
   ]
     .filter(Boolean)
     .join(", ");
@@ -346,6 +364,8 @@ function AcervoTile({
             sizes={GRID_SIZES}
           />
           <CardFinishLayers variantTypeCode={item.variantTypeCode} rarityCode={item.rarityCode} numbering={item} />
+          {/* V1-09: etiqueta sobre a arte, como no fichário; o preço já está no nome acessível do cartão. */}
+          <AcervoPriceTag price={price} now={priceNow} />
         </div>
         {copies > 1 ? (
           <span className={styles.qty} aria-hidden="true">
@@ -595,6 +615,8 @@ function DetailContent({
   addLanguages,
   storage,
   storageFilter,
+  price,
+  priceNow,
 }: {
   detail: AcervoItemDetail | null | undefined;
   closeHref: string;
@@ -603,6 +625,9 @@ function DetailContent({
   storage: CopyStorageContext | null;
   /** WHERE-04: filtro de local da galeria (destaca os exemplares correspondentes). */
   storageFilter: { filter: AcervoState["storage"]; name: string | null } | null;
+  /** V1-09: preço da variante; `null` = sem linha; `undefined` = leitura indisponível. */
+  price: VariantPrice | null | undefined;
+  priceNow: number;
 }) {
   if (detail === null) {
     return (
@@ -665,6 +690,8 @@ function DetailContent({
             <dt>Sem coleção</dt>
             <dd>{formatCount(copies.length - inCollections)}</dd>
           </dl>
+          {/* V1-09: preço de referência NM compacto; fonte, câmbio e avisos sob demanda. */}
+          <AcervoPriceCompact price={price} variantName={variant} languageCode={item.languageCode} now={priceNow} />
         </div>
       </div>
 

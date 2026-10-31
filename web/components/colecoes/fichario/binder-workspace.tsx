@@ -86,6 +86,8 @@ import { type GapPreview, gapFailureMessage } from "@/lib/colecoes/binder-insert
 import { canMergeRight, mergeCheckMessage, pocketsFromPages, regionCells, regionFailureMessage } from "@/lib/colecoes/binder-region";
 import { type BinderIdentity, CONTROL_PANEL_STORAGE_KEY, type ControlSection, type ResolvedIdentity, parseControlPanelPrefs, resolveIdentity } from "@/lib/colecoes/binder-identity";
 import { type SpeciesReferenceState, speciesFailureMessage } from "@/lib/colecoes/binder-species";
+import { BINDER_PRICES_STORAGE_KEY, parseBinderPricesPref, serializeBinderPricesPref } from "@/lib/colecoes/binder-price-pref";
+import { useVariantPrices } from "@/lib/pricing/variant-pricing-client";
 import { type CatalogApplyResult, type CatalogNoveltyState, applyResultMessage, noveltyBadgeCount } from "@/lib/colecoes/binder-catalog";
 import {
   MIN_BINDER_PAGES,
@@ -111,6 +113,7 @@ import { BinderControlPanel, CONTROL_PANEL_ID } from "./binder-control";
 import { BinderOverview } from "./binder-overview";
 import {
   BinderPortalContext,
+  BinderPriceContext,
   type RegionDialogMode,
   type SlotDragData,
   type SlotHandlers,
@@ -481,6 +484,29 @@ export function BinderWorkspace({
     };
   }, [collectionId, initialSpeciesState, speciesReferences]);
   const speciesVisible = speciesReferences && speciesState !== null && speciesState.visible && speciesState.referenceCount > 0;
+
+  // ---- V1-09: preço NM nas cartas do fichário (só o dono; D2/D3) ----
+  // Preferência pessoal do dispositivo (chave própria, ligada por padrão). Lida
+  // depois da montagem: as etiquetas só aparecem com os preços já carregados,
+  // então quem desligou não vê "piscar".
+  const [pricesVisible, setPricesVisibleState] = useState(true);
+  const [pricesPrefReady, setPricesPrefReady] = useState(false);
+  useEffect(() => {
+    try {
+      setPricesVisibleState(parseBinderPricesPref(window.localStorage.getItem(BINDER_PRICES_STORAGE_KEY)));
+    } catch {
+      // Armazenamento indisponível: segue ligado (padrão).
+    }
+    setPricesPrefReady(true);
+  }, []);
+  const setPricesVisible = useCallback((visible: boolean) => {
+    setPricesVisibleState(visible);
+    try {
+      window.localStorage.setItem(BINDER_PRICES_STORAGE_KEY, serializeBinderPricesPref(visible));
+    } catch {
+      // best-effort: vale nesta sessão mesmo sem armazenamento.
+    }
+  }, []);
   /**
    * Mostrar/ocultar pelo Centro de Controle: mesma preferência (5258) e mesmo
    * estado do diálogo "Pokémon nos bolsos" — os dois ficam sempre iguais.
@@ -1565,6 +1591,29 @@ export function BinderWorkspace({
   };
 
   const label = viewLabel(view, perView, totalPages);
+  // Variantes das cartas nas páginas visíveis (≤ 2 páginas × 20 bolsos = 40 ids;
+  // deduplicadas e em blocos de 100 no cliente). Reserva, imagem e bolso vazio
+  // não entram.
+  const visibleVariantIds = useMemo(() => {
+    const ids: string[] = [];
+    for (const number of visiblePages) {
+      const page = cache.get(number);
+      if (!page) continue;
+      for (const slot of page.slots) {
+        const id = slot.present?.cardVariantId;
+        if (id && !slot.image) ids.push(id);
+      }
+    }
+    return ids;
+  }, [cache, visiblePages]);
+  const pricesEnabled = pricesPrefReady && pricesVisible;
+  const variantPrices = useVariantPrices(visibleVariantIds, pricesEnabled);
+  const [priceNow] = useState(() => Date.now());
+  const priceContext = useMemo(
+    () => (pricesEnabled ? { prices: variantPrices, now: priceNow } : null),
+    [pricesEnabled, variantPrices, priceNow],
+  );
+
   const sizes = `${Math.max(1, fit.pocket)}px`;
   const portalRef = rootRef;
   const placing = armed !== null || dragging !== null || armedCard !== null;
@@ -1572,6 +1621,7 @@ export function BinderWorkspace({
 
   return (
     <BinderPortalContext.Provider value={portalRef}>
+      <BinderPriceContext.Provider value={priceContext}>
       <SpeciesReferenceVisibleContext.Provider value={speciesVisible}>
       <div
         ref={rootRef}
@@ -1883,6 +1933,7 @@ export function BinderWorkspace({
             editable={editable}
             participantCount={participantCount}
             ownerCollectionName={ownerCollectionName}
+            prices={{ visible: pricesVisible, onSetVisible: setPricesVisible }}
             species={
               speciesReferences && speciesState !== null && speciesState.isPokedexOwner
                 ? {
@@ -2149,6 +2200,7 @@ export function BinderWorkspace({
         </p>
       </div>
       </SpeciesReferenceVisibleContext.Provider>
+      </BinderPriceContext.Provider>
     </BinderPortalContext.Provider>
   );
 }

@@ -70,6 +70,7 @@ export function BinderControlPanel({
   collapsed,
   onToggleSection,
   species = null,
+  prices = null,
   editable = false,
   participantCount = 1,
   ownerCollectionName = null,
@@ -100,6 +101,8 @@ export function BinderControlPanel({
   onToggleSection: (section: ControlSection) => void;
   /** Fichário de coleção Pokédex: mostrar/ocultar os Pokémon dos bolsos vazios. `null` nos demais. */
   species?: SpeciesControl | null;
+  /** V1-09: "Exibir preços" (preferência do dispositivo, ligada por padrão). `null` = sem a opção. */
+  prices?: { visible: boolean; onSetVisible: (visible: boolean) => void } | null;
   /** V1-05: coleção ativa (desmontar/excluir); arquivada só transfere. */
   editable?: boolean;
   /** Coleções que usam o fichário (dona + convidadas). */
@@ -193,6 +196,7 @@ export function BinderControlPanel({
               <Fact label="Páginas" value={formatCount(totalPages)} />
             </div>
             <p className={styles.hint}>A grade é escolhida na montagem e não muda depois. Adicionar páginas, Bandeja e seleção ficam no menu à esquerda.</p>
+            {prices ? <PricesVisibilityRow control={prices} /> : null}
             <div className={styles.linkList}>
               <button type="button" className={styles.linkButton} onClick={onOpenOverview}>
                 <LayoutGrid aria-hidden />
@@ -512,6 +516,29 @@ function SpeciesVisibilityRow({ control }: { control: SpeciesControl }) {
       <p className={styles.status} data-tone={error ? "error" : undefined} role={error ? "alert" : "status"} aria-live="polite">
         {error ?? ""}
       </p>
+    </div>
+  );
+}
+
+/**
+ * "Exibir preços" (V1-09, D2) na seção Organização. Só exibição e só para
+ * você: guarda neste dispositivo (sem sincronizar), muda na hora e ocultar
+ * não apaga nada. Mesmo padrão visual de "Exibir Pokémon nos bolsos".
+ */
+function PricesVisibilityRow({ control }: { control: { visible: boolean; onSetVisible: (visible: boolean) => void } }) {
+  const switchId = useId();
+  const hintId = useId();
+  return (
+    <div className={styles.speciesBlock}>
+      <div className={styles.switchRow}>
+        <div className={styles.switchText}>
+          <Label htmlFor={switchId}>Exibir preços</Label>
+          <span id={hintId} className={styles.switchHint}>
+            Preço de referência NM no canto de cada carta. Só você vê; vale neste dispositivo.
+          </span>
+        </div>
+        <Switch id={switchId} checked={control.visible} onCheckedChange={(value) => control.onSetVisible(value)} aria-describedby={hintId} />
+      </div>
     </div>
   );
 }

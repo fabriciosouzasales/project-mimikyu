@@ -12,6 +12,7 @@ import {
   type PricingSnapshotRow,
 } from "@/lib/pricing/pricing-batch-client";
 import { cn } from "@/lib/utils";
+import { PRICE_PILL_BASE, PRICE_PILL_ICON, PRICE_PILL_INTERACTIVE } from "./price-pill";
 
 // USD sempre no padrão PT-BR ("US$ 0,22", vírgula decimal, prefixo "US$")
 // — nunca o padrão nativo `en-US` ("$0.22"). Bug identificado em QA visual
@@ -174,12 +175,9 @@ export function CardPriceSummary({
           event.stopPropagation();
           toggle();
         }}
-        className={cn(
-          "inline-flex shrink-0 items-center gap-0.5 whitespace-nowrap rounded-full bg-surface-muted px-1.5 py-0.5 text-[10px] font-semibold leading-none text-foreground hover:bg-surface-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-          className,
-        )}
+        className={cn(PRICE_PILL_BASE, PRICE_PILL_INTERACTIVE, className)}
       >
-        <CircleDollarSign className="h-2.5 w-2.5 shrink-0" aria-hidden="true" />
+        <CircleDollarSign className={PRICE_PILL_ICON} aria-hidden="true" />
         {priceText}
       </button>
 

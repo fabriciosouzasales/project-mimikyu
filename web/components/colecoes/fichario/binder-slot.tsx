@@ -27,6 +27,8 @@ import { type BinderSlot, type RegionImage, type SlotImage, canReserveCurrent, h
 import { regionObjectPosition } from "@/lib/colecoes/binder-region";
 import { type SpeciesReference, formatNationalNumber, shouldShowSpeciesReference, speciesReferenceLabel } from "@/lib/colecoes/binder-species";
 import { speciesArtworkUrl } from "@/lib/pokedex/artwork";
+import { type VariantPrice, formatBrl, isPriceMuted, isPriceShown, priceAccessibleText, priceIndicator, priceState } from "@/lib/pricing/variant-pricing";
+import { StateGlyph } from "@/components/card/variant-price-summary";
 import { cn } from "@/lib/utils";
 import { PocketArt } from "./binder-page";
 
@@ -38,6 +40,13 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
  * não é de Pokédex — o bolso vazio segue exatamente como antes.
  */
 export const SpeciesReferenceVisibleContext = createContext(false);
+
+/**
+ * V1-09: preço NM por variante para a etiqueta do bolso. Só o fichário do
+ * DONO fornece (preferência "Exibir preços" ligada); fichário compartilhado e
+ * vitrine pública usam o valor padrão `null` — nenhuma etiqueta (D3).
+ */
+export const BinderPriceContext = createContext<{ prices: ReadonlyMap<string, VariantPrice>; now: number } | null>(null);
 
 /** Onde menus flutuantes são montados: dentro do diálogo do fichário (foco e tela cheia). */
 export const BinderPortalContext = createContext<RefObject<HTMLElement | null> | null>(null);
@@ -163,11 +172,16 @@ export function BinderSlotView({
   );
 
   const face = occupied ? slot.present : slot.expected;
+  // V1-09: etiqueta de preço só para a carta presente (nunca reserva, imagem ou bolso vazio).
+  const priceCtx = useContext(BinderPriceContext);
+  const variantId = occupied && !image ? (slot.present?.cardVariantId ?? null) : null;
+  const price = priceCtx && variantId ? (priceCtx.prices.get(variantId.toLowerCase()) ?? null) : null;
+  const priceShown = price !== null && priceCtx !== null && isPriceShown(priceState(price, priceCtx.now));
   const src = cardFrontUrl(SUPABASE_URL, face?.imagePath ?? null);
   const number = face?.collectorNumber ? formatCollectorNumber(face.collectorNumber, face.collectorTotal) : null;
   // Spike binder-nav-01 (EmptySlotQuickActions): bolso vazio e solto convida a "Adicionar carta".
   const addable = editable && !occupied && !image && !slot.locked && !selectionActive && !placing && !inTray;
-  const label = [slotDescription(slot), speciesRef ? speciesReferenceLabel(speciesRef) : null, addable ? "Enter para adicionar carta" : null, dimmed ? "de outra coleção" : null, slot.locked ? "bolso fixado" : null, inTray ? "carta na Bandeja" : null, selected ? "selecionada" : null]
+  const label = [slotDescription(slot), priceShown && priceCtx ? priceAccessibleText(price, priceCtx.now) : null, speciesRef ? speciesReferenceLabel(speciesRef) : null, addable ? "Enter para adicionar carta" : null, dimmed ? "de outra coleção" : null, slot.locked ? "bolso fixado" : null, inTray ? "carta na Bandeja" : null, selected ? "selecionada" : null]
     .filter(Boolean)
     .join(", ");
   const validDrop = drop.isOver && canDrop && !isSource;
@@ -259,6 +273,10 @@ export function BinderSlotView({
             <Plus style={{ width: control * 0.55, height: control * 0.55 }} />
           </span>
         </div>
+      ) : null}
+
+      {priceShown && price && priceCtx ? (
+        <PriceTag price={price} now={priceCtx.now} pocket={pocket} yieldToActions={showActions && !placing && !selectionActive} />
       ) : null}
 
       {/* Abertura e reflexo do plástico (spike). */}
@@ -361,6 +379,46 @@ export function BinderSlotView({
         </>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * Etiqueta de preço NM (V1-09, referência Delphox): pequena, escura, no canto
+ * inferior ESQUERDO da carta — livre de selos (cadeado e divergência ficam no
+ * canto direito superior; seleção no esquerdo superior). Fica sob o plástico,
+ * não intercepta toque/arraste e cede a base às ações rápidas: some enquanto
+ * a cápsula aparece (hover/foco) e volta em seguida. Valor unitário; preço
+ * antigo ou sem data confirmada aparece atenuado E com o ícone do estado
+ * (relógio com seta / calendário cortado) — a cor não é o único sinal (C1;
+ * contraste ≥ 5,4:1 mesmo atenuado). O valor e o estado entram no nome
+ * acessível do bolso.
+ */
+function PriceTag({ price, now, pocket, yieldToActions }: { price: VariantPrice; now: number; pocket: number; yieldToActions: boolean }) {
+  const state = priceState(price, now);
+  const muted = isPriceMuted(state);
+  const indicator = priceIndicator(state);
+  // Legível em 2×2 sem cobrir a arte em 5×4.
+  const fontSize = Math.round(Math.min(11, Math.max(8, pocket * 0.075)));
+  return (
+    <span
+      className={cn(
+        "pointer-events-none absolute bottom-[4%] left-[4%] z-[5] inline-flex items-center gap-[2px] rounded-[3px] px-1 py-[2px] font-semibold leading-none tabular-nums transition-opacity duration-150 motion-reduce:transition-none",
+        yieldToActions && "group-hover/slot:opacity-0 group-focus-within/slot:opacity-0",
+      )}
+      style={{
+        fontSize,
+        color: muted ? "hsl(0 0% 100% / 0.62)" : "hsl(0 0% 100% / 0.95)",
+        background: "hsl(0 0% 4% / 0.78)",
+        boxShadow: "0 1px 3px rgba(0,0,0,0.45), inset 0 0 0 1px hsl(0 0% 100% / 0.08)",
+      }}
+      data-price-state={state}
+      aria-hidden
+    >
+      {indicator && indicator.glyph !== "current" ? (
+        <StateGlyph indicator={indicator} className="shrink-0" style={{ width: fontSize, height: fontSize }} />
+      ) : null}
+      {formatBrl(price.brlAmount as number)}
+    </span>
   );
 }
 

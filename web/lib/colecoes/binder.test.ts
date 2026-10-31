@@ -121,6 +121,7 @@ test("páginas: agrupa, ordena e lê reservas e exemplares", () => {
       collection_allocation_id: "al1",
       present_card_id: "card-b",
       present_variant_type_id: "vt-normal",
+      present_card_variant_id: "cv-reverse",
     }),
   ]);
   assert.ok(pages);
@@ -135,6 +136,9 @@ test("páginas: agrupa, ordena e lê reservas e exemplares", () => {
   assert.equal(occupied.allocationId, "al1");
   assert.equal(occupied.presentCardId, "card-b");
   assert.equal(occupied.presentVariantTypeId, "vt-normal");
+  // V1-09: a variante exata do exemplar (5252) chega ao bolso — chave do preço NM.
+  assert.equal(occupied.present?.cardVariantId, "cv-reverse");
+  assert.equal(reserved.present, null);
   assert.equal(reserved.expectedCardId, "k");
   assert.equal(isOccupied(occupied), true);
   assert.equal(isOccupied(reserved), false);
