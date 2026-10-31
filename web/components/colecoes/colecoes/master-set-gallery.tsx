@@ -18,6 +18,10 @@ import { ManageCopiesButton } from "./collection-manage";
 import styles from "./colecoes.module.css";
 import { AddFromAcervoButton, OutOfScopeSection } from "./master-set-client";
 import msStyles from "./master-set.module.css";
+import freeStyles from "./free-collection.module.css";
+import { VariantPriceSummary } from "@/components/card/variant-price-summary";
+import { priceAccessibleText } from "@/lib/pricing/variant-pricing";
+import type { PositionPrice, PositionPrices } from "@/lib/pricing/position-pricing-queries";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const GRID_SIZES = "(max-width: 767px) 50vw, 11rem";
@@ -41,6 +45,8 @@ export function MasterSetGallery({
   outOfScopeCount,
   setCode,
   manageable,
+  prices = null,
+  priceNow = 0,
 }: {
   collectionId: string;
   collectionName: string;
@@ -51,6 +57,9 @@ export function MasterSetGallery({
   setCode: string | null;
   /** Coleção ativa com gerenciamento ligado: botões de exemplares/adicionar. */
   manageable: boolean;
+  /** V1-09 Fase B: preço por posição (chave = `positionKey`). */
+  prices?: PositionPrices | null;
+  priceNow?: number;
 }) {
   const pages = positions ? masterSetTotalPages(positions.total) : 1;
   const retryHref = pageHref(collectionId, filter, page);
@@ -73,6 +82,8 @@ export function MasterSetGallery({
                     priority={page === 1 && index < PRIORITY_CARD_COUNT}
                     setCode={setCode}
                     manageable={manageable}
+                    price={prices?.[position.key] ?? null}
+                    priceNow={priceNow}
                   />
                 </li>
               ))}
@@ -94,12 +105,17 @@ function MasterTile({
   priority,
   setCode,
   manageable,
+  price,
+  priceNow,
 }: {
   collectionId: string;
   position: MasterSetPosition;
   priority: boolean;
   setCode: string | null;
   manageable: boolean;
+  /** Preço da única variante desta posição (carta + acabamento). */
+  price: PositionPrice | null;
+  priceNow: number;
 }) {
   const number = formatCollectorNumber(position.collectorNumber, position.collectorTotal);
   const caption = setCode ? `${setCode.toUpperCase()} · ${number}` : number;
@@ -107,11 +123,17 @@ function MasterTile({
   const finish = finishBadge(position);
   const canAdd =
     MASTER_SET_ADD_FROM_ACERVO_ENABLED && manageable && !position.isSatisfied && position.copiesAvailable > 0;
+  const shownPrice = position.isSatisfied ? price : null;
 
   return (
     <article
       className={acervoStyles.tile}
-      aria-label={`${position.cardName}, ${caption}, ${position.isSecret ? "carta secreta, " : ""}${finish}, ${positionStatusText(position)}`}
+      aria-label={[
+        `${position.cardName}, ${caption}, ${position.isSecret ? "carta secreta, " : ""}${finish}, ${positionStatusText(position)}`,
+        shownPrice ? priceAccessibleText(shownPrice.price, priceNow) : null,
+      ]
+        .filter(Boolean)
+        .join(", ")}
     >
       <div className={acervoStyles.artWrap}>
         <CardZoomTrigger id={position.key} imageUrl={imageUrl} name={position.cardName} className={styles.zoomTrigger}>
@@ -127,6 +149,20 @@ function MasterTile({
             ) : null}
           </div>
         </CardZoomTrigger>
+        {shownPrice ? (
+          // V1-09 Fase B: etiqueta da variante desta posição (carta + acabamento) — nunca de outro acabamento.
+          <VariantPriceSummary
+            price={shownPrice.price}
+            cardName={position.cardName}
+            variantName={shownPrice.variantLabel}
+            languageCode={shownPrice.languageCode}
+            now={priceNow}
+            interactive
+            appearance="overlay"
+            className={`${acervoStyles.priceTag} ${freeStyles.priceTagButton}`}
+            glyphClassName={acervoStyles.priceTagGlyph}
+          />
+        ) : null}
         {position.copiesInCollection > 1 ? (
           <span className={acervoStyles.qty} aria-hidden="true">
             ×{formatCount(position.copiesInCollection)}

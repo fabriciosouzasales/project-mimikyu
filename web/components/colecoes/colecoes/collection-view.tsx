@@ -35,6 +35,10 @@ import { type MasterSetPosition, type MasterSetPositionsPage, heroCardsFromMaste
 import { MasterSetGallery } from "./master-set-gallery";
 import { MasterSetLinkLauncher } from "./master-set-link";
 import styles from "./colecoes.module.css";
+import freeStyles from "./free-collection.module.css";
+import { VariantPriceSummary } from "@/components/card/variant-price-summary";
+import { priceAccessibleText } from "@/lib/pricing/variant-pricing";
+import type { PositionPrice, PositionPrices } from "@/lib/pricing/position-pricing-queries";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const GRID_SIZES = "(max-width: 767px) 50vw, 11rem";
@@ -76,6 +80,8 @@ export function CollectionView({
   master = null,
   binder = null,
   registerMode = null,
+  positionPrices = null,
+  priceNow = 0,
 }: {
   collection: CollectionSummary;
   /** Cartas do Set inteiro (R2 sem filtro) para os destaques do hero. */
@@ -92,6 +98,12 @@ export function CollectionView({
   binder?: BinderHeader | null;
   /** V1-06: `?cadastrar=` — abre o cadastro de cartas novas ao chegar (Fluxo 1.6). */
   registerMode?: RegisterMode | null;
+  /**
+   * V1-09 Fase B: preço NM por posição (5333 + 3983). Chave = card_id (Set) ou
+   * `positionKey` (Master Set). `null` = sem leitura (grade sem etiquetas).
+   */
+  positionPrices?: PositionPrices | null;
+  priceNow?: number;
 }) {
   const total = collection.totalPositions;
   const owned = collection.satisfiedPositions;
@@ -286,6 +298,8 @@ export function CollectionView({
           outOfScopeCount={master.outOfScopeCount}
           setCode={setCode}
           manageable={canManage}
+          prices={positionPrices}
+          priceNow={priceNow}
         />
       ) : positions === null ? (
         <ReadError retryHref={collectionHref(collection.id, filter)} />
@@ -310,6 +324,8 @@ export function CollectionView({
                   priority={index < PRIORITY_CARD_COUNT}
                   setCode={setCode}
                   manageable={canManage}
+                  price={positionPrices?.[position.cardId.toLowerCase()] ?? null}
+                  priceNow={priceNow}
                 />
               </li>
             ))}
@@ -335,11 +351,16 @@ export function PositionTile({
   priority,
   setCode,
   manageable,
+  price = null,
+  priceNow = 0,
 }: {
   position: CollectionPosition;
   priority: boolean;
   setCode: string | null;
   manageable: boolean;
+  /** V1-09 Fase B: preço da única variante da posição (só o titular recebe; VIEWER nunca). */
+  price?: PositionPrice | null;
+  priceNow?: number;
 }) {
   const number = formatCollectorNumber(position.collectorNumber, position.collectorTotal);
   const caption = setCode ? `${setCode.toUpperCase()} · ${number}` : number;
@@ -350,9 +371,15 @@ export function PositionTile({
     : position.copiesAvailable > 0
       ? "falta na coleção, mas você tem no acervo"
       : "falta";
+  const shownPrice = position.isSatisfied ? price : null;
 
   return (
-    <article className={acervoStyles.tile} aria-label={`${position.cardName}, ${caption}, ${status}`}>
+    <article
+      className={acervoStyles.tile}
+      aria-label={[`${position.cardName}, ${caption}, ${status}`, shownPrice ? priceAccessibleText(shownPrice.price, priceNow) : null]
+        .filter(Boolean)
+        .join(", ")}
+    >
       <div className={acervoStyles.artWrap}>
         <CardZoomTrigger id={position.cardId} imageUrl={imageUrl} name={position.cardName} className={styles.zoomTrigger}>
           <div className={position.isSatisfied ? acervoStyles.art : `${acervoStyles.art} ${styles.missing}`}>
@@ -374,6 +401,20 @@ export function PositionTile({
             ) : null}
           </div>
         </CardZoomTrigger>
+        {shownPrice ? (
+          // V1-09 Fase B: mesma etiqueta da Fase A (canto inferior esquerdo), preço unitário da variante.
+          <VariantPriceSummary
+            price={shownPrice.price}
+            cardName={position.cardName}
+            variantName={shownPrice.variantLabel}
+            languageCode={shownPrice.languageCode}
+            now={priceNow}
+            interactive
+            appearance="overlay"
+            className={`${acervoStyles.priceTag} ${freeStyles.priceTagButton}`}
+            glyphClassName={acervoStyles.priceTagGlyph}
+          />
+        ) : null}
         {position.copiesInCollection > 1 ? (
           <span className={acervoStyles.qty} aria-hidden="true">
             ×{formatCount(position.copiesInCollection)}

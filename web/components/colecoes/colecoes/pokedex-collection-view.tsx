@@ -32,6 +32,7 @@ import { CollectionTitle } from "./collection-title";
 import { PokedexBulkLauncher } from "./pokedex-bulk-link";
 import { CollectionAddLauncher } from "./collection-add";
 import type { RegisterMode } from "@/lib/colecoes/collection-add";
+import type { PositionPrices } from "@/lib/pricing/position-pricing-queries";
 import { PokedexGrid } from "./pokedex-grid";
 import { PokedexHeroBackdrop, PokedexHeroStage } from "./pokedex-hero-stage";
 import { PokedexFirstRun } from "./pokedex-first-run";
@@ -64,6 +65,8 @@ export function PokedexCollectionView({
   coverLogoUrl = null,
   userId = null,
   registerMode = null,
+  positionPrices = null,
+  priceNow = 0,
 }: {
   collection: CollectionSummary;
   filter: PokedexFilter;
@@ -84,6 +87,9 @@ export function PokedexCollectionView({
   userId?: string | null;
   /** V1-06: `?cadastrar=` — abre o cadastro de cartas novas ao chegar. */
   registerMode?: RegisterMode | null;
+  /** V1-09 Fase B: preço NM do exemplar representante por posição (5334 + 3983). */
+  positionPrices?: PositionPrices | null;
+  priceNow?: number;
 }) {
   const active = collection.lifecycleStatus === "ACTIVE";
   const canManage = COLLECTION_MANAGE_ENABLED && active;
@@ -329,6 +335,8 @@ export function PokedexCollectionView({
             label={gridLabel}
             linkable={linkable}
             focusNumber={focusNumber}
+            prices={positionPrices}
+            priceNow={priceNow}
           />
         )}
       </section>

@@ -25,6 +25,10 @@ import { POKEDEX_DIALOG_CLOSED_EVENT } from "./pokedex-bulk-link";
 import { PokedexPositionPanel } from "./pokedex-position-panel";
 import acervoStyles from "../acervo/acervo.module.css";
 import styles from "./pokedex.module.css";
+import freeStyles from "./free-collection.module.css";
+import { VariantPriceSummary } from "@/components/card/variant-price-summary";
+import { priceAccessibleText } from "@/lib/pricing/variant-pricing";
+import type { PositionPrice, PositionPrices } from "@/lib/pricing/position-pricing-queries";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const GRID_SIZES = "(max-width: 767px) 50vw, 11rem";
@@ -57,6 +61,8 @@ export function PokedexGrid({
   label,
   linkable = false,
   focusNumber = null,
+  prices = null,
+  priceNow = 0,
 }: {
   collectionId: string;
   filter: PokedexFilter;
@@ -68,8 +74,12 @@ export function PokedexGrid({
   linkable?: boolean;
   /** Número nacional para levar à vista e destacar (busca, UX-04). */
   focusNumber?: number | null;
+  /** V1-09 Fase B: preço do exemplar representante (chave = posição). */
+  prices?: PositionPrices | null;
+  priceNow?: number;
 }) {
   const [items, setItems] = useState(initial);
+  const [priceMap, setPriceMap] = useState<PositionPrices>(prices ?? {});
   const [count, setCount] = useState(total);
   const [error, setError] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -112,12 +122,13 @@ export function PokedexGrid({
     for (const item of initial) known.set(item.positionId, item.state);
     if (conquered.length > 0) pendingCelebrationRef.current = [...pendingCelebrationRef.current, ...conquered];
     setItems(initial);
+    setPriceMap(prices ?? {});
     setCount(total);
     setError(false);
     // Depois do commit do React: só celebra se nenhum painel estiver aberto.
     const frame = window.requestAnimationFrame(() => flushCelebration());
     return () => window.cancelAnimationFrame(frame);
-  }, [initial, total, flushCelebration]);
+  }, [initial, total, prices, flushCelebration]);
 
   useEffect(() => {
     const onClosed = () => flushCelebration();
@@ -171,6 +182,7 @@ export function PokedexGrid({
       const added = merged.length - items.length;
       firstNewRef.current = result.page.items.find((item) => !items.some((current) => current.positionId === item.positionId))?.positionId ?? null;
       setItems(merged);
+      if (result.prices) setPriceMap((current) => ({ ...current, ...result.prices }));
       // O total pode ter mudado entre as leituras (outra aba): vale o mais recente.
       setCount(result.page.total || merged.length);
       setAnnounce(added > 0 ? `${formatCount(added)} Pokémon a mais carregados.` : "Não há mais Pokémon para mostrar.");
@@ -193,6 +205,8 @@ export function PokedexGrid({
               priority={index < PRIORITY_COUNT}
               onOpen={linkable ? () => setOpenPosition(position) : null}
               celebrating={celebrating.has(position.positionId)}
+              price={priceMap[position.positionId.toLowerCase()] ?? null}
+              priceNow={priceNow}
             />
           </li>
         ))}
@@ -238,6 +252,8 @@ function PokedexTile({
   priority,
   onOpen,
   celebrating = false,
+  price = null,
+  priceNow = 0,
 }: {
   position: PokedexPosition;
   priority: boolean;
@@ -245,6 +261,9 @@ function PokedexTile({
   onOpen: (() => void) | null;
   /** Acabou de ser conquistado (UX-05): revelação da carta + selo. */
   celebrating?: boolean;
+  /** Preço da variante do exemplar representante (a carta exibida). */
+  price?: PositionPrice | null;
+  priceNow?: number;
 }) {
   const dex = `#${formatDex(position.number)}`;
   const description = stateDescription(position);
@@ -255,14 +274,17 @@ function PokedexTile({
   const caption = representative
     ? [representative.setCode?.toUpperCase(), representative.collectorNumber].filter(Boolean).join(" · ")
     : "";
+  const shownPrice = showCard ? price : null;
 
   return (
     <article
       className={acervoStyles.tile}
       data-conquered={celebrating || undefined}
-      aria-label={`${dex} ${position.speciesName}, ${description}`}
+      aria-label={[`${dex} ${position.speciesName}, ${description}`, shownPrice ? priceAccessibleText(shownPrice.price, priceNow) : null]
+        .filter(Boolean)
+        .join(", ")}
     >
-      <div className={acervoStyles.artWrap}>
+      <div className={acervoStyles.artWrap} data-priced={shownPrice ? true : undefined}>
         {onOpen ? (
           <button
             type="button"
@@ -296,6 +318,21 @@ function PokedexTile({
             <SpeciesSlot position={position} artUrl={artUrl} priority={priority} addable={false} />
           </Link>
         )}
+        {shownPrice && representative ? (
+          // V1-09 Fase B: etiqueta no canto inferior esquerdo (padrão da Fase A); irmã do
+          // botão/zoom, nunca aninhada. O número nacional sobe um degrau (pokedex.module.css).
+          <VariantPriceSummary
+            price={shownPrice.price}
+            cardName={representative.cardName}
+            variantName={shownPrice.variantLabel}
+            languageCode={shownPrice.languageCode}
+            now={priceNow}
+            interactive
+            appearance="overlay"
+            className={`${acervoStyles.priceTag} ${freeStyles.priceTagButton}`}
+            glyphClassName={acervoStyles.priceTagGlyph}
+          />
+        ) : null}
         {celebrating ? (
           <span className={styles.conquerBadge} aria-hidden="true">
             <Trophy className="h-3.5 w-3.5" strokeWidth={2.5} />

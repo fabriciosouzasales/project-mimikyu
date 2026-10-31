@@ -1,5 +1,6 @@
 "use server";
 
+import { type PositionPrices, getPokedexPositionPrices } from "@/lib/pricing/position-pricing-queries";
 import { revalidatePath } from "next/cache";
 import { resolveCardSetForAdd } from "@/app/colecoes/acervo/actions";
 import { ACERVO_PATH } from "@/lib/colecoes/acervo";
@@ -1706,7 +1707,7 @@ export async function loadMorePokedexPositions(input: {
   filter: PokedexFilter;
   generation: string | null;
   offset: number;
-}): Promise<{ ok: true; page: PokedexPositionsPage } | PokedexFail> {
+}): Promise<{ ok: true; page: PokedexPositionsPage; prices: PositionPrices | null } | PokedexFail> {
   const filter = input?.filter;
   if (
     !isCollectionId(input?.collectionId) ||
@@ -1721,7 +1722,9 @@ export async function loadMorePokedexPositions(input: {
   const supabase = await createClient();
   const page = await getMyPokedexPositions(supabase, input.collectionId, filter, input.generation, input.offset);
   if (page === null) return { ok: false, reason: "unavailable" };
-  return { ok: true, page };
+  // V1-09 Fase B: preço do representante das posições desta página (5334 + 3983); falha = sem etiqueta.
+  const prices = await getPokedexPositionPrices(supabase, input.collectionId.toLowerCase(), page.items);
+  return { ok: true, page, prices };
 }
 
 // ---------------------------------------------------------------------------

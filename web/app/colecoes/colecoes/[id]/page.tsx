@@ -40,6 +40,7 @@ import {
   parseMasterSetPage,
 } from "@/lib/colecoes/master-set";
 import { getVariantPrices } from "@/lib/pricing/variant-pricing-queries";
+import { getMasterSetPositionPrices, getPokedexPositionPrices, getSetPositionPrices } from "@/lib/pricing/position-pricing-queries";
 import { createClient } from "@/lib/supabase/server";
 import { getCachedUser, getCachedUserProfile } from "@/lib/supabase/request-auth-cache";
 
@@ -156,9 +157,11 @@ export default async function ColecaoPage({
     const coverPath = pokedexSummary.coverLogoPath;
     // AUDIT CORRECTION-01 (C2): a equipe do palco e a URL da capa dependem só
     // da primeira rodada — saem juntas, sem uma ida-e-volta extra em série.
-    const [heroSpecies, pokedexCoverUrl] = await Promise.all([
+    // V1-09 Fase B: preço do exemplar representante (5334 + 3983) sai junto, sem nova rodada em série.
+    const [heroSpecies, pokedexCoverUrl, pokedexPrices] = await Promise.all([
       getPokedexSpeciesByNumbers(supabase, heroPicks),
       coverPath ? getCoverLogoUrls(supabase, [coverPath]).then((urls) => urls.get(coverPath) ?? null) : Promise.resolve(null),
+      positionsPage ? getPokedexPositionPrices(supabase, collectionId, positionsPage.items) : Promise.resolve(null),
     ]);
     const heroLineup = pokedexHeroLineup(heroSpecies, heroPicks);
     return (
@@ -175,6 +178,8 @@ export default async function ColecaoPage({
           heroLineup={heroLineup}
           binder={binder}
           registerMode={wantsRegister(query)}
+          positionPrices={pokedexPrices}
+          priceNow={Date.now()}
         />
       </AppShell>
     );
@@ -212,7 +217,19 @@ export default async function ColecaoPage({
   }
 
   const logoPath = collection?.cardSetLogoPath ?? null;
-  const logoUrl = logoPath ? (await getSetLogoUrls(supabase, [logoPath])).get(logoPath) ?? null : null;
+  // V1-09 Fase B: preço por posição (5333 + 3983) em paralelo com o logo — só a página exibida.
+  const [logoUrl, positionPrices] = await Promise.all([
+    logoPath ? getSetLogoUrls(supabase, [logoPath]).then((urls) => urls.get(logoPath) ?? null) : Promise.resolve(null),
+    collection === null
+      ? Promise.resolve(null)
+      : master !== null
+        ? master.positions
+          ? getMasterSetPositionPrices(supabase, collectionId, master.positions.items)
+          : Promise.resolve(null)
+        : positions
+          ? getSetPositionPrices(supabase, collectionId, positions.items)
+          : Promise.resolve(null),
+  ]);
 
   return (
     <AppShell title={collection?.name ?? "Minhas coleções"} icon={LibraryBig}>
@@ -229,6 +246,8 @@ export default async function ColecaoPage({
           master={master}
           binder={binder}
           registerMode={wantsRegister(query)}
+          positionPrices={positionPrices}
+          priceNow={Date.now()}
         />
       )}
     </AppShell>

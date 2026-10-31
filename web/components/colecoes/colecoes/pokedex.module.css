@@ -390,6 +390,13 @@
   pointer-events: none;
 }
 
+/* V1-09 Fase B: com a etiqueta de preço no canto inferior esquerdo (padrão único da
+   Collection), o número nacional sobe para logo acima dela — os dois continuam no
+   rodapé impresso, sem cobrir o nome da carta no topo. */
+[data-priced] .dexBadge {
+  bottom: 2.125rem;
+}
+
 /* Quantidade (×N) no rodapé, à direita — simétrica ao número e longe do check de
    conquista no topo (antes os dois ocupavam o mesmo canto e um escondia o outro).
    Seletor composto para vencer o .qty do acervo. */
