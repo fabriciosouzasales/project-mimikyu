@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Modelo de Dados — Coleções e Usuários |
 | **Arquivo** | `docs/05d-colecoes-e-usuarios.md` |
-| **Versão** | 2.31 | **Compartilhamento de Coleções (V1-12, 5300–5331) no LIVE e canônico; homologação visual aprovada (2026-10-30); commit e publicação pendentes.** |
+| **Versão** | 2.32 | **Leitura de uma coleção por id (`5332`, `get_my_collection`) no LIVE e canônica, consumida por `getMyCollection()` (2026-10-31); V1-12 no LIVE e canônico; commit e publicação pendentes.** |
 | **Status** | Em elaboração |
 | **Objetivo** | Modelo lógico e físico de Physical Card (nome canônico desde 2026-08-30; ver `domain-modeling/collections/concept-decisions.md` C-47/C-48), Storage/Storage Container, Collection/Collection Entry, User Profile/Reserved Username e Administração de Usuários. |
 | **Escopo** | Parte de `docs/05-modelo-de-dados.md` (índice) — resultado da divisão de 2026-08-06, motivada pelo tamanho do arquivo original (mais de 700 KB, acima do que ferramentas de leitura processam em uma chamada). |
@@ -1926,6 +1926,10 @@ Recuperação de funcionalidades já previstas (North Star Fluxo 3/§2.6.5, N14,
 
 ---
 
+# Leitura de uma coleção por id (`5332`) — EXECUTADA NO LIVE / CANÔNICA
+
+`get_my_collection(p_collection_id uuid)`: mesma linha de `get_my_collections` (R1, `5182`) para uma coleção do usuário da sessão, com `total_count = 1`; filtro por id e titular no CTE `mine`, antes de progresso (`5188`), exemplares e capa. Arquivadas incluídas; alheia ou inexistente = zero linhas (sem distinção); id nulo 22023; sem identidade 28000; `SECURITY DEFINER`, `search_path = ''`, `STABLE`; `EXECUTE` só `authenticated`. Aplicada em 2026-10-31 (ledger `20261031130535`), promovida para `database/schema/5332_create_get_my_collection_function.sql` (só o bloco Status difere da proposta). Evidência: harness `5865` v1.3 17/17 PASS, resíduo zero (10 coleções reais sem divergência; blocos 39.599 → 8.498 e resumos 30 → 3 na amostra). Consumidor: `getMyCollection()` (página da coleção e fichário), que deixou de percorrer R1; Biblioteca e demais leituras continuam em R1. Espelhamento obrigatório: mudança na projeção de R1 deve ser repetida em `5332`. Motivação: timeouts 57014 ao abrir coleção e colocar cartas no fichário (COLLECTION PERFORMANCE INCIDENT-01). Proposta e harness: `database/proposals/2026-10-31-collection-targeted-read/`.
+
 # User Profile (Perfil de Usuário) / Reserved Username
 
 ## Status
@@ -2316,3 +2320,4 @@ Todas as funções: `SECURITY DEFINER`, `search_path = ''`, `EXECUTE` só `authe
 | 2.29 | **V1-12 SCHEMA RECONCILIATION & VISUAL HANDOFF-01 (2026-10-30).** Seção nova "Compartilhamento de Coleções (V1-12, `5300`–`5322`)": 23 migrations aplicadas no LIVE e promovidas para `database/schema/` (ledger ≡ proposta, md5 23/23; corpos efetivos ≡ canônicas, 18/18); 5314/5317 substituídas por 5321/5322; evidência 5861 51/51 e 5862 33/33; homologação visual pendente. |
 | 2.30 | **V1-12 FINAL SCHEMA RECONCILIATION & VISUAL HANDOFF (2026-10-30).** Seção V1-12 ampliada para `5300`–`5331`: `5325`–`5331` (imagens de bolso/mesclagem e capa própria para VIEWER/vitrine, políticas SELECT escopadas de Storage, correção do papel das políticas SELECT admin de logos e leitura anônima só do logo atual de Card Set) promovidas para `database/schema/` (ledger ≡ proposta, md5 7/7; ordem real 5325→5329, 5331, 5330); evidência 5863 v1.2 37/37 e 5864 7/7, resíduo zero; homologação visual (seção H) e publicação pendentes; hardening das políticas de escrita admin registrado como não bloqueador. |
 | 2.31 | **V1-12 FINAL QUALITY GATE & COMMIT READINESS (2026-10-30).** Homologação visual aprovada (A–D, H.1–H.6, biblioteca unificada em Cards/Lista/Carrossel); Quality Gate (2026-10-30): typecheck PASS; testes `lib/colecoes` 36 arquivos 432/432 PASS; ESLint (config `next/core-web-vitals`, CLI direta) 0 erros, 6 avisos preexistentes em arquivos fora do V1-12; `next lint`/`next build` não executáveis no sandbox do agente (binário SWC ausente) — pendentes na máquina de Fabrício; pendências fora do V1-12 mantidas. |
+| 2.32 | **Leitura de uma coleção por id — `5332` canônica (2026-10-31, `COLLECTION PERFORMANCE FRONTEND INTEGRATION-07`).** Seção nova: `get_my_collection(uuid)` no LIVE (ledger `20261031130535`), `5865` v1.3 17/17 PASS, promovida para `database/schema/`; `getMyCollection()` passa a usá-la (uma chamada por abertura). Biblioteca e demais leituras inalteradas (R1). |

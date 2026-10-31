@@ -170,31 +170,21 @@ export async function getMyArchivedCollections(supabase: SupabaseClient, page: n
 }
 
 /**
- * Uma coleção pelo id, com o mesmo resumo da Biblioteca. R1 não filtra por id:
- * percorre as páginas (100 por chamada) até achar — para a escala atual é uma
- * chamada só. `undefined` = não existe ou é de outra pessoa (o banco não
- * distingue); `null` = falha de leitura. Ressalva registrada: com milhares de
- * coleções, o custo cresce linearmente — um R1 por id resolve quando for o caso.
+ * Uma coleção pelo id, com o mesmo resumo da Biblioteca. Lê pela RPC por id
+ * (Query 5332, `get_my_collection`): mesma linha de R1 (5182), filtrada por id
+ * e titular antes de calcular progresso, exemplares e capa — o custo não cresce
+ * com o número de coleções. `undefined` = não existe ou é de outra pessoa (o
+ * banco não distingue); `null` = falha de leitura.
  */
 export async function getMyCollection(supabase: SupabaseClient, id: string): Promise<CollectionSummary | null | undefined> {
   const startedAt = Date.now();
-  const pageSize = 100;
-  for (let offset = 0; offset < 10_000; offset += pageSize) {
-    const { data, error } = await supabase.rpc("get_my_collections", {
-      p_include_archived: true,
-      p_limit: pageSize,
-      p_offset: offset,
-    });
-    if (error || !Array.isArray(data)) {
-      logReadFailure("get_my_collections", startedAt, error);
-      return null;
-    }
-    const rows = data as CollectionRow[];
-    const found = rows.find((row) => row.collection_id === id);
-    if (found) return toSummary(found);
-    if (rows.length < pageSize) return undefined;
+  const { data, error } = await supabase.rpc("get_my_collection", { p_collection_id: id });
+  if (error || !Array.isArray(data)) {
+    logReadFailure("get_my_collection", startedAt, error);
+    return null;
   }
-  return undefined;
+  const row = (data as CollectionRow[])[0];
+  return row ? toSummary(row) : undefined;
 }
 
 /**
