@@ -4,7 +4,7 @@
 |---|---|
 | **Documento** | Referência normativa de experiência do módulo Collection (visão, fluxos, nomenclatura, critérios de base funcional) |
 | **Arquivo** | `docs/domain-modeling/collections/north-star-2026-10-16.md` |
-| **Versão** | 1.20 |
+| **Versão** | 1.21 |
 | **Status** | **NORMATIVO** — aprovado por Fabrício em 2026-10-16 (`COLLECTION-NORTH-STAR-02`, decisões D1–D4). Itens marcados **[H]**, entradas **PENDENTE** e as recomendações ainda abertas do §0.2 **não são normativos** até homologação formal de Fabrício. |
 | **Rodadas** | `COLLECTION-NORTH-STAR-01` (proposta, v0.1–0.2) → `COLLECTION-NORTH-STAR-02` (consolidação normativa, v1.0) → … → `COLLECTIONS-NORMATIVE-REALIGNMENT-01` (v1.5: NS-15–NS-18 e matriz de rastreabilidade §7) |
 | **Fontes** | `concept-decisions.md` (C-01–C-186), `logical-model.md`, `checkpoint-2026-08-28.md` §7, `checkpoint-2026-08-29.md`, `ux-exploration-2026-08-29.md`, `checkpoint-2026-10-15.md`, `05d-colecoes-e-usuarios.md`, `architecture/ubiquitous-language.md`, `MMKYU-FRONTEND-REPERTOIRE-DRAFT.md` §13 |
@@ -192,7 +192,7 @@ Requisitos mínimos que a proposta técnica de CT-01 deverá atender:
 
 Interface em pt-BR, na linguagem do colecionador. Nenhum termo técnico aparece na UI: Physical Card, Allocation, Slot Assignment, Inventory, Layout, Storage Container, `REFERENCE_BASED`, `STANDARD_SET`, `REFERENCE_POSITION`, UUIDs ou códigos de erro.
 
-### 3.1 Conferência N1–N26
+### 3.1 Conferência N1–N27
 
 Status: **HOMOLOGADO** (normativo) · **HOMOLOGADO COM RESSALVA** (normativo, com a restrição indicada) · **PENDENTE** (não normativo até decisão).
 
@@ -224,8 +224,11 @@ Status: **HOMOLOGADO** (normativo) · **HOMOLOGADO COM RESSALVA** (normativo, co
 | N24 | Storage Container | **Onde guardo** | D2 (K2-A); C-55 | HOMOLOGADO — classificação **opcional** por tipo de local, lista aberta e extensível (C-55): `storage_container_kind` + `storage_container.kind_code` no LIVE desde 2026-10-21 (WHERE-02, `5212`/`5213`) — Fichário físico, Caixa, Pasta, Deck box, ETB, Maleta, Cofre, Outro. Local sem tipo continua válido e é exibido só pelo nome. Ressalva anterior (tipo só conceitual) encerrada |
 | N25 | Default Storage Container / Physical Card sem Storage | Local: **Local padrão** (nome provisório, renomeável). Carta sem local: **Sem localização definida** | C-36, C-55, C-59, C-26 | HOMOLOGADO COM RESSALVA (NS-13) — confirmação obrigatória do lugar antes da primeira atribuição de carta; nunca destino automático |
 | N26 | Archive | **Arquivar / Arquivadas** | C-06, C-37 | HOMOLOGADO |
+| N27 | Wishlist | **Lista de desejos**; ícone bookmark, distinto do coração de Favoritos | C-91–C-102, C-210–C-219 | HOMOLOGADO (2026-10-31, decisão D6/D7 do proprietário, `V1-11 W0`) |
 
-Resultado: 19 homologados e 7 homologados com ressalva (inclusive N25, regida por NS-13; N24 deixou de ter ressalva em 2026-10-21, WHERE-02). Nenhuma entrada pendente; nenhuma contraria `C-*`/`LDM-*`.
+Resultado: 20 homologados e 7 homologados com ressalva (inclusive N25, regida por NS-13; N24 deixou de ter ressalva em 2026-10-21, WHERE-02; N27 acrescentada em 2026-10-31). Nenhuma entrada pendente; nenhuma contraria `C-*`/`LDM-*`.
+
+**Nota (2026-10-31).** Os identificadores N1–N27 desta tabela são entradas de nomenclatura. Os níveis da Conexão Inteligente (Etapa 4 do ROADMAP) são referidos como **CI-N1** e **CI-N2** (C-218) e não são entradas de nomenclatura.
 
 ### 3.2 K1 — resolvido por D2 (K1-A)
 
@@ -485,3 +488,4 @@ Legenda — Implementação: **LIVE** (backend no banco) · **FE-pub** (frontend
 | 1.18 | **Fichário Digital — nota no Fluxo 4 (2026-10-22, `P2-A1-PROPOSAL-01`).** Registra as decisões D1–D9 e R1–R5 de Fabrício e a referência a C-191–C-194; contratos 5223–5226 PROPOSTOS, nada executado. Texto original do Fluxo 4 preservado; nenhuma outra decisão normativa alterada. |
 | 1.19 | **BULK-05/06 retirados do backlog (2026-10-29, decisão do proprietário).** Só a linha "Fora de escopo" do cabeçalho; menções ao BULK-06 nos Fluxos ficam como registro. |
 | 1.20 | **Escopo da Collection V1.0 (2026-10-29, `COLLECTION-SCOPE-CONSOLIDATION-01`, decisão do proprietário).** NS-19 (interpretação operacional de B1–B8 para o lançamento; resolve R3/B4 sem ambiente novo), NS-20 (preço como referência NM); nota em NS-18 sobre "Completar a Pokédex" já publicada; nota no §4. Matriz §7 continua retrato de 2026-10-17; o estado e o escopo da V1.0 estão no ROADMAP 2.55. |
+| 1.21 | **N27 — Lista de desejos (2026-10-31, `V1-11 W0 — PRODUCT CONTRACT CONSOLIDATION-02`, decisão do proprietário D6/D7).** Nova entrada de nomenclatura: Wishlist → "Lista de desejos", ícone bookmark distinto de Favoritos; nota distinguindo N1–N27 dos rótulos CI-N1/CI-N2 (C-218). Nenhuma outra entrada alterada. |

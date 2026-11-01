@@ -61,7 +61,7 @@ Vocabulário de padrões de experiência — **não são dependências obrigató
 | 3 | **Contextual Quick Actions** | Ação rápida sem sair do contexto do slot/card | Cult UI (botão→painel) | A | Ações de 1-2 passos ligadas a um item específico visível na tela | Fluxos de múltiplas etapas — aí é um Dialog/Drawer completo |
 | 4 | **Card Detail Overlay** | Revelar detalhe completo de uma carta | Base UI Dialog (desktop) / Base UI Drawer (mobile) | A | Usuário pede "ver mais" sobre um item específico | Informação cabe inteira no hover/tooltip — não precisa de overlay |
 | 5 | **Card Picker** | Buscar e selecionar uma carta para Add/Replace | cmdk | A | Fluxo que exige encontrar uma carta específica entre muitas | Listas curtas (menos de ~10 itens) — um select simples resolve |
-| 6 | **DnD Layout Manipulation** | Reorganizar cartas/slots manualmente | dnd-kit | A | Usuário precisa definir ordem própria (Wishlist, slots do binder) | Ordem sempre derivada de critério automático (data, raridade) |
+| 6 | **DnD Layout Manipulation** | Reorganizar cartas/slots manualmente | dnd-kit | A | Usuário precisa definir ordem própria (slots do binder; nunca a Lista de desejos, sem ordenação manual — C-210) | Ordem sempre derivada de critério automático (data, raridade) |
 | 7 | **Progress/Celebration Feedback** | Comunicar avanço e marcos | Sonner + confete pontual | A/B | Eventos reais de conclusão (Set 100%, import finalizado) | Nunca em ações rotineiras — perde o efeito e vira ruído |
 | 8 | **Mobile Contextual Surface** | Ação ou detalhe em contexto no celular | Base UI Drawer | A | Telas pequenas, ação ligada a um item visível | Desktop — lá o Dialog/overlay já resolve melhor |
 

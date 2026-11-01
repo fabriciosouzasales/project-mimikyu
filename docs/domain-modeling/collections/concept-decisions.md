@@ -5,7 +5,7 @@
 | **Documento** | Collection — Concept Decisions (Modelagem Conceitual) |
 | **Arquivo** | `docs/domain-modeling/collections/concept-decisions.md` |
 | **Origem** | Produzido em repositório de modelagem paralelo (`mimikyu-modelagem-de-dados`), incorporado a `project-mimikyu` como fonte canônica em 2026-08-28 (pedido explícito de Fabrício). |
-| **Decision Register** | C-01 a C-37 (núcleo Collection); C-38 a C-46 (bloco complementar Collection Layout, 2026-08-30); C-47 a C-48 (bloco complementar Physical Card & Inventory, 2026-08-30); C-49 a C-54 (bloco complementar Custody & Availability, 2026-08-30); C-55 a C-66 (bloco complementar Storage, 2026-08-30); C-67 a C-81 (bloco complementar Physical Card Lifecycle & Provenance, 2026-08-30); C-82 a C-90 (bloco complementar Favorite, 2026-08-30); C-91 a C-102 (bloco complementar Wishlist, 2026-08-30); C-103 a C-120 (bloco complementar Physical Card Condition, 2026-08-30); C-121 a C-140 (bloco complementar Grading / Certification, 2026-08-30); C-141 a C-165 (bloco complementar Collection Collaboration / Permissions, 2026-08-30); C-166 a C-186 (bloco complementar Collection Activity History / Audit, 2026-08-30); C-187 a C-190 (bloco complementar Master Set por acabamento, 2026-10-18 — substitui parcialmente C-01 e B.4); C-191 a C-194 (bloco complementar Fichário Digital — montagem automática, exemplares adicionais e desmontagem, 2026-10-22 — decisões aprovadas, implementação física EXECUTADA; estende C-42; C-191/C-192 parcialmente superadas em 2026-10-24 pela Elegibilidade por Local Físico); C-195 a C-197 (bloco complementar Fichário Digital compartilhado, 2026-10-23 — emenda C-38/C-191; implementação física EXECUTADA; C-195/C-197 parcialmente superadas em 2026-10-24 pela Elegibilidade por Local Físico); C-198 (imagem personalizada do bolso, 2026-10-23); C-199 (referência de espécie nos bolsos do fichário da Pokédex, 2026-10-24 — implementação local, contratos não executados); C-200 (novidades do Catálogo no fichário Master Set, 2026-10-25 — implementada, canônica e homologada); C-201 a C-209 (bloco complementar Histórico de Atividades do Fichário, 2026-10-25 — aprovadas; implementação física proposta, não aplicada) |
+| **Decision Register** | C-01 a C-37 (núcleo Collection); C-38 a C-46 (bloco complementar Collection Layout, 2026-08-30); C-47 a C-48 (bloco complementar Physical Card & Inventory, 2026-08-30); C-49 a C-54 (bloco complementar Custody & Availability, 2026-08-30); C-55 a C-66 (bloco complementar Storage, 2026-08-30); C-67 a C-81 (bloco complementar Physical Card Lifecycle & Provenance, 2026-08-30); C-82 a C-90 (bloco complementar Favorite, 2026-08-30); C-91 a C-102 (bloco complementar Wishlist, 2026-08-30); C-103 a C-120 (bloco complementar Physical Card Condition, 2026-08-30); C-121 a C-140 (bloco complementar Grading / Certification, 2026-08-30); C-141 a C-165 (bloco complementar Collection Collaboration / Permissions, 2026-08-30); C-166 a C-186 (bloco complementar Collection Activity History / Audit, 2026-08-30); C-187 a C-190 (bloco complementar Master Set por acabamento, 2026-10-18 — substitui parcialmente C-01 e B.4); C-191 a C-194 (bloco complementar Fichário Digital — montagem automática, exemplares adicionais e desmontagem, 2026-10-22 — decisões aprovadas, implementação física EXECUTADA; estende C-42; C-191/C-192 parcialmente superadas em 2026-10-24 pela Elegibilidade por Local Físico); C-195 a C-197 (bloco complementar Fichário Digital compartilhado, 2026-10-23 — emenda C-38/C-191; implementação física EXECUTADA; C-195/C-197 parcialmente superadas em 2026-10-24 pela Elegibilidade por Local Físico); C-198 (imagem personalizada do bolso, 2026-10-23); C-199 (referência de espécie nos bolsos do fichário da Pokédex, 2026-10-24 — implementação local, contratos não executados); C-200 (novidades do Catálogo no fichário Master Set, 2026-10-25 — implementada, canônica e homologada); C-201 a C-209 (bloco complementar Histórico de Atividades do Fichário, 2026-10-25 — aprovadas; implementação física proposta, não aplicada); C-210 a C-219 (bloco complementar Lista de desejos — decisões de produto do V1-11, 2026-10-31 — aprovadas; sem modelo físico) |
 | **Status** | FECHADA / APROVADA PARA MODELAGEM LÓGICA (núcleo); bloco complementar de Layout também Aprovado; bloco complementar Physical Card & Inventory também Aprovado; bloco complementar Custody & Availability também Aprovado; bloco complementar Storage também Aprovado; bloco complementar Physical Card Lifecycle & Provenance também Aprovado; bloco complementar Favorite também Aprovado; bloco complementar Wishlist também Aprovado; bloco complementar Physical Card Condition também Aprovado; bloco complementar Grading / Certification também Aprovado; bloco complementar Collection Collaboration / Permissions também Aprovado; bloco complementar Collection Activity History / Audit também Aprovado |
 | **Escopo** | Modelagem conceitual da entidade `Collection` (colecionador), desde 2026-08-30 de `Collection Layout`/`Page`/`Slot`, desde 2026-08-30 da identidade `Physical Card` e do agregado `Inventory`, desde 2026-08-30 das dimensões `Custody`/`Custodian`/`Availability`, desde 2026-08-30 de `Storage`/`Storage Container` (incluindo hierarquia opcional), desde 2026-08-30 de `Lifecycle`/`Provenance` (Ownership Entry/Transfer/Exit), desde 2026-08-30 de `Favorite` (preferência do User por Card), desde 2026-08-30 de `Wishlist` (intenção do User por Card Variant), desde 2026-08-30 de `Physical Card Condition` (classificação padronizada do estado físico, referenciando a escala canônica compartilhada `card_condition`), desde 2026-08-30 de `Grading`/`Certification` (resultado formal de avaliação externa, com exclusividade de aplicabilidade corrente frente a Condition), desde 2026-08-30 de `Collection Collaboration`/`Permissions` (Owner estrutural, Collection Membership, roles EDITOR/VIEWER, fronteira Collection-scoped × Owner/Inventory-scoped), e desde 2026-08-30 de `Collection Activity History`/`Audit Log` (três camadas — Lifecycle/Provenance, Activity History, Audit — conceitualmente distintas) — não contém SQL nem modelo físico. |
 | **Documentos Relacionados** | `../../04-domain-model.md` (seções Collection/Collection Entry/Collection Item — ver nota de superação), `adr/ADR-013-collection-item-identity-model.md` e `adr/ADR-014-collection-and-collection-entry-model.md` (ambas **Substituídas** por este documento e por `logical-model.md`), `logical-model.md`, `pkmnbindr-benchmark.md`, `checkpoint-2026-08-28.md`, `checkpoint-2026-08-29.md`, `checkpoint-2026-08-30.md`, `ux-exploration-2026-08-29.md`. |
@@ -1918,6 +1918,72 @@ Referências: `database/proposals/2026-10-25-p3b-binder-activity-history/README.
 
 ---
 
+## Bloco complementar — Lista de desejos: decisões de produto do V1-11 (2026-10-31)
+
+Adicionado por `V1-11 W0 — PRODUCT CONTRACT CONSOLIDATION-02`, a partir do diagnóstico `V1-11 WISHLIST PRODUCT & CONTRACT DISCOVERY-01` e das decisões D1–D9 do proprietário (com o ajuste que torna o Fichário entrada obrigatória). **C-91–C-102 permanecem integralmente vigentes e não são reabertas**; este bloco só registra comportamento de produto dentro delas. Leitura funcional consolidada: `wishlist-product-contract.md`. Esclarecimento de leitura, sem reescrita: em C-88, "quero adquirir esta Card" descreve a distinção com Favorite; o alvo da Wishlist é a `Card Variant`, conforme C-91.
+
+### C-210 — Núcleo binário reafirmado no V1-11 (D1, D2)
+
+**Status:** Aprovada
+
+A Lista de desejos do V1-11 é binária: sem quantidade desejada, prioridade, ranking, grail ou ordenação manual. A ordem apresentada é sempre derivada de critério (data de inclusão, Set/número, preço). Reafirma C-98 sem alterá-la; WF-03/WF-04 seguem adiados.
+
+### C-211 — Inclusão contextual sem vínculo estrutural (D3)
+
+**Status:** Aprovada
+
+O usuário pode incluir desejos a partir de uma coleção, de um fichário ou de uma posição (inclusive faltantes em lote), mas a inclusão não cria vínculo entre o desejo e essa estrutura: o desejo pertence só ao usuário (C-95, C-102). Excluir, arquivar ou desmontar a coleção ou o fichário não altera a lista. Indicadores como "falta em alguma coleção" são calculados, nunca gravados. Esta é a forma aprovada do "contexto opcional de coleção" citado no V1-11 do ROADMAP.
+
+### C-212 — Identificação inequívoca da variante
+
+**Status:** Aprovada
+
+Inclusão direta só quando a variante está inequivocamente identificada pelo contexto (variante exata; carta ou carta + acabamento com uma única variante ativa possível). Havendo ambiguidade, o usuário escolhe explicitamente. Nunca se infere acabamento, variante ou idioma; o idioma padrão é a ausência ("qualquer idioma", C-92), e o idioma específico só entra por escolha do usuário. Em lote, os itens ambíguos são apresentados para escolha e nunca recebem variante presumida. Posição só com espécie, referência incompleta ou carta ambígua não autoriza inclusão automática; havendo contexto suficiente, oferece-se seleção explícita de carta e variante. Nenhuma posição faltante vira desejo automaticamente: todo desejo nasce de ação explícita do usuário. As granularidades de Set (carta), Master Set (carta + acabamento) e Pokédex (espécie ou exemplar representante) são respeitadas.
+
+### C-213 — Posse indicada, remoção só explícita (D4)
+
+**Status:** Aprovada
+
+A interface indica, de forma derivada e nunca gravada, se o usuário já possui a variante (no idioma desejado, em outro idioma, ou só outra variante da carta). Depois de registrar um exemplar que satisfaz um desejo, a interface pode sugerir a remoção; o desejo só deixa de existir por ação explícita. Concretiza o "comportamento assistido" previsto em C-93, sem remoção automática.
+
+### C-214 — Variante desativada (D5)
+
+**Status:** Aprovada
+
+Um desejo cuja variante foi desativada no catálogo permanece registrado e é sinalizado como variante indisponível no catálogo; nunca é excluído silenciosamente. Novos desejos só podem ser incluídos em variante ativa. O usuário pode removê-lo normalmente.
+
+### C-215 — Pontos de entrada obrigatórios (D8)
+
+**Status:** Aprovada
+
+Entradas obrigatórias do V1-11: Pesquisa, Acervo, Set, Master Set, Pokédex e Fichário, sempre sob C-212. No Fichário: (1) bolso vazio com variante conhecida → inclusão direta; (2) bolso vazio sem variante conhecida → escolha explícita; (3) bolso ocupado → desejar outra cópia da variante presente; (4) nenhum desejo pertence ao fichário ou ao bolso (C-211). O bolso planejado nunca é apresentado como faltante (C-42). Cenários sem identificação de carta (bolso sem reserva, referência só de espécie) não recebem comportamento inventado — lacunas registradas em `wishlist-product-contract.md` §10.
+
+### C-216 — Preço e indicadores (D9)
+
+**Status:** Aprovada
+
+Cada desejo mostra a referência NM da sua variante com os estados de indisponibilidade já vigentes (NS-20; V1-09). No valor agregado de referência, cada variante distinta contribui uma única vez, mesmo com vários desejos dela em idiomas diferentes, e nunca é multiplicada por exemplares; a cobertura é contada sobre as variantes distintas e a ausência de preço nunca vale zero. A contagem de desejos (variante + idioma) é preservada separadamente. A cobertura financeira é o número de variantes distintas com cotação válida sobre o de variantes distintas, não sobre o total de desejos. A referência NM é indicação de mercado: não representa compromisso de compra, preço-alvo nem valor patrimonial. Nenhuma regra canônica de Pricing é alterada.
+
+### C-217 — Privacidade e consentimento
+
+**Status:** Aprovada
+
+A Lista de desejos é pessoal e privada por padrão: nunca é compartilhada com visitantes, membros de coleção ou outros usuários, nem aparece em histórico de atividades ou leituras públicas (reafirma C-158, C-174). Qualquer uso futuro pela Conexão Inteligente exige consentimento próprio, em domínio separado; o desejo não carrega visibilidade nem consentimento.
+
+### C-218 — Fronteira da Conexão Inteligente
+
+**Status:** Aprovada
+
+Os níveis da Etapa 4 passam a ser referidos como **CI-N1** e **CI-N2**, para não colidir com as entradas N1/N2 da nomenclatura da North Star. CI-N1: funcionamento ainda não definido. CI-N2: cruzamento futuro de intenções com exemplares voluntariamente disponibilizados. Disponibilidade para negociação (C-53) não equivale a posse; consentimento, localização e disponibilidade são domínios separados e não modelados. Marketplace e pagamentos permanecem fora (C-101). Nenhum requisito funcional de CI-N1/CI-N2 é criado por este bloco.
+
+### C-219 — Inclusão a partir de conteúdo compartilhado
+
+**Status:** Aprovada
+
+Um usuário autenticado pode adicionar um desejo à própria Lista de desejos a partir de coleção ou fichário compartilhado ao qual tenha acesso legítimo. A inclusão não altera a coleção, o fichário, a alocação nem o exemplar compartilhado e não cria participação (C-163). O desejo é exclusivamente pessoal e privado: o titular e os demais participantes não o veem em razão do compartilhamento (C-158, C-217). A ação respeita integralmente as permissões de leitura existentes, usa somente o que a leitura compartilhada já entrega ao usuário e nunca amplia acesso; sem variante identificada por essa leitura, aplica-se a seleção explícita de C-212. Visitante anônimo não possui Lista de desejos. Compatível com C-157–C-163 e com os contratos V1-12 (`5313`, `5320`, `5315`/`5316`/`5318`; ver `wishlist-product-contract.md` §5-A).
+
+---
+
 # PARTE B — ESTADO CANÔNICO CONSOLIDADO
 
 ## B.1 — Responsabilidades do domínio
@@ -2261,3 +2327,5 @@ Antes do handoff final para implementação, o modelo deverá ser reconciliado c
 | 1.28 | **C-201 a C-209 — Histórico de Atividades do Fichário (2026-10-25, `P3-B-S1-FOUNDATION-READINESS-01`).** Promove as decisões de Fabrício D1–D8, O1–O5, P1 e os ajustes 1–7: histórico por fichário, retenção A1+A3+A5 sem expurgo por prazo, exclusão definitiva como exceção controlada à imutabilidade (marco mínimo sem conteúdo; distinta da exclusão de conta), titularidade gravada no evento e leitura só pelo titular (C-172 conciliada, não revogada), operação lógica com efeitos internos como itens, só o concluído, segregação por proprietário para transferências futuras, consulta de fichários encerrados e início de cobertura com legado parcial. Especializa C-166–C-186 e refina C-179/C-180 apenas nesses pontos; nenhuma decisão anterior reaberta. |
 | 1.29 | **Esclarecimento em C-203 (2026-10-25, `P3-B-S1-SECURITY-CORRECTION-01`).** Exclusão de conta não altera eventos de outros titulares; ator guardado como valor, sem relação de existência (achado B1 da auditoria estática: a ação SET NULL conflitava com a imutabilidade). Nenhuma decisão reaberta ou renumerada. |
 | 1.30 | **Escopo de lançamento da Collection V1.0 (2026-10-29, `COLLECTION-SCOPE-CONSOLIDATION-01`, decisão do proprietário).** Notas de escopo, sem alterar nenhuma decisão, nos blocos Collaboration/Permissions e Favorite/Wishlist (obrigatórios na V1.0) e Condition, Grading e Custody (backlog V2.0). |
+| 1.31 | **C-210 a C-218 — Lista de desejos: decisões de produto do V1-11 (2026-10-31, `V1-11 W0 — PRODUCT CONTRACT CONSOLIDATION-02`).** Registra D1–D9 do proprietário (com o Fichário como entrada obrigatória): núcleo binário reafirmado, inclusão contextual sem vínculo, identificação inequívoca da variante, posse indicada e remoção só explícita, variante desativada sinalizada, seis entradas obrigatórias e quatro cenários do Fichário, preço por variante distinta, privacidade com consentimento próprio, fronteira CI-N1/CI-N2. Esclarecimento de leitura de C-88 sem reescrita. **C-91–C-102 inalteradas.** Leitura funcional: `wishlist-product-contract.md`. |
+| 1.32 | **C-219 e esclarecimentos em C-212/C-216 (2026-10-31, `V1-11 W0 DOCUMENTATION AUDIT CLOSEOUT-03`).** C-219 decide a inclusão a partir de conteúdo compartilhado (pessoal, privada, sem alterar o compartilhado nem ampliar permissões). C-212 explicita que posição só com espécie, referência incompleta ou carta ambígua não autoriza inclusão automática e que nenhuma posição faltante vira desejo automaticamente; C-216 explicita a cobertura sobre variantes distintas com cotação válida e a natureza da referência NM. Pacote W0 ainda não publicado; C-91–C-102 inalteradas. |
