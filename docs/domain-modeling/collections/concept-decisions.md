@@ -5,7 +5,7 @@
 | **Documento** | Collection — Concept Decisions (Modelagem Conceitual) |
 | **Arquivo** | `docs/domain-modeling/collections/concept-decisions.md` |
 | **Origem** | Produzido em repositório de modelagem paralelo (`mimikyu-modelagem-de-dados`), incorporado a `project-mimikyu` como fonte canônica em 2026-08-28 (pedido explícito de Fabrício). |
-| **Decision Register** | C-01 a C-37 (núcleo Collection); C-38 a C-46 (bloco complementar Collection Layout, 2026-08-30); C-47 a C-48 (bloco complementar Physical Card & Inventory, 2026-08-30); C-49 a C-54 (bloco complementar Custody & Availability, 2026-08-30); C-55 a C-66 (bloco complementar Storage, 2026-08-30); C-67 a C-81 (bloco complementar Physical Card Lifecycle & Provenance, 2026-08-30); C-82 a C-90 (bloco complementar Favorite, 2026-08-30); C-91 a C-102 (bloco complementar Wishlist, 2026-08-30); C-103 a C-120 (bloco complementar Physical Card Condition, 2026-08-30); C-121 a C-140 (bloco complementar Grading / Certification, 2026-08-30); C-141 a C-165 (bloco complementar Collection Collaboration / Permissions, 2026-08-30); C-166 a C-186 (bloco complementar Collection Activity History / Audit, 2026-08-30); C-187 a C-190 (bloco complementar Master Set por acabamento, 2026-10-18 — substitui parcialmente C-01 e B.4); C-191 a C-194 (bloco complementar Fichário Digital — montagem automática, exemplares adicionais e desmontagem, 2026-10-22 — decisões aprovadas, implementação física EXECUTADA; estende C-42; C-191/C-192 parcialmente superadas em 2026-10-24 pela Elegibilidade por Local Físico); C-195 a C-197 (bloco complementar Fichário Digital compartilhado, 2026-10-23 — emenda C-38/C-191; implementação física EXECUTADA; C-195/C-197 parcialmente superadas em 2026-10-24 pela Elegibilidade por Local Físico); C-198 (imagem personalizada do bolso, 2026-10-23); C-199 (referência de espécie nos bolsos do fichário da Pokédex, 2026-10-24 — implementação local, contratos não executados); C-200 (novidades do Catálogo no fichário Master Set, 2026-10-25 — implementada, canônica e homologada); C-201 a C-209 (bloco complementar Histórico de Atividades do Fichário, 2026-10-25 — aprovadas; implementação física proposta, não aplicada); C-210 a C-219 (bloco complementar Lista de desejos — decisões de produto do V1-11, 2026-10-31 — aprovadas; sem modelo físico) |
+| **Decision Register** | C-01 a C-37 (núcleo Collection); C-38 a C-46 (bloco complementar Collection Layout, 2026-08-30); C-47 a C-48 (bloco complementar Physical Card & Inventory, 2026-08-30); C-49 a C-54 (bloco complementar Custody & Availability, 2026-08-30); C-55 a C-66 (bloco complementar Storage, 2026-08-30); C-67 a C-81 (bloco complementar Physical Card Lifecycle & Provenance, 2026-08-30); C-82 a C-90 (bloco complementar Favorite, 2026-08-30); C-91 a C-102 (bloco complementar Wishlist, 2026-08-30); C-103 a C-120 (bloco complementar Physical Card Condition, 2026-08-30); C-121 a C-140 (bloco complementar Grading / Certification, 2026-08-30); C-141 a C-165 (bloco complementar Collection Collaboration / Permissions, 2026-08-30); C-166 a C-186 (bloco complementar Collection Activity History / Audit, 2026-08-30); C-187 a C-190 (bloco complementar Master Set por acabamento, 2026-10-18 — substitui parcialmente C-01 e B.4); C-191 a C-194 (bloco complementar Fichário Digital — montagem automática, exemplares adicionais e desmontagem, 2026-10-22 — decisões aprovadas, implementação física EXECUTADA; estende C-42; C-191/C-192 parcialmente superadas em 2026-10-24 pela Elegibilidade por Local Físico); C-195 a C-197 (bloco complementar Fichário Digital compartilhado, 2026-10-23 — emenda C-38/C-191; implementação física EXECUTADA; C-195/C-197 parcialmente superadas em 2026-10-24 pela Elegibilidade por Local Físico); C-198 (imagem personalizada do bolso, 2026-10-23); C-199 (referência de espécie nos bolsos do fichário da Pokédex, 2026-10-24 — implementação local, contratos não executados); C-200 (novidades do Catálogo no fichário Master Set, 2026-10-25 — implementada, canônica e homologada); C-201 a C-209 (bloco complementar Histórico de Atividades do Fichário, 2026-10-25 — aprovadas; implementação física proposta, não aplicada); C-210 a C-219 (bloco complementar Lista de desejos — decisões de produto do V1-11, 2026-10-31 — aprovadas; sem modelo físico); C-220 a C-226 (bloco complementar Organização automática do fichário, 2026-11-01 — aprovadas; fundação SQL 5341–5344 EXECUTADA, canônica e homologada; interface não iniciada) |
 | **Status** | FECHADA / APROVADA PARA MODELAGEM LÓGICA (núcleo); bloco complementar de Layout também Aprovado; bloco complementar Physical Card & Inventory também Aprovado; bloco complementar Custody & Availability também Aprovado; bloco complementar Storage também Aprovado; bloco complementar Physical Card Lifecycle & Provenance também Aprovado; bloco complementar Favorite também Aprovado; bloco complementar Wishlist também Aprovado; bloco complementar Physical Card Condition também Aprovado; bloco complementar Grading / Certification também Aprovado; bloco complementar Collection Collaboration / Permissions também Aprovado; bloco complementar Collection Activity History / Audit também Aprovado |
 | **Escopo** | Modelagem conceitual da entidade `Collection` (colecionador), desde 2026-08-30 de `Collection Layout`/`Page`/`Slot`, desde 2026-08-30 da identidade `Physical Card` e do agregado `Inventory`, desde 2026-08-30 das dimensões `Custody`/`Custodian`/`Availability`, desde 2026-08-30 de `Storage`/`Storage Container` (incluindo hierarquia opcional), desde 2026-08-30 de `Lifecycle`/`Provenance` (Ownership Entry/Transfer/Exit), desde 2026-08-30 de `Favorite` (preferência do User por Card), desde 2026-08-30 de `Wishlist` (intenção do User por Card Variant), desde 2026-08-30 de `Physical Card Condition` (classificação padronizada do estado físico, referenciando a escala canônica compartilhada `card_condition`), desde 2026-08-30 de `Grading`/`Certification` (resultado formal de avaliação externa, com exclusividade de aplicabilidade corrente frente a Condition), desde 2026-08-30 de `Collection Collaboration`/`Permissions` (Owner estrutural, Collection Membership, roles EDITOR/VIEWER, fronteira Collection-scoped × Owner/Inventory-scoped), e desde 2026-08-30 de `Collection Activity History`/`Audit Log` (três camadas — Lifecycle/Provenance, Activity History, Audit — conceitualmente distintas) — não contém SQL nem modelo físico. |
 | **Documentos Relacionados** | `../../04-domain-model.md` (seções Collection/Collection Entry/Collection Item — ver nota de superação), `adr/ADR-013-collection-item-identity-model.md` e `adr/ADR-014-collection-and-collection-entry-model.md` (ambas **Substituídas** por este documento e por `logical-model.md`), `logical-model.md`, `pkmnbindr-benchmark.md`, `checkpoint-2026-08-28.md`, `checkpoint-2026-08-29.md`, `checkpoint-2026-08-30.md`, `ux-exploration-2026-08-29.md`. |
@@ -1984,6 +1984,54 @@ Um usuário autenticado pode adicionar um desejo à própria Lista de desejos a 
 
 ---
 
+## Bloco complementar — Organização automática do fichário (C-220 a C-226, 2026-11-01)
+
+Adicionado por `Binder | P2 AUTO-ARRANGE SQL FOUNDATION-06`, a partir de `AUTO-ARRANGE PRODUCT DECISION-02A` e do diagnóstico read-only `P2 LIVE ELIGIBILITY DIAGNOSIS-05`. Especializa C-42–C-44 e C-191–C-197 sem reabri-las; o histórico segue C-201–C-209. Contrato funcional: `docs/domain-modeling/collections/binder-auto-arrange-contract.md`. Implementação física **EXECUTADA, CANÔNICA e HOMOLOGADA** (`P2 SQL FOUNDATION CLOSEOUT-16`, 2026-11-01): 5341–5344 em `database/schema/`; harness 5872 v1.5 54/54 PASS (v1.4 48/54 preservado como histórico); evidências em `database/proposals/2026-11-01-binder-auto-arrange/README.md`. Concorrência real entre sessões (K-M1–K-M3) e `55P03` não provadas. Uso sobre exemplares reais depende da homologação da interface e de autorização do proprietário.
+
+### C-220 — Escopo: Set e Master Set, fichário da proprietária
+
+**Status:** Aprovada
+
+A organização automática só existe para coleções Set e Master Set, ativas, no fichário de que são proprietárias. Pokédex e Livre são recusadas. Coleção convidada não organiza o fichário alheio e suas reservas e exemplares nunca entram no plano da proprietária.
+
+### C-221 — O que entra: exemplar da proprietária, no local do fichário, fora de bolsos
+
+**Status:** Aprovada
+
+Candidato é o exemplar alocado à coleção proprietária, guardado no local físico do fichário e fora de qualquer bolso. Destino é o bolso reservado à proprietária, vazio, não travado, sem imagem personalizada e fora de mesclagem, compatível com a granularidade da reserva (carta; carta + acabamento; variante exata). Exemplar de outra coleção ou fora do local nunca entra (C-191/C-192 na forma emendada pela elegibilidade por Local Físico).
+
+### C-222 — Correspondência 1:1 estrita, sem desempate
+
+**Status:** Aprovada
+
+Um par bolso ↔ exemplar só é aplicado quando, sobre todo o conjunto de candidatos, aquele bolso tem exatamente um exemplar compatível e aquele exemplar tem exatamente um bolso compatível. Ambiguidade por cópias ou por destinos deixa ambos de fora, com motivo informado. Exemplar de variante inativa conta para a ambiguidade, mas nunca é posicionado automaticamente.
+
+### C-223 — Só acrescenta: nunca substitui, remove, move nem altera reservas
+
+**Status:** Aprovada
+
+A operação apenas cria posições. Não substitui nem remove cartas, não move exemplares, não cria nem altera reservas e não altera Inventory, Collection Allocation ou Storage.
+
+### C-224 — Prévia e confirmação obrigatórias; plano protegido por token
+
+**Status:** Aprovada
+
+O usuário sempre vê a prévia (o que entra, o que fica de fora e por quê) antes de confirmar. A confirmação recalcula o plano e só aplica se ele for idêntico ao da prévia; qualquer mudança no conjunto de inserções (exemplar movido, bolso ocupado ou travado, reserva alterada, variante desativada, nova cópia que cria ambiguidade) recusa a operação e pede nova prévia. Repetir a mesma confirmação já aplicada não escreve de novo.
+
+### C-225 — Limite de 500 posições por confirmação, sem execução parcial
+
+**Status:** Aprovada
+
+Uma confirmação cria no máximo 500 posições. Acima disso, a prévia informa o excesso e a confirmação é recusada sem aplicar nada. A aplicação é atômica: ou todas as posições do plano entram, ou nenhuma.
+
+### C-226 — Histórico: um evento por operação, itens rastreáveis
+
+**Status:** Aprovada
+
+Cada organização aplicada gera um único evento no histórico do fichário (categoria Cartas), com um item por carta posicionada indicando o bolso de destino (C-205). Prévia, plano vazio, limite excedido, divergência e repetição não geram evento.
+
+---
+
 # PARTE B — ESTADO CANÔNICO CONSOLIDADO
 
 ## B.1 — Responsabilidades do domínio
@@ -2329,3 +2377,5 @@ Antes do handoff final para implementação, o modelo deverá ser reconciliado c
 | 1.30 | **Escopo de lançamento da Collection V1.0 (2026-10-29, `COLLECTION-SCOPE-CONSOLIDATION-01`, decisão do proprietário).** Notas de escopo, sem alterar nenhuma decisão, nos blocos Collaboration/Permissions e Favorite/Wishlist (obrigatórios na V1.0) e Condition, Grading e Custody (backlog V2.0). |
 | 1.31 | **C-210 a C-218 — Lista de desejos: decisões de produto do V1-11 (2026-10-31, `V1-11 W0 — PRODUCT CONTRACT CONSOLIDATION-02`).** Registra D1–D9 do proprietário (com o Fichário como entrada obrigatória): núcleo binário reafirmado, inclusão contextual sem vínculo, identificação inequívoca da variante, posse indicada e remoção só explícita, variante desativada sinalizada, seis entradas obrigatórias e quatro cenários do Fichário, preço por variante distinta, privacidade com consentimento próprio, fronteira CI-N1/CI-N2. Esclarecimento de leitura de C-88 sem reescrita. **C-91–C-102 inalteradas.** Leitura funcional: `wishlist-product-contract.md`. |
 | 1.32 | **C-219 e esclarecimentos em C-212/C-216 (2026-10-31, `V1-11 W0 DOCUMENTATION AUDIT CLOSEOUT-03`).** C-219 decide a inclusão a partir de conteúdo compartilhado (pessoal, privada, sem alterar o compartilhado nem ampliar permissões). C-212 explicita que posição só com espécie, referência incompleta ou carta ambígua não autoriza inclusão automática e que nenhuma posição faltante vira desejo automaticamente; C-216 explicita a cobertura sobre variantes distintas com cotação válida e a natureza da referência NM. Pacote W0 ainda não publicado; C-91–C-102 inalteradas. |
+| 1.33 | **C-220 a C-226 — Organização automática do fichário (2026-11-01, `Binder · P2 AUTO-ARRANGE SQL FOUNDATION-06`).** Registra as 13 decisões finais do proprietário: Set/Master Set na proprietária; candidatos e destinos elegíveis; 1:1 estrito sem desempate; só acrescenta posições; prévia, confirmação e token; limite 500 sem execução parcial; um evento por operação. Especializa C-42–C-44, C-191–C-197 e C-205 sem reabri-las. Implementação física PROPOSTA (5341–5344, harness 5872), não executada. |
+| 1.34 | **C-220 a C-226 — fundação SQL homologada (2026-11-01, `P2 SQL FOUNDATION CLOSEOUT-16`).** Só estado de implementação: 5341–5344 executadas no LIVE, canônicas em `database/schema/`, harness 5872 v1.5 54/54, postcheck e medição ME3 PASS. Texto das decisões inalterado. K-M1–K-M3 e `55P03` não provados; uso real depende da interface homologada e de autorização do proprietário. |
