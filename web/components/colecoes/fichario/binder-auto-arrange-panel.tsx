@@ -86,6 +86,13 @@ export function AutoArrangePanel({
   useEffect(() => {
     headingRef.current?.focus({ preventScroll: true });
   }, []);
+  // E5: ao trocar de etapa (revisão → aplicando → resultado, Voltar, nova leitura), o botão
+  // que tinha o foco sai da tela. Se o foco caiu no documento, volta ao título do painel;
+  // nunca rouba o foco de quem está em outro controle (ex.: virando páginas).
+  useEffect(() => {
+    const active = document.activeElement;
+    if (active === null || active === document.body) headingRef.current?.focus({ preventScroll: true });
+  }, [flow.kind, view.status]);
 
   const locked = flow.kind === "applying" || (flow.kind === "revalidating" && flow.cause === "uncertain");
   const announcement = flowAnnouncement(flow) ?? (stale ? STALE_MESSAGE : previewAnnouncement(view));
@@ -119,7 +126,7 @@ export function AutoArrangePanel({
         </button>
       </div>
 
-      {/* Região viva: anuncia leitura, revisão, aplicação e resultado. */}
+      {/* Região viva ÚNICA: anuncia leitura, revisão, aplicação, resultado e falhas (os blocos visuais não repetem o anúncio). */}
       <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
         {announcement}
       </p>
@@ -155,7 +162,7 @@ export function AutoArrangePanel({
                 <span />
               </div>
             ) : view.status === "error" ? (
-              <div className={styles.state} role="alert">
+              <div className={styles.state}>
                 <span className={styles.stateTitle}>Prévia indisponível</span>
                 {previewFailureMessage(view.reason)}
                 {previewRetryable(view.reason) ? (
@@ -312,9 +319,13 @@ function ReviewBody({
 }) {
   const preview = view.preview;
   const action = reviewActionState(true, writeBusy);
-  const confirmRef = useRef<HTMLButtonElement>(null);
+  // E5: o foco vai para o título da revisão (não para o botão que grava): dois
+  // Enter seguidos nunca confirmam sem leitura, e o título fica visível na faixa baixa.
+  const reviewHeadingRef = useRef<HTMLParagraphElement>(null);
   useEffect(() => {
-    confirmRef.current?.focus({ preventScroll: true });
+    const heading = reviewHeadingRef.current;
+    heading?.focus({ preventScroll: true });
+    heading?.scrollIntoView({ block: "nearest" });
   }, []);
   return (
     <div className={styles.ready}>
@@ -325,7 +336,9 @@ function ReviewBody({
         </div>
       ) : null}
       <div>
-        <p className={styles.headline}>Revisar antes de posicionar</p>
+        <p ref={reviewHeadingRef} tabIndex={-1} className={styles.headline}>
+          Revisar antes de posicionar
+        </p>
         <p className={styles.detail}>{confirmationText(preview)}</p>
       </div>
       <dl className={styles.facts}>
@@ -348,7 +361,6 @@ function ReviewBody({
       </ul>
       <div className={styles.actions}>
         <button
-          ref={confirmRef}
           type="button"
           className={styles.primary}
           onClick={action.enabled ? onConfirm : undefined}
@@ -392,7 +404,7 @@ function FlowBody({
 }) {
   if (flow.kind === "applying" || flow.kind === "revalidating") {
     return (
-      <div className={styles.state} role="status">
+      <div className={styles.state}>
         <span className={styles.progress}>
           <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden />
           <span className={styles.stateTitle}>{flow.kind === "applying" ? "Posicionando as cartas…" : "Conferindo o fichário…"}</span>
@@ -407,7 +419,7 @@ function FlowBody({
     const pages = flow.result.outcome === "APPLIED" ? flow.result.pages.filter((p) => p >= 1 && p <= totalPages) : [];
     return (
       <div className={styles.ready}>
-        <div className={styles.success} role="status">
+        <div className={styles.success}>
           <CheckCircle2 className="h-5 w-5 flex-none" aria-hidden />
           <div>
             <p className={styles.headline}>{flow.result.outcome === "APPLIED" ? "Cartas posicionadas" : flow.result.outcome === "ALREADY_APPLIED" ? "Organização já aplicada" : "Nenhuma alteração"}</p>
@@ -445,7 +457,7 @@ function FlowBody({
   if (flow.kind !== "failed") return null;
   const follow = failureFollowUp(flow);
   return (
-    <div className={styles.state} role="alert">
+    <div className={styles.state}>
       <span className={styles.stateTitle}>{flow.write === "unknown" ? "Resultado ainda não confirmado" : "Nada foi posicionado"}</span>
       {applyFailureText(flow)}
       <div className={styles.actions}>

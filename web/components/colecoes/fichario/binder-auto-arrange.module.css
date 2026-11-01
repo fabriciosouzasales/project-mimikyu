@@ -103,6 +103,17 @@
   color: hsl(0 0% 100%);
 }
 
+/* E5: fechar indisponível enquanto aplica/confere — sem aparência de clicável. */
+.close[aria-disabled="true"] {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.close[aria-disabled="true"]:hover {
+  background: transparent;
+  color: hsl(0 0% 100% / 0.6);
+}
+
 .body {
   flex: 1;
   min-height: 0;
@@ -126,6 +137,17 @@
 .headline {
   font: 700 0.9375rem / 1.3 var(--font-heading);
   color: hsl(0 0% 100% / 0.95);
+}
+
+/* Título da revisão recebe foco programático (tabIndex -1): anel só pelo teclado. */
+.headline:focus {
+  outline: none;
+}
+
+.headline:focus-visible {
+  outline: 2px solid hsl(40 70% 62%);
+  outline-offset: 3px;
+  border-radius: 4px;
 }
 
 .detail {
@@ -329,7 +351,7 @@
 }
 
 .linkButton {
-  min-height: 2.25rem;
+  min-height: 2.75rem;
   padding: 0 0.5rem;
   color: hsl(0 0% 100% / 0.7);
 }

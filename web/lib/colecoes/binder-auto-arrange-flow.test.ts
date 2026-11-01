@@ -313,3 +313,32 @@ test("escrita local em curso: painel e workspace usam o estado de ocupado sem to
   assert.match(confirm, /if \(applyingRef\.current\) return; \/\/ duplo clique/);
   assert.match(confirm, /if \(busy\) return;/);
 });
+
+// ---------------------------------------------------------------------------
+// E5: polimento visual e de acessibilidade (inspeção estática do painel)
+// ---------------------------------------------------------------------------
+
+test("E5 acessibilidade: revisão foca o título (nunca o botão que grava) e o foco perdido volta ao painel", () => {
+  const panel = readFileSync(new URL("../../components/colecoes/fichario/binder-auto-arrange-panel.tsx", import.meta.url), "utf8");
+  assert.doesNotMatch(panel, /confirmRef/, "o botão Confirmar não recebe foco automático");
+  assert.match(panel, /ref=\{reviewHeadingRef\} tabIndex=\{-1\}/);
+  assert.match(panel, /\}, \[flow\.kind, view\.status\]\);/, "recuperação de foco a cada troca de etapa");
+  assert.match(panel, /active === null \|\| active === document\.body/, "só quando o foco foi perdido");
+});
+
+test("E5 acessibilidade: uma única região viva (sem anúncio duplicado nos blocos visuais)", () => {
+  const panel = readFileSync(new URL("../../components/colecoes/fichario/binder-auto-arrange-panel.tsx", import.meta.url), "utf8");
+  assert.equal((panel.match(/role="status"/g) ?? []).length, 1, "só a região viva sr-only");
+  assert.equal((panel.match(/role="alert"/g) ?? []).length, 0);
+  assert.match(panel, /className="sr-only" role="status" aria-live="polite" aria-atomic="true"/);
+});
+
+test("E5 visual: fechar indisponível tem aparência de indisponível; alvos de toque ≥ 44 px", () => {
+  const css = readFileSync(new URL("../../components/colecoes/fichario/binder-auto-arrange.module.css", import.meta.url), "utf8");
+  assert.match(css, /\.close\[aria-disabled="true"\] \{[^}]*opacity: 0\.35;[^}]*cursor: not-allowed;/s);
+  const minHeights = [...css.matchAll(/\.(close|action|linkButton|page|primary)\s*\{[^}]*min-height: ([\d.]+)rem/gs)].map((m) => [m[1], Number(m[2])] as const);
+  for (const [cls, rem] of minHeights) assert.ok(rem >= 2.75, `${cls}: ${rem}rem < 2.75rem`);
+  assert.ok(minHeights.some(([c]) => c === "linkButton"), "linkButton medido");
+  // .close usa height fixa de 2.75rem.
+  assert.match(css, /\.close \{[^}]*width: 2\.75rem;[^}]*height: 2\.75rem;/s);
+});
