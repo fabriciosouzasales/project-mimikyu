@@ -201,6 +201,16 @@ export function AcervoTileShell({
 }
 
 /** Botão "Selecionar" junto da contagem de resultados. */
+/**
+ * V1-10: esconde o conteúdo enquanto o modo seleção está ativo — o coração de favorito
+ * ocupa o mesmo canto da marca de seleção e não deve competir com ela.
+ */
+export function HiddenWhileSelecting({ children }: { children: ReactNode }) {
+  const ctx = useContext(SelectionContext);
+  if (ctx?.active) return null;
+  return <>{children}</>;
+}
+
 export function AcervoSelectionToggle() {
   const controls = useControls();
   if (controls.active) return null;

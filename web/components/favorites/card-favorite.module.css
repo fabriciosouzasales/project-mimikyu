@@ -1,0 +1,130 @@
+/* ---- Favorito de carta (V1-10, refinado na PREMIUM UX REFINEMENT-06) ----
+   Mesmo coração e mesma semântica da Espécie favorita (P6), sem alterar o original:
+   botão irmão do link/botão da carta, no canto superior direito da arte. O canto
+   inferior esquerdo é da etiqueta de preço (V1-09); a quantidade saiu da arte.
+   - Linguagem única sobre a arte: chip escuro translúcido, como a etiqueta de preço,
+     legível nos dois temas e sobre qualquer ilustração.
+   - Desenho de 1.5rem (24 px) a ~0.375rem das bordas da arte; área de toque intacta de
+     2.75rem (44 px) — o botão transborda a arte em 3 px, sem cobrir mais ilustração.
+   - Não favorita: contorno claro. Desktop (hover fino): só aparece com hover/foco do
+     card (.favoriteHost) ou do próprio botão. Toque: sempre visível.
+   - Favorita: preenchida em --favorite, sempre visível, sem crescer (não domina a carta).
+   Só transform/opacity/background animam; prefers-reduced-motion neutraliza pela regra global. */
+.favorite {
+  position: absolute;
+  top: -0.1875rem;
+  right: -0.1875rem;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: hsl(0 0% 100% / 0.92);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.favoriteIcon {
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0.28125rem;
+  border-radius: 999px;
+  overflow: visible;
+  fill: transparent;
+  stroke: currentColor;
+  background: hsl(0 0% 4% / 0.56);
+  box-shadow:
+    0 1px 3px rgb(0 0 0 / 0.35),
+    inset 0 0 0 1px hsl(0 0% 100% / 0.1);
+  transition:
+    transform 160ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 160ms ease-out,
+    background-color 160ms ease-out;
+}
+
+.favorite[aria-pressed="true"] {
+  color: hsl(var(--favorite));
+}
+
+.favorite[aria-pressed="true"] .favoriteIcon {
+  fill: hsl(var(--favorite));
+}
+
+.favorite[data-pending] .favoriteIcon {
+  opacity: 0.7;
+}
+
+.favorite:active .favoriteIcon {
+  transform: scale(0.9);
+}
+
+.favorite:focus-visible {
+  outline: none;
+}
+
+.favorite:focus-visible .favoriteIcon {
+  outline: 2px solid hsl(var(--primary));
+  outline-offset: 2px;
+  opacity: 1;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .favorite[aria-pressed="false"] .favoriteIcon {
+    opacity: 0;
+  }
+
+  .favoriteHost:hover .favorite[aria-pressed="false"] .favoriteIcon,
+  .favoriteHost:focus-within .favorite[aria-pressed="false"] .favoriteIcon {
+    opacity: 1;
+  }
+
+  .favorite:hover .favoriteIcon {
+    background: hsl(0 0% 4% / 0.72);
+    transform: scale(1.08);
+  }
+
+  .favorite:hover:active .favoriteIcon {
+    transform: scale(0.92);
+  }
+}
+
+/* Página Cartas favoritas: desfavoritada fica atenuada no lugar (sem salto de layout)
+   até a próxima navegação — mesma decisão D4 da página Pokémon Favoritos. */
+.favoriteHost[data-fav-removed] {
+  opacity: 0.45;
+  transition: opacity 160ms ease-out;
+}
+
+/* ---- Página Cartas favoritas (PREMIUM UX REFINEMENT-06) ----
+   Palco e região reaproveitados do Meu acervo/Meus locais; aqui só o que é próprio. */
+
+/* Indicador sem dado (REFINEMENT-07): "—" em tom de apoio — ausência, não zero. */
+.ledgerPending dd {
+  color: hsl(var(--muted-foreground) / 0.7);
+}
+
+/* Colunas de largura própria (auto-fill): uma carta fica no tamanho natural e alinhada
+   ao título; dezenas preenchem a largura útil. Mínimo de 10.5rem para a linha de
+   Set/número + preço do tile da Pesquisa não apertar. */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr));
+  gap: 1.75rem 1.25rem;
+}
+
+@media (max-width: 30rem) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.25rem 0.875rem;
+  }
+}
+
+/* Estado vazio: o coração em --favorite suave (assinatura do recurso, não alerta). */
+.stateIconFavorite {
+  color: hsl(var(--favorite));
+  background: hsl(var(--favorite) / 0.1);
+}

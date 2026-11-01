@@ -12,6 +12,7 @@ import {
   getAcervoSummary,
 } from "@/lib/colecoes/acervo-queries";
 import { getCopyStorageContext, getMyStorageLocations } from "@/lib/colecoes/storage-locations-queries";
+import { getMyCardFavoritesByVariant } from "@/lib/favorites/card-favorites-queries";
 import { getVariantPrices } from "@/lib/pricing/variant-pricing-queries";
 import { createClient } from "@/lib/supabase/server";
 import { getCachedUser, getCachedUserProfile } from "@/lib/supabase/request-auth-cache";
@@ -71,7 +72,13 @@ export default async function AcervoPage({
 
   // V1-09: preço NM por variante (3983) da página exibida (≤ 48 grupos) e do
   // exemplar aberto, numa leitura só. Falha = sem preço, nunca erro na página.
-  const prices = await getVariantPrices(supabase, [...(page?.items ?? []).map((item) => item.cardVariantId), state.detail?.cardVariantId]);
+  // V1-10: carta + estado favorito das variantes da página, em paralelo com o preço
+  // (uma leitura em lote, 5336). Falha = grade sem corações, nunca erro na página.
+  const pageVariantIds = (page?.items ?? []).map((item) => item.cardVariantId);
+  const [prices, favorites] = await Promise.all([
+    getVariantPrices(supabase, [...pageVariantIds, state.detail?.cardVariantId]),
+    getMyCardFavoritesByVariant(supabase, pageVariantIds),
+  ]);
   const priceNow = Date.now();
 
   return (
@@ -87,6 +94,7 @@ export default async function AcervoPage({
         locations={locations}
         prices={prices}
         priceNow={priceNow}
+        favorites={favorites}
       />
     </AppShell>
   );

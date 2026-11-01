@@ -285,6 +285,9 @@ export const NAV_SECTIONS: NavSection[] = [
         activePattern: /^\/colecoes\/colecoes\/[0-9a-f-]{36}(\/fichario)?$/i,
       },
       { href: "/colecoes/acervo", label: "Meu acervo", section: "Gerenciar", icon: Layers },
+      // V1-10 (2026-10-31): Cartas favoritas — favoritos pessoais de cartas (C-82–C-90),
+      // independentes de acervo e coleção. Distinto de "Pokémon Favoritos" (espécies, Pokédex P6).
+      { href: "/colecoes/favoritos", label: "Cartas favoritas", section: "Gerenciar", icon: Heart },
       { href: "/colecoes/locais", label: "Meus locais", section: "Organizar", icon: MapPin },
     ],
   },

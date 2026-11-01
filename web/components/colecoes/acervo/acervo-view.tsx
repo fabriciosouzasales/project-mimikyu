@@ -40,7 +40,16 @@ import type {
 } from "@/lib/colecoes/acervo-queries";
 import { AcervoAddActions } from "./acervo-add";
 import { AcervoDetailSheet } from "./acervo-detail-sheet";
-import { AcervoSelectionBar, AcervoSelectionProvider, AcervoSelectionToggle, AcervoTileShell } from "./acervo-selection";
+import {
+  AcervoSelectionBar,
+  AcervoSelectionProvider,
+  AcervoSelectionToggle,
+  AcervoTileShell,
+  HiddenWhileSelecting,
+} from "./acervo-selection";
+import { CardFavoriteButton, favoriteHostClass } from "@/components/favorites/card-favorite-button";
+import { CardFavoritesController } from "@/components/favorites/card-favorites-controller";
+import type { VariantFavorite } from "@/lib/favorites/card-favorites";
 import { AcervoToolbar } from "./acervo-toolbar";
 import { CardArt } from "./card-art";
 import { CardFinishLayers, finishDataAttribute } from "./card-finish-layers";
@@ -90,6 +99,7 @@ export function AcervoView({
   locations = null,
   prices = null,
   priceNow = 0,
+  favorites = null,
 }: {
   state: AcervoState;
   summary: AcervoSummary | null;
@@ -107,6 +117,8 @@ export function AcervoView({
   prices?: Map<string, VariantPrice> | null;
   /** Instante de referência da regra de 14 dias (servidor → mesmo texto na hidratação). */
   priceNow?: number;
+  /** V1-10: carta e estado favorito por variante (5336); `null` = leitura indisponível (sem corações). */
+  favorites?: Map<string, VariantFavorite> | null;
 }) {
   const canAdd = addLanguages.length > 0;
   const isEmptyAcervo = summary !== null && summary.totalCopies === 0;
@@ -197,20 +209,31 @@ export function AcervoView({
               />
             ) : (
               <>
-                <ul className={styles.grid} aria-label="Cartas do seu acervo">
-                  {page.items.map((item, index) => (
-                    <li key={`${item.cardVariantId}.${item.languageCode}`}>
-                      <AcervoTile
-                        item={item}
-                        state={state}
-                        storageKind={storageKind}
-                        priority={state.page === 1 && index < PRIORITY_CARD_COUNT}
-                        price={prices?.get(item.cardVariantId.toLowerCase()) ?? null}
-                        priceNow={priceNow}
-                      />
-                    </li>
-                  ))}
-                </ul>
+                <CardFavoritesController>
+                  <ul className={styles.grid} aria-label="Cartas do seu acervo">
+                    {page.items.map((item, index) => {
+                      const favorite = favorites?.get(item.cardVariantId.toLowerCase()) ?? null;
+                      return (
+                        <li key={`${item.cardVariantId}.${item.languageCode}`} className={`${styles.tileSlot} ${favoriteHostClass}`}>
+                          <AcervoTile
+                            item={item}
+                            state={state}
+                            storageKind={storageKind}
+                            priority={state.page === 1 && index < PRIORITY_CARD_COUNT}
+                            price={prices?.get(item.cardVariantId.toLowerCase()) ?? null}
+                            priceNow={priceNow}
+                          />
+                          {/* V1-10: coração irmão do link do cartão (canto superior direito da arte). */}
+                          {favorite ? (
+                            <HiddenWhileSelecting>
+                              <CardFavoriteButton cardId={favorite.cardId} cardName={item.cardName} isFavorite={favorite.isFavorite} />
+                            </HiddenWhileSelecting>
+                          ) : null}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </CardFavoritesController>
                 {pages > 1 ? <Pagination state={state} pages={pages} /> : null}
                 <AcervoSelectionBar />
               </>
@@ -367,14 +390,13 @@ function AcervoTile({
           {/* V1-09: etiqueta sobre a arte, como no fichário; o preço já está no nome acessível do cartão. */}
           <AcervoPriceTag price={price} now={priceNow} />
         </div>
-        {copies > 1 ? (
-          <span className={styles.qty} aria-hidden="true">
-            ×{formatCount(copies)}
-          </span>
-        ) : null}
       </div>
       <div className={styles.meta} aria-hidden="true">
-        <div className={styles.name}>{item.cardName}</div>
+        {/* V1-10 REFINEMENT-06: "×N" na linha do nome, fora da arte (o nome acessível do cartão já diz as cópias). */}
+        <div className={styles.nameRow}>
+          <div className={styles.name}>{item.cardName}</div>
+          {copies > 1 ? <span className={styles.qtyInline}>×{formatCount(copies)}</span> : null}
+        </div>
         <div className={styles.sub}>
           <span>{caption}</span>
           {/* Idioma antes da variante: o idioma cabe na linha do Set/número e a variante ocupa a seguinte. */}
