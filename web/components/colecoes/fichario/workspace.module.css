@@ -63,6 +63,50 @@
   }
 }
 
+/*
+ * Cartas disponíveis encaixada (NAVIGATION DOCKING CORRECTION-02). O painel
+ * deixa de flutuar sobre o palco (cobria a seta "próxima" e o alvo de arrastar
+ * da borda) e passa a ocupar uma área própria do grid:
+ *   ≥ 1280 px — coluna à direita, idêntica à do Centro de Controle (os dois
+ *               painéis são exclusivos entre si);
+ *   < 1280 px — faixa abaixo do fichário: uma coluna de 19rem deixaria o palco
+ *               estreito demais (≈ 224 px em 768 px e só uma página), então o
+ *               palco cede altura, não largura.
+ * Fechar o painel remove o atributo e devolve a grade original.
+ */
+@media (min-width: 1280px) {
+  .root[data-available="side"] {
+    grid-template-columns: 3.5rem auto minmax(0, 1fr) auto 0.75rem 20rem;
+    grid-template-areas:
+      "top top top top top panel"
+      "rail prev stage next ghost panel"
+      "bottom bottom bottom bottom bottom panel";
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1279.98px) {
+  .root[data-available="bottom"] {
+    grid-template-rows: auto minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      "top top top top top"
+      "rail prev stage next ghost"
+      "panel panel panel panel panel"
+      "bottom bottom bottom bottom bottom";
+  }
+}
+
+@media (max-width: 767px) {
+  .root[data-available="bottom"] {
+    grid-template-rows: auto minmax(0, 1fr) auto auto auto;
+    grid-template-areas:
+      "top top top"
+      "prev stage next"
+      "rail rail rail"
+      "panel panel panel"
+      "bottom bottom bottom";
+  }
+}
+
 .glow {
   position: absolute;
   inset: 0;

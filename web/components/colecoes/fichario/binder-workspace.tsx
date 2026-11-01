@@ -1629,6 +1629,7 @@ export function BinderWorkspace({
         data-variant={variant}
         data-fullscreen={fullscreen || undefined}
         data-control={controlOpen && controlDocked ? "docked" : undefined}
+        data-available={availableOpen ? (controlDocked ? "side" : "bottom") : undefined}
       >
         <div aria-hidden className={ws.glow} />
 
@@ -1881,6 +1882,7 @@ export function BinderWorkspace({
 
           {availableOpen ? (
             <AvailablePanel
+              mode={controlDocked ? "side" : "bottom"}
               collectionName={collectionName}
               state={available}
               editable={editable}

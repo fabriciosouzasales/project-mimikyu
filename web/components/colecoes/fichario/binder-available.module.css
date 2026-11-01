@@ -255,6 +255,52 @@
   }
 }
 
+/*
+ * Encaixe no grid da área de trabalho (NAVIGATION DOCKING CORRECTION-02):
+ * `side` = coluna à direita (≥ 1280 px); `bottom` = faixa abaixo do fichário.
+ * Em fluxo, sem sobreposição — anula a posição absoluta acima.
+ */
+.panel[data-mode="side"],
+.panel[data-mode="bottom"] {
+  grid-area: panel;
+  position: relative;
+  inset: auto;
+  z-index: 5;
+  width: auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+.panel[data-mode="side"] {
+  height: 100%;
+}
+
+.panel[data-mode="bottom"] {
+  height: clamp(11rem, 32dvh, 16rem);
+  max-height: none;
+  animation-name: panelUp;
+}
+
+/* Na faixa baixa a instrução fica só para leitores de tela: a altura vai para as cartas. */
+.panel[data-mode="bottom"] .hint {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.panel[data-mode="bottom"] .grid {
+  grid-template-columns: repeat(auto-fill, minmax(4.5rem, 1fr));
+}
+
+@media (max-width: 767px) {
+  .panel[data-mode="bottom"] {
+    height: clamp(10rem, 34dvh, 14rem);
+  }
+}
+
 @keyframes panelUp {
   from {
     opacity: 0;

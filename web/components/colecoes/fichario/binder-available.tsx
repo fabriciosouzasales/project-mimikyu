@@ -24,6 +24,12 @@ export type AvailableState = { status: "idle" | "loading" | "error" | "ready"; i
  * posicionamento é uma chamada à 5131 (`assign_card_to_slot`); nada acontece
  * sozinho e nenhuma carta substitui outra. Posicionar é a 5250
  * (`place_my_physical_card_in_slot`), pelo exemplar.
+ *
+ * Encaixe (NAVIGATION DOCKING CORRECTION-02): o painel ocupa uma área própria
+ * do grid da área de trabalho — `side` (coluna à direita, desktop ≥ 1280 px,
+ * mesmo padrão do Centro de Controle) ou `bottom` (faixa abaixo do fichário,
+ * abaixo de 1280 px). Nunca cobre as setas, os bolsos nem o alvo de arrastar
+ * da borda; o fichário se reencaixa pelo ResizeObserver do palco.
  */
 export function AvailablePanel({
   collectionName,
@@ -36,7 +42,9 @@ export function AvailablePanel({
   onLoadMore,
   onRetry,
   onClose,
+  mode,
 }: {
+  mode: "side" | "bottom";
   collectionName: string;
   state: AvailableState;
   editable: boolean;
@@ -50,7 +58,7 @@ export function AvailablePanel({
 }) {
   const remaining = Math.max(0, state.total - state.items.length);
   return (
-    <section className={styles.panel} role="region" aria-labelledby="cartas-disponiveis-titulo">
+    <section className={styles.panel} data-mode={mode} role="region" aria-labelledby="cartas-disponiveis-titulo">
       <div className={styles.head}>
         <div>
           <h3 id="cartas-disponiveis-titulo" className={styles.title}>
