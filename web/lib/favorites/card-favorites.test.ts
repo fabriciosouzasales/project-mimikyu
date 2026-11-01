@@ -17,6 +17,7 @@ import {
   toggleCardFavorite,
   toVariantFavoriteMap,
   parseFavoriteReferenceValue,
+  formatBrlWhole,
 } from "./card-favorites.ts";
 
 const CARD = "11111111-1111-4111-8111-111111111111";
@@ -98,11 +99,12 @@ test("painel de favoritos: só números sustentados por contrato; ausência nunc
   const formatMoney = (value: number) => `R$ ${value.toFixed(2)}`;
   const base = { format, formatMoney, ownedCount: 3, favoriteCardSetCount: 2 };
   const kpis = favoritesKpis({ ...base, favoriteCount: 8, referenceValue: { favoriteCount: 8, pricedCount: 6, totalBrl: 123.4 } });
-  assert.deepEqual(kpis.map((kpi) => kpi.key), ["favorites", "reference_value", "owned", "favorite_card_sets"]);
-  assert.equal(kpis[0]?.value, "8");
+  assert.deepEqual(kpis.map((kpi) => kpi.key), ["reference_value", "favorites", "owned", "favorite_card_sets"]);
+  assert.equal(kpis[1]?.value, "8");
   assert.equal(kpis[0]?.lead, true);
-  assert.equal(kpis[1]?.value, "R$ 123.40");
-  assert.equal(kpis[1]?.hint, "6 de 8 com cotação");
+  assert.equal(kpis[1]?.lead, undefined);
+  assert.equal(kpis[0]?.value, "R$ 123.40");
+  assert.equal(kpis[0]?.hint, "6 de 8 com cotação");
   assert.equal(kpis[2]?.value, "3");
   assert.equal(kpis[2]?.name, "No meu acervo");
   assert.equal(kpis[2]?.hint, "favoritas que você possui");
@@ -110,23 +112,37 @@ test("painel de favoritos: só números sustentados por contrato; ausência nunc
   assert.equal(kpis[3]?.name, "Card Sets");
   assert.equal(kpis[3]?.hint, "com cartas favoritas");
   // Valor: sem cobertura → "—" com a cobertura; sem favoritas e leitura falha → "—" com motivo.
-  const uncovered = favoritesKpis({ ...base, favoriteCount: 4, referenceValue: { favoriteCount: 4, pricedCount: 0, totalBrl: null } })[1];
+  const uncovered = favoritesKpis({ ...base, favoriteCount: 4, referenceValue: { favoriteCount: 4, pricedCount: 0, totalBrl: null } })[0];
   assert.equal(uncovered?.value, null);
   assert.equal(uncovered?.hint, "0 de 4 com cotação");
-  assert.equal(favoritesKpis({ ...base, favoriteCount: 0, referenceValue: { favoriteCount: 0, pricedCount: 0, totalBrl: null } })[1]?.hint, "sem cartas favoritas");
+  assert.equal(favoritesKpis({ ...base, favoriteCount: 0, referenceValue: { favoriteCount: 0, pricedCount: 0, totalBrl: null } })[0]?.hint, "sem cartas favoritas");
   const failed = favoritesKpis({ ...base, favoriteCount: 3, referenceValue: null, ownedCount: null, favoriteCardSetCount: null });
-  assert.deepEqual(failed.slice(1).map((kpi) => [kpi.value, kpi.hint]), [
+  assert.deepEqual([failed[0], failed[2], failed[3]].map((kpi) => [kpi?.value, kpi?.hint]), [
     [null, "indisponível agora"],
     [null, "indisponível agora"],
     [null, "indisponível agora"],
   ]);
   // Zero legítimo continua zero.
   const zero = favoritesKpis({ ...base, favoriteCount: 2, referenceValue: { favoriteCount: 2, pricedCount: 1, totalBrl: 0 }, ownedCount: 0, favoriteCardSetCount: 0 });
-  assert.equal(zero[1]?.value, "R$ 0.00");
+  assert.equal(zero[0]?.value, "R$ 0.00");
+  assert.equal(zero[1]?.value, "2");
   assert.equal(zero[2]?.value, "0");
   assert.equal(zero[3]?.value, "0");
-  assert.equal(favoritesKpis({ ...base, favoriteCount: 1, referenceValue: null })[0]?.name, "Carta favorita");
+  assert.equal(favoritesKpis({ ...base, favoriteCount: 1, referenceValue: null })[1]?.name, "Carta favorita");
   assert.equal(favoritesKpis({ ...base, favoriteCount: 1, referenceValue: null, favoriteCardSetCount: 1 })[3]?.name, "Card Set");
+});
+
+test("valor de referência no painel: reais inteiros, arredondado só na apresentação", () => {
+  const norm = (value: string) => value.replace(/\u00a0/g, " ");
+  assert.equal(norm(formatBrlWhole(3206.75)), "R$ 3.207");
+  assert.equal(norm(formatBrlWhole(2215.49)), "R$ 2.215");
+  assert.equal(norm(formatBrlWhole(0.4)), "R$ 0");
+  assert.equal(norm(formatBrlWhole(1234567.5)), "R$ 1.234.568");
+  // O contrato lido continua com centavos: o arredondamento não volta para o dado.
+  const reference = parseFavoriteReferenceValue([{ favorite_count: 8, priced_count: 8, total_brl: 3206.75 }]);
+  assert.equal(reference?.totalBrl, 3206.75);
+  const kpi = favoritesKpis({ favoriteCount: 8, referenceValue: reference, ownedCount: 7, favoriteCardSetCount: 2, format: String, formatMoney: formatBrlWhole })[0];
+  assert.equal(norm(kpi?.value ?? ""), "R$ 3.207");
 });
 
 test("valor de referência: só a forma da 5340 é aceita", () => {

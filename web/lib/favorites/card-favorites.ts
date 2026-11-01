@@ -179,14 +179,15 @@ export function settleCardFavorite(
 /* ---- Painel de números da página Cartas favoritas (PREMIUM HERO & KPI REFINEMENT-07) ----
  * Quatro indicadores no mesmo painel de Minhas coleções. Só entram números que um
  * contrato sustenta; leitura indisponível aparece como "—", nunca como zero.
- *  1. Cartas favoritas — card_id distintos (total_count da 5336; preferência, não posse).
- *  2. Valor de referência — soma de UMA referência NM por carta favorita ativa
+ *  Ordem (MOBILE KPI VISUAL CORRECTION-24): o valor de referência abre o painel e é o
+ *  destaque (lead) — no celular ocupa a primeira linha inteira.
+ *  1. Valor de referência — soma de UMA referência NM por carta favorita ativa
  *     (get_cards_pricing_summary, a mesma da Pesquisa), sem multiplicar por exemplares,
- *     sempre com cobertura "X de Y com cotação" (5340 — proposta, DATA CONTRACTS-17).
- *     Sem cobertura nenhuma: "—", nunca "R$ 0".
+ *     sempre com cobertura "X de Y com cotação" (5340). Exibido em reais inteiros
+ *     (arredondado só na apresentação). Sem cobertura nenhuma: "—", nunca "R$ 0".
+ *  2. Cartas favoritas — card_id distintos (total_count da 5336; preferência, não posse).
  *  3. No meu acervo — card_id favoritos ativos com ≥ 1 exemplar no Inventory do próprio
- *     usuário; cópias, variantes e idiomas contam uma vez; independe de coleção
- *     (5339 — proposta, DATA CONTRACTS-17).
+ *     usuário; cópias, variantes e idiomas contam uma vez; independe de coleção (5339).
  *  4. Card Sets com cartas favoritas — card_set_id distintos das favoritas ativas
  *     (5338, CORRECTION-13). Independe de posse, acervo e coleção; vínculo
  *     canônico card.card_set_id. Substitui "Coleções com favoritas" (5337, sem consumidor).
@@ -236,12 +237,27 @@ export function parseFavoriteReferenceValue(data: unknown): FavoriteReferenceVal
   return { favoriteCount, pricedCount, totalBrl };
 }
 
+/**
+ * Reais inteiros para o painel (CORRECTION-24): "R$ 3.207". Só apresentação — o valor
+ * original (com centavos) segue intacto em `FavoriteReferenceValue.totalBrl`.
+ */
+const brlWhole = new Intl.NumberFormat("pt-BR", {
+  style: "currency",
+  currency: "BRL",
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 0,
+});
+
+export function formatBrlWhole(value: number): string {
+  return brlWhole.format(value);
+}
+
 function referenceValueKpi(
   reference: FavoriteReferenceValue | null,
   format: (value: number) => string,
   formatMoney: (value: number) => string,
 ): FavoritesKpi {
-  const base = { key: "reference_value" as const, name: "Valor de referência" };
+  const base = { key: "reference_value" as const, name: "Valor de referência", lead: true };
   if (reference === null) return { ...base, value: null, hint: "indisponível agora" };
   const { favoriteCount, pricedCount, totalBrl } = reference;
   if (favoriteCount === 0) return { ...base, value: null, hint: "sem cartas favoritas" };
@@ -263,14 +279,13 @@ export function favoritesKpis(input: {
 }): FavoritesKpi[] {
   const { favoriteCount, referenceValue, ownedCount, favoriteCardSetCount: count, format, formatMoney } = input;
   return [
+    referenceValueKpi(referenceValue, format, formatMoney),
     {
       key: "favorites",
       value: format(favoriteCount),
       name: favoriteCount === 1 ? "Carta favorita" : "Cartas favoritas",
       hint: "marcadas por você",
-      lead: true,
     },
-    referenceValueKpi(referenceValue, format, formatMoney),
     {
       key: "owned",
       value: ownedCount === null ? null : format(ownedCount),

@@ -14,8 +14,7 @@ import { PesquisaCardTile } from "@/components/pesquisa/pesquisa-view";
 import { Button } from "@/components/ui/button";
 import { usePricingBatch } from "@/hooks/use-pricing-batch";
 import { formatCount } from "@/lib/colecoes/acervo";
-import { type FavoriteReferenceValue, type FavoritesKpi, favoritesKpis } from "@/lib/favorites/card-favorites";
-import { formatBrl } from "@/lib/pricing/variant-pricing";
+import { type FavoriteReferenceValue, type FavoritesKpi, favoritesKpis, formatBrlWhole } from "@/lib/favorites/card-favorites";
 import { cardImageUrl, type PesquisaCard } from "@/lib/pesquisa/format";
 import { canUseViewTransitions, cardImagePreviewTransitionName } from "@/lib/view-transitions";
 import styles from "./card-favorite.module.css";
@@ -85,7 +84,7 @@ export function FavoriteCardsView({
                 ownedCount,
                 favoriteCardSetCount,
                 format: formatCount,
-                formatMoney: formatBrl,
+                formatMoney: formatBrlWhole,
               })} />
           </div>
         ) : null}
@@ -204,7 +203,7 @@ export function FavoriteCardsView({
  */
 function FavoritesLedger({ kpis }: { kpis: FavoritesKpi[] }) {
   return (
-    <dl className={acervoStyles.ledger} aria-label="Resumo das cartas favoritas">
+    <dl className={`${acervoStyles.ledger} ${styles.favLedger}`} aria-label="Resumo das cartas favoritas">
       {kpis.map((kpi) => (
         <div
           key={kpi.key}

@@ -107,6 +107,43 @@
   color: hsl(var(--muted-foreground) / 0.7);
 }
 
+/* ---- Painel de números (MOBILE KPI VISUAL CORRECTION-24) ----
+   O valor de referência abre o painel (lead). Só esta página: as classes do painel
+   compartilhado (Meu acervo, Minhas coleções) não mudam. Seletores com elemento para
+   vencer, por especificidade, as regras equivalentes de acervo.module.css. */
+
+/* Desktop: a primeira coluna (valor) recebe mais largura; as células podem encolher
+   (min-width: 0) para nada empurrar a vizinha. */
+dl.favLedger {
+  grid-template-columns: minmax(13.5rem, 1.45fr) repeat(3, minmax(0, 1fr));
+}
+
+dl.favLedger > div {
+  min-width: 0;
+}
+
+/* Valor monetário: uma linha só (o "R$" nunca se separa do número) e tamanho que
+   acompanha a largura do cabeçalho (cqi do container acervo-hero), entre 1.5rem e o
+   tamanho de destaque de 2.25rem. Nunca transborda para a célula ao lado. */
+dl.favLedger > div:first-child dd {
+  font-size: clamp(1.5rem, 4.6cqi, 2.25rem);
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+
+/* Celular / cabeçalho estreito: o painel compartilhado já põe o primeiro item na linha
+   inteira e os outros três abaixo; aqui só se repete a grade (a regra de desktop acima
+   tem precedência) e o valor ganha o tamanho de destaque. */
+@container acervo-hero (max-width: 46rem) {
+  dl.favLedger {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  dl.favLedger > div:first-child dd {
+    font-size: clamp(1.75rem, 9cqi, 2.25rem);
+  }
+}
+
 /* Colunas de largura própria (auto-fill): uma carta fica no tamanho natural e alinhada
    ao título; dezenas preenchem a largura útil. Mínimo de 10.5rem para a linha de
    Set/número + preço do tile da Pesquisa não apertar. */
