@@ -2,8 +2,9 @@
 
 import { useContext } from "react";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
-import { ArrowDown, Bookmark, BookmarkX, FileMinus2, FilePlus2, Focus, GalleryVerticalEnd, Inbox, LayoutGrid, Lock, LockOpen, Maximize2, Minimize2, PackagePlus, PawPrint, Sparkles, Trash2, X, type LucideIcon } from "lucide-react";
+import { ArrowDown, Bookmark, BookmarkX, FileMinus2, FilePlus2, Focus, GalleryVerticalEnd, Inbox, LayoutGrid, Lock, LockOpen, Maximize2, Minimize2, PackagePlus, PawPrint, Sparkles, Trash2, Wand2, X, type LucideIcon } from "lucide-react";
 import { BinderPortalContext } from "./binder-slot";
+import { AUTO_ARRANGE_BUTTON_ID, AUTO_ARRANGE_PANEL_ID } from "@/lib/colecoes/binder-auto-arrange-view";
 import styles from "./tool-rail.module.css";
 
 /**
@@ -42,7 +43,12 @@ import styles from "./tool-rail.module.css";
  *                            só em fichário Master Set com novidade do Catálogo
  *                            ainda sem lugar, "Novidades do Catálogo" com contador
  *                            (BINDER-CATALOG-RECONCILIATION-FRONTEND-01; some
- *                            quando não há novidade — é um aviso, não ferramenta).
+ *                            quando não há novidade — é um aviso, não ferramenta)
+ *                            e, só em fichário de Set/Master Set (P2 UI E3),
+ *                            "Organizar automaticamente" — abre a prévia (a
+ *                            gravação só vem da confirmação explícita no
+ *                            painel, E4); indisponível com motivo para convidada,
+ *                            arquivada ou só leitura.
  *  B Experiência           — Tela cheia.
  *  D Seleção               — contador, Mover para a Bandeja, Fixar, Soltar,
  *                            Reservar, Liberar reserva, Tirar do fichário, Limpar.
@@ -82,6 +88,8 @@ export type ToolRailState = {
   /** Novidades do Catálogo pendentes (0 = botão ausente). Só Master Set elegível. */
   catalogCount?: number;
   catalogOpen?: boolean;
+  /** P2 UI E3: "Organizar automaticamente" (prévia). `undefined` = botão ausente (Pokédex, Livre, sem fichário). */
+  autoArrange?: { enabled: boolean; label: string; open: boolean };
   canFullscreen: boolean;
   fullscreen: boolean;
   count: number;
@@ -103,6 +111,7 @@ export type ToolRailActions = {
   onToggleOnlyMine: () => void;
   onOpenSpecies?: () => void;
   onOpenCatalog?: () => void;
+  onToggleAutoArrange?: () => void;
   onToggleFullscreen: () => void;
   onMoveToTray: () => void;
   onLock: () => void;
@@ -126,6 +135,8 @@ function RailButton({
   badge,
   disabled = false,
   haspopup,
+  id,
+  controls,
 }: {
   icon: LucideIcon;
   label: string;
@@ -136,6 +147,10 @@ function RailButton({
   badge?: number;
   disabled?: boolean;
   haspopup?: "dialog";
+  /** Para devolver o foco ao botão quando o painel que ele abre fecha. */
+  id?: string;
+  /** `aria-controls` do painel que o botão abre (quando aberto). */
+  controls?: string;
 }) {
   const portal = useContext(BinderPortalContext);
   return (
@@ -143,6 +158,8 @@ function RailButton({
       <TooltipPrimitive.Trigger asChild>
         <button
           type="button"
+          id={id}
+          aria-controls={controls}
           className={styles.button}
           onClick={disabled ? undefined : onClick}
           aria-label={label}
@@ -262,6 +279,18 @@ export function BinderToolRail({ state: s, actions: a }: { state: ToolRailState;
             badge={s.catalogCount}
             disabled={!s.editable || s.busy}
             haspopup="dialog"
+          />
+        ) : null}
+
+        {s.autoArrange && a.onToggleAutoArrange ? (
+          <RailButton
+            id={AUTO_ARRANGE_BUTTON_ID}
+            icon={Wand2}
+            label={s.autoArrange.label}
+            onClick={a.onToggleAutoArrange}
+            active={s.autoArrange.enabled ? s.autoArrange.open : undefined}
+            disabled={!s.autoArrange.enabled}
+            controls={s.autoArrange.open ? AUTO_ARRANGE_PANEL_ID : undefined}
           />
         ) : null}
 

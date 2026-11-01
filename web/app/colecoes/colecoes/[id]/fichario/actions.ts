@@ -140,6 +140,12 @@ import {
   parseActivityCoverage,
   parseActivityPage,
 } from "@/lib/colecoes/binder-activity";
+import {
+  type AutoArrangeApplyOutcome,
+  type AutoArrangePreviewOutcome,
+  applyMyBinderAutoArrange,
+  previewMyBinderAutoArrange,
+} from "@/lib/colecoes/binder-auto-arrange-queries";
 import { collectionHref, isCollectionId } from "@/lib/colecoes/colecoes";
 import { getMyCollectionsByIds } from "@/lib/colecoes/colecoes-queries";
 import { createClient } from "@/lib/supabase/server";
@@ -1486,4 +1492,31 @@ export async function applyCatalogReconciliation(input: {
     revalidatePath(collectionHref(input.collectionId));
   }
   return { ok: true, result };
+}
+
+// ---------------------------------------------------------------------------
+// Organizar automaticamente (P2, 5343/5344 LIVE desde 2026-11-01). A prévia
+// só lê e roda apenas por ação explícita (nunca no carregamento do fichário);
+// a aplicação envia só coleção + token e nunca é repetida automaticamente.
+// Validação, chamada única, classificação e logs: binder-auto-arrange-queries.
+// ---------------------------------------------------------------------------
+
+/** Prévia (5343): plano, contagens, páginas, motivos e token. Não grava. */
+export async function previewAutoArrange(input: { collectionId: string }): Promise<AutoArrangePreviewOutcome> {
+  const supabase = await createClient();
+  return previewMyBinderAutoArrange(supabase, { collectionId: input?.collectionId });
+}
+
+/**
+ * Aplicação (5344) do plano confirmado. Revalida o fichário e a coleção em
+ * APPLIED e em ALREADY_APPLIED (a gravação anterior pode ter ocorrido numa
+ * chamada cujo resultado se perdeu, sem revalidação); falha de cache não
+ * converte o sucesso em erro (`cache: "failed"`).
+ */
+export async function applyAutoArrange(input: { collectionId: string; planToken: string }): Promise<AutoArrangeApplyOutcome> {
+  const supabase = await createClient();
+  return applyMyBinderAutoArrange(supabase, { collectionId: input?.collectionId, planToken: input?.planToken }, () => {
+    revalidatePath(binderHref(input.collectionId));
+    revalidatePath(collectionHref(input.collectionId));
+  });
 }

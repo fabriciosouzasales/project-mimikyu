@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   DndContext,
@@ -17,11 +18,13 @@ import {
 import { AlertTriangle, ArrowLeft, CheckCircle2, Inbox, PanelRight, Plus, RotateCcw, X } from "lucide-react";
 import {
   addPages,
+  applyAutoArrange,
   clearReservations,
   closeGap,
   insertGap,
   moveSlot,
   placeAvailableCard,
+  previewAutoArrange,
   previewInsertGap,
   readAvailableCards,
   readCatalogNovelties,
@@ -96,6 +99,35 @@ import {
   pageRemovalFailureMessage,
   pageRemovedMessage,
 } from "@/lib/colecoes/binder-page-removal";
+import type { AutoArrangeEntry } from "@/lib/colecoes/binder-auto-arrange";
+import {
+  ARRANGE_CLOSED,
+  AUTO_ARRANGE_BUTTON_ID,
+  type ArrangeView,
+  type LocalVersion,
+  autoArrangeRailButton,
+  closePreview,
+  finishPreview,
+  isStale,
+  projectedSlotIds,
+  startPreview,
+} from "@/lib/colecoes/binder-auto-arrange-view";
+import {
+  type ApplyFlow,
+  type ApplyOutcome,
+  FLOW_IDLE,
+  beginApply,
+  failureFollowUp,
+  finishApply,
+  finishRevalidation,
+  flowHidesProjection,
+  flowLocksWrites,
+  isReviewValid,
+  refreshAfterApply,
+  reviewablePreview,
+  startReview,
+  startRevalidation,
+} from "@/lib/colecoes/binder-auto-arrange-flow";
 import { usePrefersReducedMotion } from "@/lib/use-prefers-reduced-motion";
 import { cn } from "@/lib/utils";
 import { SideArrowButton, TopNavControls, FOCUS_RING } from "./binder-chrome";
@@ -104,6 +136,7 @@ import { PageGrid } from "./binder-page-grid";
 import type { BinderFinish } from "@/lib/colecoes/binder-finish";
 import { AddPagesDialog } from "./binder-add-pages";
 import { AvailablePanel, type AvailableState } from "./binder-available";
+import { AutoArrangePanel } from "./binder-auto-arrange-panel";
 import { ImageComposer, type ImageDialogMode, SlotImageDialog } from "./binder-image-editor";
 import { type PreparedImage, clearSlotImageAndFile, linkNewRegionImage, linkNewSlotImage, separateRegionAndFile } from "./binder-image-io";
 import { GapDialog, type GapDialogState, ImageShapeSwitch, RegionComposer, RegionImageDialog } from "./binder-layout-tools";
@@ -112,6 +145,7 @@ import { RemovePageDialog } from "./binder-remove-page";
 import { BinderControlPanel, CONTROL_PANEL_ID } from "./binder-control";
 import { BinderOverview } from "./binder-overview";
 import {
+  AutoArrangeProjectionContext,
   BinderPortalContext,
   BinderPriceContext,
   type RegionDialogMode,
@@ -138,6 +172,7 @@ const UNDO_MAX = 40;
 type GapUndo = { gapSlotId: string; endSlotId: string; undoToken: string; addedPageId: string | null; pages: number[] };
 type Toast = { tone: "success" | "error" | "info"; text: string; undo?: { slotId: string; physicalCardId: string }[]; gapUndo?: GapUndo } | null;
 type Confirm = { slotIds: string[]; lockedSkipped: number } | null;
+const HIDDEN_AUTO_ARRANGE: AutoArrangeEntry = { visible: false };
 type Entry = { page: number; slot: BinderSlot };
 
 /** Cadastro pelo fichário (V1-06 COMPLETE-01): da barra (`slot: null`) ou de um bolso vazio. */
@@ -194,6 +229,7 @@ export function BinderWorkspace({
   initialSpeciesState,
   catalogNovelties = false,
   register = null,
+  autoArrange = HIDDEN_AUTO_ARRANGE,
 }: {
   variant: "overlay" | "page";
   collectionId: string;
@@ -246,6 +282,12 @@ export function BinderWorkspace({
   catalogNovelties?: boolean;
   /** V1-06: "Cadastrar cartas" no fichário. `null` = ação ausente (tipo de coleção desconhecido). */
   register?: BinderRegisterContext | null;
+  /**
+   * P2 UI E3: elegibilidade de "Organizar automaticamente" (`autoArrangeEntry`
+   * do cabeçalho). Padrão = ausente. Prévia (5343) por ação explícita;
+   * aplicação (5344) só pelo "Confirmar e posicionar" da revisão (E4).
+   */
+  autoArrange?: AutoArrangeEntry;
 }) {
   const reducedMotion = usePrefersReducedMotion();
   // Total de páginas vivo: cresce quando o colecionador adiciona páginas (5125).
@@ -455,6 +497,62 @@ export function BinderWorkspace({
   // Filtro de origem (D3): "Todas" por padrão; só recorta a lista, nunca a elegibilidade.
   const [availableOrigin, setAvailableOrigin] = useState<AvailableOrigin>(DEFAULT_AVAILABLE_ORIGIN);
   const [armedCard, setArmedCard] = useState<AvailableCard | null>(null);
+
+  // ---- Organizar automaticamente: PRÉVIA somente leitura (P2 UI E3) ----
+  // Só `previewAutoArrange` (5343, STABLE). Abre por ação explícita, nunca no
+  // carregamento. `activityVersion` (escritas desta tela) e `layoutEpoch`
+  // (reordenação de páginas) marcam a prévia como desatualizada; versão igual
+  // NÃO prova que o plano continua válido — só o token do servidor prova.
+  const [layoutEpoch, setLayoutEpoch] = useState(0);
+  const localVersion = useMemo<LocalVersion>(() => ({ activity: activityVersion, layout: layoutEpoch }), [activityVersion, layoutEpoch]);
+  const arrangeRef = useRef<ArrangeView>(ARRANGE_CLOSED);
+  const [arrangeView, setArrangeViewState] = useState<ArrangeView>(ARRANGE_CLOSED);
+  const setArrangeView = useCallback((next: ArrangeView) => {
+    arrangeRef.current = next;
+    setArrangeViewState(next);
+  }, []);
+  // E4: fluxo de confirmação/aplicação, ortogonal à prévia (binder-auto-arrange-flow).
+  const flowRef = useRef<ApplyFlow>(FLOW_IDLE);
+  const [applyFlow, setApplyFlowState] = useState<ApplyFlow>(FLOW_IDLE);
+  const setApplyFlow = useCallback((next: ApplyFlow) => {
+    flowRef.current = next;
+    setApplyFlowState(next);
+  }, []);
+  /** Trava síncrona contra duplo clique (o estado do React só muda no próximo render). */
+  const applyingRef = useRef(false);
+  const localVersionRef = useRef(localVersion);
+  useEffect(() => {
+    localVersionRef.current = localVersion;
+  }, [localVersion]);
+  const arrangeOpen = arrangeView.status !== "closed";
+  const arrangeStale = isStale(arrangeView, localVersion);
+  const arrangeProjection = useMemo(
+    () => (flowHidesProjection(applyFlow) ? null : projectedSlotIds(arrangeView, localVersion)),
+    [applyFlow, arrangeView, localVersion],
+  );
+  /** Leitura da prévia (5343, só leitura). Devolve o estado final dessa leitura. */
+  const readArrangePreview = useCallback(async (): Promise<ArrangeView> => {
+    const started = startPreview(arrangeRef.current, localVersionRef.current);
+    if (started.status !== "loading") return arrangeRef.current;
+    setArrangeView(started);
+    const outcome = await previewAutoArrange({ collectionId }).catch(() => ({ ok: false as const, reason: "uncertain" as const }));
+    const finished = finishPreview(arrangeRef.current, started.seq, outcome);
+    setArrangeView(finished);
+    return finished;
+  }, [collectionId, setArrangeView]);
+  const closeArrange = useCallback(
+    (returnFocus = true) => {
+      if (arrangeRef.current.status === "closed") return;
+      // Aplicando (ou conferindo um resultado incerto): o painel não fecha.
+      if (applyingRef.current || flowLocksWrites(flowRef.current)) return;
+      setApplyFlow(FLOW_IDLE);
+      setArrangeView(closePreview(arrangeRef.current));
+      if (returnFocus) {
+        window.requestAnimationFrame(() => rootRef.current?.querySelector<HTMLElement>(`#${AUTO_ARRANGE_BUTTON_ID}`)?.focus({ preventScroll: true }));
+      }
+    },
+    [setApplyFlow, setArrangeView],
+  );
   // "Adicionar carta" no bolso vazio e "Adicionar páginas" (P2-BINDER-CAPACITY-AND-EMPTY-SLOT-01).
   const [pocketTarget, setPocketTarget] = useState<Entry | null>(null);
   // Imagem personalizada (C-198): bolso aberto no diálogo da imagem.
@@ -589,11 +687,14 @@ export function BinderWorkspace({
       setArmedCard(null);
       return;
     }
+    // Organização automática em curso: o painel da prévia não pode ceder lugar.
+    if (applyingRef.current || flowLocksWrites(flowRef.current)) return;
     setAvailableOpen(true);
     setControlOpen(false);
+    closeArrange(false);
     // Cada abertura relê a lista (o banco é a autoridade; outra tela pode ter posicionado cartas).
     if (available.status !== "loading") void loadAvailable(0);
-  }, [available.status, availableOpen, loadAvailable]);
+  }, [available.status, availableOpen, closeArrange, loadAvailable]);
 
   // ---- tela cheia ----
   const [fullscreen, setFullscreen] = useState(false);
@@ -635,17 +736,19 @@ export function BinderWorkspace({
   }, []);
   const setControl = useCallback(
     (open: boolean) => {
+      if (open && (applyingRef.current || flowLocksWrites(flowRef.current))) return;
       setControlOpen(open);
       persistControl(open, collapsedSections);
       if (open) {
-        // Um painel lateral por vez: "Cartas disponíveis" ocupa o mesmo lado.
+        // Um painel lateral por vez: "Cartas disponíveis" e a prévia ocupam o mesmo lado.
         setAvailableOpen(false);
         setArmedCard(null);
+        closeArrange(false);
       } else {
         window.requestAnimationFrame(() => controlButtonRef.current?.focus({ preventScroll: true }));
       }
     },
-    [collapsedSections, persistControl],
+    [closeArrange, collapsedSections, persistControl],
   );
   const toggleSection = useCallback(
     (section: ControlSection) => {
@@ -658,6 +761,111 @@ export function BinderWorkspace({
       });
     },
     [controlOpen, persistControl],
+  );
+
+  // "Organizar automaticamente" (trilho): abre/fecha a prévia. Um painel do palco por vez.
+  const arrangeButton = autoArrangeRailButton(autoArrange, arrangeOpen);
+  const toggleArrange = useCallback(() => {
+    if (!autoArrange.visible || !autoArrange.enabled) return;
+    if (arrangeRef.current.status !== "closed") {
+      closeArrange();
+      return;
+    }
+    setControlOpen(false);
+    setAvailableOpen(false);
+    setArmedCard(null);
+    setArmed(null);
+    setConfirm(null);
+    setApplyFlow(FLOW_IDLE);
+    void readArrangePreview();
+  }, [autoArrange, closeArrange, readArrangePreview, setApplyFlow]);
+
+  // ---- E4: confirmação e aplicação (a ÚNICA escrita da organização automática) ----
+  const router = useRouter();
+  /** "Atualizar prévia" / "Nova prévia": nova leitura; qualquer revisão anterior deixa de valer. */
+  const refreshArrangePreview = useCallback(() => {
+    if (applyingRef.current || flowLocksWrites(flowRef.current)) return;
+    setApplyFlow(FLOW_IDLE);
+    void readArrangePreview();
+  }, [readArrangePreview, setApplyFlow]);
+  /** "Posicionar cartas": abre a revisão no painel, presa à leitura exibida. */
+  const startArrangeReview = useCallback(() => {
+    if (busy) return; // outra escrita local em curso: o painel mostra o motivo
+    const next = startReview(arrangeRef.current, localVersionRef.current);
+    if (next) setApplyFlow(next);
+  }, [busy, setApplyFlow]);
+  const cancelArrangeReview = useCallback(() => {
+    if (flowRef.current.kind === "review") setApplyFlow(FLOW_IDLE);
+  }, [setApplyFlow]);
+  /** Revalidação SÓ LEITURA depois de falha: nunca grava e nunca confirma sozinha. */
+  const revalidateArrange = useCallback(
+    async (failed: ApplyFlow) => {
+      const started = startRevalidation(failed);
+      if (started.kind !== "revalidating") return;
+      setApplyFlow(started);
+      const lock = flowLocksWrites(started);
+      if (lock) setBusy(true);
+      const fresh = await readArrangePreview();
+      if (lock) setBusy(false);
+      setApplyFlow(finishRevalidation(flowRef.current, fresh, localVersionRef.current));
+    },
+    [readArrangePreview, setApplyFlow],
+  );
+  /** "Confirmar e posicionar": uma chamada a `applyAutoArrange` (coleção + token), sem retry. */
+  const confirmArrange = useCallback(async () => {
+    if (applyingRef.current) return; // duplo clique
+    if (busy) return; // outra escrita do fichário em curso: espera terminar
+    const begun = beginApply(flowRef.current, arrangeRef.current, localVersionRef.current);
+    if (!begun) return; // revisão inválida: prévia antiga, desatualizada ou bloqueada
+    const confirmed = arrangeRef.current.status === "ready" ? arrangeRef.current.preview.pages : [];
+    applyingRef.current = true;
+    setApplyFlow(begun.flow);
+    setBusy(true);
+    setArmed(null);
+    setArmedCard(null);
+    setConfirm(null);
+    const outcome: ApplyOutcome = await applyAutoArrange({ collectionId, planToken: begun.planToken }).catch(() => ({
+      ok: false as const,
+      reason: "uncertain" as const,
+      write: "unknown" as const,
+    }));
+    applyingRef.current = false;
+    setBusy(false);
+    const next = finishApply(flowRef.current, begun.planToken, outcome);
+    setApplyFlow(next);
+    if (next.kind === "done") {
+      const plan = refreshAfterApply(next.result, confirmed);
+      if (plan.clearHand) {
+        setSelected(new Set());
+        setArmedCard(null);
+      }
+      if (plan.filledDelta !== 0) setFilled((value) => value + plan.filledDelta);
+      if (plan.availableDelta !== 0) setAvailable((prev) => ({ ...prev, total: Math.max(0, prev.total + plan.availableDelta) }));
+      if (plan.reloadAvailable) void loadAvailable(0);
+      // Relê só as páginas afetadas (a página à vista não muda) e avisa o Histórico (activityVersion).
+      if (plan.pages.length > 0) await refreshPages(plan.pages);
+      return;
+    }
+    if (failureFollowUp(next).read === "now") await revalidateArrange(next);
+  }, [busy, collectionId, loadAvailable, refreshPages, revalidateArrange, setApplyFlow]);
+  /** 55P03 / 40P01 / 57014: nova tentativa controlada — começa SEMPRE por revalidação. */
+  const retryArrange = useCallback(() => {
+    if (failureFollowUp(flowRef.current).read === "on_request") void revalidateArrange(flowRef.current);
+  }, [revalidateArrange]);
+  /** Cache do servidor falhou depois do sucesso: atualização visual (leituras), sem nova escrita. */
+  const refreshArrangeScreen = useCallback(() => {
+    router.refresh();
+    void refreshPages([...cache.keys()]);
+  }, [cache, refreshPages, router]);
+  const arrangeCanReview = (applyFlow.kind === "idle" || applyFlow.kind === "review") && reviewablePreview(arrangeView, localVersion) !== null;
+  const arrangeReviewValid = isReviewValid(applyFlow, arrangeView, localVersion);
+  const goToArrangePage = useCallback(
+    (page: number) => {
+      const target = clampPage(page, totalPages);
+      setDirection(target >= anchor ? 1 : -1);
+      setAnchor(target);
+    },
+    [anchor, totalPages],
   );
 
   const [canFullscreen, setCanFullscreen] = useState(false);
@@ -1509,6 +1717,7 @@ export function BinderWorkspace({
         if (confirm) setConfirm(null);
         else if (armedCard) setArmedCard(null);
         else if (armed) setArmed(null);
+        else if (arrangeOpen) closeArrange();
         else if (controlOpen) setControl(false);
         else if (availableOpen) setAvailableOpen(false);
         else if (trayOpen) setTrayOpen(false);
@@ -1519,7 +1728,7 @@ export function BinderWorkspace({
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [armed, armedCard, availableOpen, back, confirm, controlOpen, forward, go, gapDialog, imageTarget, lastView, onClose, overviewOpen, pocketTarget, regionTarget, registerFor, selected.size, setControl, trayOpen]);
+  }, [armed, armedCard, arrangeOpen, availableOpen, back, closeArrange, confirm, controlOpen, forward, go, gapDialog, imageTarget, lastView, onClose, overviewOpen, pocketTarget, regionTarget, registerFor, selected.size, setControl, trayOpen]);
 
   // ---- arrastar e soltar (pointer/touch; teclado usa "…" → Bandeja → bolso) ----
   const sensors = useSensors(
@@ -1623,13 +1832,15 @@ export function BinderWorkspace({
     <BinderPortalContext.Provider value={portalRef}>
       <BinderPriceContext.Provider value={priceContext}>
       <SpeciesReferenceVisibleContext.Provider value={speciesVisible}>
+      <AutoArrangeProjectionContext.Provider value={arrangeProjection}>
       <div
         ref={rootRef}
         className={cn("binder-nav-01-scope", ws.root)}
         data-variant={variant}
         data-fullscreen={fullscreen || undefined}
         data-control={controlOpen && controlDocked ? "docked" : undefined}
-        data-available={availableOpen ? (controlDocked ? "side" : "bottom") : undefined}
+        // Área "panel" do grid: Cartas disponíveis OU a prévia da organização automática (exclusivos).
+        data-available={availableOpen || arrangeOpen ? (controlDocked ? "side" : "bottom") : undefined}
       >
         <div aria-hidden className={ws.glow} />
 
@@ -1702,6 +1913,7 @@ export function BinderWorkspace({
                 speciesCount: speciesState?.referenceCount ?? 0,
                 catalogCount,
                 catalogOpen,
+                autoArrange: arrangeButton.present ? { enabled: arrangeButton.enabled, label: arrangeButton.label, open: arrangeOpen } : undefined,
                 canFullscreen,
                 fullscreen,
                 count: selected.size,
@@ -1746,6 +1958,7 @@ export function BinderWorkspace({
                   setConfirm(null);
                   setCatalogOpen(true);
                 },
+                onToggleAutoArrange: toggleArrange,
                 onToggleFullscreen: toggleFullscreen,
                 onMoveToTray: () => toTray([...selected]),
                 onLock: () => void runLock(selectedEntries, true),
@@ -1903,6 +2116,28 @@ export function BinderWorkspace({
             />
           ) : null}
 
+          {arrangeView.status !== "closed" ? (
+            <AutoArrangePanel
+              mode={controlDocked ? "side" : "bottom"}
+              view={arrangeView}
+              stale={arrangeStale}
+              flow={applyFlow}
+              canReview={arrangeCanReview}
+              reviewValid={arrangeReviewValid}
+              writeBusy={busy}
+              totalPages={totalPages}
+              visiblePages={visiblePages}
+              onRefresh={refreshArrangePreview}
+              onGoToPage={goToArrangePage}
+              onClose={() => closeArrange()}
+              onStartReview={startArrangeReview}
+              onCancelReview={cancelArrangeReview}
+              onConfirm={() => void confirmArrange()}
+              onRetry={retryArrange}
+              onRefreshScreen={refreshArrangeScreen}
+            />
+          ) : null}
+
           <DragOverlay dropAnimation={null}>
             {dragging ? <DragPreview data={dragging} slotIndex={slotIndex} availableById={availableById} pocket={fit.pocket} /> : null}
           </DragOverlay>
@@ -1980,6 +2215,8 @@ export function BinderWorkspace({
               pending.current.clear();
               setFailed(new Set());
               setCache(new Map());
+              // Números de página mudaram: uma prévia aberta passa a desatualizada (P2 UI E3).
+              setLayoutEpoch((value) => value + 1);
               setToast({ tone: "success", text: message });
             }}
             onRequestAddPages={editable && layoutId ? () => setAddPagesOpen(true) : null}
@@ -2201,6 +2438,7 @@ export function BinderWorkspace({
           {selectionActive ? ` ${selected.size} ${selected.size === 1 ? "carta selecionada" : "cartas selecionadas"}.` : ""}
         </p>
       </div>
+      </AutoArrangeProjectionContext.Provider>
       </SpeciesReferenceVisibleContext.Provider>
       </BinderPriceContext.Provider>
     </BinderPortalContext.Provider>

@@ -1,0 +1,519 @@
+/*
+ * Organizar automaticamente — prévia (P2 UI E3). Mesma família visual de
+ * "Cartas disponíveis" (painel escuro do spike, igual nos dois temas, como
+ * a navegação do MMKYU) e o mesmo encaixe no grid da área de trabalho:
+ * `side` = coluna à direita (≥ 1280 px), `bottom` = faixa abaixo do fichário.
+ * Dourado só em detalhe de marca (contagem, página à vista, foco).
+ */
+
+.panel {
+  grid-area: panel;
+  position: relative;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border-radius: 1.125rem;
+  background: hsl(0 0% 6% / 0.95);
+  color: hsl(0 0% 100% / 0.88);
+  -webkit-backdrop-filter: blur(14px) saturate(1.3);
+  backdrop-filter: blur(14px) saturate(1.3);
+  box-shadow:
+    0 0 0 0.5px hsl(0 0% 100% / 0.12),
+    inset 0 0.5px 0 hsl(0 0% 100% / 0.08),
+    0 28px 56px -18px hsl(0 0% 0% / 0.75);
+  animation: panelIn 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.panel[data-mode="side"] {
+  height: 100%;
+}
+
+.panel[data-mode="bottom"] {
+  height: clamp(12rem, 34dvh, 17rem);
+  animation-name: panelUp;
+}
+
+@media (max-width: 767px) {
+  .panel[data-mode="bottom"] {
+    height: clamp(11rem, 38dvh, 15rem);
+  }
+}
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.75rem 0.5rem 0.5rem 1rem;
+}
+
+.headText {
+  min-width: 0;
+}
+
+.title {
+  font: 700 0.875rem / 1.25 var(--font-heading);
+  letter-spacing: -0.005em;
+  color: hsl(0 0% 100% / 0.95);
+  outline: none;
+}
+
+.title:focus-visible {
+  outline: 2px solid hsl(40 70% 62%);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+.hint {
+  margin-top: 0.25rem;
+  font-size: 0.6875rem;
+  line-height: 1.45;
+  color: hsl(0 0% 100% / 0.5);
+}
+
+/* Na faixa baixa a instrução vai só para leitores de tela: a altura fica para o conteúdo. */
+.panel[data-mode="bottom"] .hint {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.close {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin: -0.375rem 0 0;
+  border-radius: 999px;
+  color: hsl(0 0% 100% / 0.6);
+  transition:
+    background-color 140ms ease,
+    color 140ms ease;
+}
+
+.close:hover {
+  background: hsl(0 0% 100% / 0.1);
+  color: hsl(0 0% 100%);
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 1rem 1rem;
+  scrollbar-width: thin;
+  scrollbar-color: hsl(0 0% 100% / 0.18) transparent;
+}
+
+.ready {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+
+/* Prévia desatualizada: o conteúdo antigo fica legível, mas recua. */
+.ready[data-stale] {
+  opacity: 0.55;
+}
+
+.headline {
+  font: 700 0.9375rem / 1.3 var(--font-heading);
+  color: hsl(0 0% 100% / 0.95);
+}
+
+.detail {
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: hsl(0 0% 100% / 0.6);
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.panel[data-mode="bottom"] .facts {
+  grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+}
+
+.fact {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 0.125rem;
+  padding: 0.5rem 0.625rem;
+  border-radius: 0.75rem;
+  background: hsl(0 0% 100% / 0.05);
+}
+
+.fact dd {
+  font: 800 1.125rem / 1.1 var(--font-heading);
+  font-variant-numeric: tabular-nums;
+  color: hsl(0 0% 100% / 0.95);
+}
+
+.fact[data-key="insert"] dd {
+  color: hsl(40 80% 74%);
+}
+
+.fact dt {
+  font-size: 0.6875rem;
+  line-height: 1.3;
+  color: hsl(0 0% 100% / 0.58);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.sectionHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.sectionTitle {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: hsl(0 0% 100% / 0.55);
+}
+
+.pages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  list-style: none;
+}
+
+.page {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0 0.625rem;
+  border-radius: 0.75rem;
+  background: hsl(0 0% 100% / 0.06);
+  color: hsl(0 0% 100% / 0.85);
+  font-variant-numeric: tabular-nums;
+  transition:
+    background-color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.page:hover {
+  background: hsl(0 0% 100% / 0.12);
+}
+
+.page[aria-current="page"] {
+  box-shadow: inset 0 0 0 1.5px hsl(40 70% 62% / 0.9);
+}
+
+.pageNumber {
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.pageCount {
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  background: hsl(40 70% 62% / 0.2);
+  color: hsl(40 80% 80%);
+  font-size: 0.625rem;
+  font-weight: 700;
+}
+
+.legend,
+.footnote {
+  font-size: 0.6875rem;
+  line-height: 1.45;
+  color: hsl(0 0% 100% / 0.5);
+}
+
+.reasons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  list-style: none;
+}
+
+.reasons li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: hsl(0 0% 100% / 0.75);
+}
+
+.reasonCount {
+  flex: none;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: hsl(0 0% 100% / 0.92);
+}
+
+.notes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  padding-top: 0.625rem;
+  border-top: 1px solid hsl(0 0% 100% / 0.08);
+  font-size: 0.6875rem;
+  line-height: 1.45;
+  color: hsl(0 0% 100% / 0.5);
+}
+
+.unavailable {
+  color: hsl(0 0% 100% / 0.72);
+}
+
+.stale {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  padding: 0.625rem 0.75rem;
+  border-radius: 0.75rem;
+  background: hsl(38 92% 50% / 0.12);
+  box-shadow: inset 0 0 0 1px hsl(38 92% 60% / 0.35);
+  color: hsl(38 92% 82%);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.stale span {
+  flex: 1 1 10rem;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding-top: 0.25rem;
+}
+
+.action,
+.linkButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 2.75rem;
+  padding: 0 0.875rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: hsl(0 0% 100% / 0.88);
+  transition: background-color 140ms ease;
+}
+
+.action {
+  border: 1px solid hsl(0 0% 100% / 0.16);
+}
+
+.linkButton {
+  min-height: 2.25rem;
+  padding: 0 0.5rem;
+  color: hsl(0 0% 100% / 0.7);
+}
+
+.action:hover,
+.linkButton:hover {
+  background: hsl(0 0% 100% / 0.08);
+}
+
+.close:focus-visible,
+.action:focus-visible,
+.linkButton:focus-visible,
+.page:focus-visible {
+  outline: 2px solid hsl(40 70% 62%);
+  outline-offset: 2px;
+}
+
+.state {
+  padding: 1rem 0.25rem;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: hsl(0 0% 100% / 0.6);
+}
+
+.stateTitle {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-weight: 700;
+  color: hsl(0 0% 100% / 0.88);
+}
+
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  padding-top: 0.25rem;
+}
+
+.skeleton span {
+  display: block;
+  height: 2.75rem;
+  border-radius: 0.75rem;
+  background: hsl(0 0% 100% / 0.06);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.skeleton span:first-child {
+  height: 1.25rem;
+  width: 70%;
+}
+
+/* E4 — confirmação e resultado. Dourado só no CTA principal (padrão MMKYU). */
+.primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  min-height: 2.75rem;
+  padding: 0 1.125rem;
+  border-radius: 999px;
+  background: hsl(40 70% 62%);
+  color: hsl(30 30% 10%);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  transition:
+    background-color 140ms ease,
+    transform 110ms ease;
+}
+
+.primary:hover {
+  background: hsl(40 75% 68%);
+}
+
+.primary:active {
+  transform: scale(0.98);
+}
+
+.primary[aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.primary[aria-disabled="true"]:hover {
+  background: hsl(40 70% 62%);
+}
+
+.primary[aria-disabled="true"]:active {
+  transform: none;
+}
+
+.busyHint {
+  flex-basis: 100%;
+  font-size: 0.6875rem;
+  line-height: 1.45;
+  color: hsl(0 0% 100% / 0.62);
+}
+
+.primary:focus-visible {
+  outline: 2px solid hsl(40 80% 80%);
+  outline-offset: 3px;
+}
+
+.guarantees {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  list-style: none;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: hsl(0 0% 100% / 0.78);
+}
+
+.guarantees li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.guarantees svg {
+  margin-top: 0.125rem;
+  color: hsl(150 45% 62%);
+}
+
+.success {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.625rem;
+  padding: 0.75rem;
+  border-radius: 0.75rem;
+  background: hsl(150 45% 40% / 0.14);
+  box-shadow: inset 0 0 0 1px hsl(150 45% 55% / 0.35);
+}
+
+.success svg {
+  margin-top: 0.125rem;
+  color: hsl(150 50% 65%);
+}
+
+.progress {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.progress .stateTitle {
+  margin-bottom: 0;
+}
+
+@keyframes panelIn {
+  from {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+}
+
+@keyframes panelUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel,
+  .skeleton span {
+    animation: none;
+  }
+
+  .page,
+  .action,
+  .linkButton,
+  .close,
+  .primary {
+    transition: none;
+  }
+
+  .primary:active {
+    transform: none;
+  }
+}

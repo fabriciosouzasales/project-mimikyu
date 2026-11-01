@@ -4,8 +4,8 @@
 |--------|-------|
 | **Documento** | Contrato funcional e SQL da organização automática do fichário |
 | **Arquivo** | `docs/domain-modeling/collections/binder-auto-arrange-contract.md` |
-| **Versão** | 1.4 |
-| **Status** | Decisões APROVADAS (C-220–C-226). **Fundação SQL HOMOLOGADA no LIVE** (`P2 SQL FOUNDATION CLOSEOUT-16`, 2026-11-01): 5341–5344 canônicas em `database/schema/`, evidências em `database/proposals/2026-11-01-binder-auto-arrange/README.md`. Interface **não iniciada**. Nenhuma organização real executada; aplicação sobre exemplares reais depende da homologação da interface e de autorização do proprietário. |
+| **Versão** | 1.5 |
+| **Status** | Decisões APROVADAS (C-220–C-226). **Fundação SQL HOMOLOGADA no LIVE** (`P2 SQL FOUNDATION CLOSEOUT-16`, 2026-11-01): 5341–5344 canônicas em `database/schema/`, evidências em `database/proposals/2026-11-01-binder-auto-arrange/README.md`. **Interface P2 UI E1–E4 implementada localmente e homologada visualmente** (`P2 UI E4 FINAL CLOSEOUT-05`, 2026-11-01); `npm run lint`/`npm run build` da E4 pendentes no Windows. **Primeira aplicação real executada** no ME3 (147 inserções, `POST-APPLICATION INTEGRITY PASS`). Sem feature flag adicional (decisão do proprietário, §9). |
 | **Criado em** | 2026-11-01 (`Binder · P2 AUTO-ARRANGE SQL FOUNDATION-06`) |
 | **Base** | `AUTO-ARRANGE PRODUCT DECISION-02A`; `P2 LIVE ELIGIBILITY DIAGNOSIS-05` (read-only); C-42–C-44, C-191–C-197, C-201–C-209 |
 | **Relacionados** | `concept-decisions.md` (C-220–C-226), `docs/05d-colecoes-e-usuarios.md` (seção "Fichário — Organização automática (P2)"), `place_my_physical_card_in_slot` (5272), histórico 5267–5271 |
@@ -67,7 +67,7 @@ Ordem de travas: coleção proprietária `FOR UPDATE` (via `assert_collection_la
 
 Um evento `CARDS_AUTO_ARRANGED` (fonte Fichário, coleção proprietária, resumo `{plan_token, inserted}`) com um item `CARD/PLACED` por carta, na ordem física. Teto de itens da 5268 cobre 500. Prévia, vazio, limite, divergência e repetição não geram evento. **Dependência de frontend:** `web/lib/colecoes/binder-activity.ts` precisa aprender o novo tipo antes da publicação do botão.
 
-## 7. Experiência (para a rodada de frontend, não implementada)
+## 7. Experiência (implementada em P2 UI E1–E4)
 
 Ação "Organizar automaticamente" no fichário de Set/Master Set → prévia com contagem do que entra, do que fica de fora agrupado por motivo e páginas afetadas → confirmar → feedback com quantidade posicionada e atalho para a primeira página afetada. Plano vazio: mensagem explicando que não há correspondência inequívoca. Limite: explicar que mais de 500 cartas exigem organização em etapas (travar páginas ou organizar parte manualmente). Erros de concorrência — nenhum deles grava nada, e a interface nunca repete uma escrita automaticamente:
 
@@ -108,7 +108,15 @@ Evidências:
 | R4 | Uma subtransação por INSERT (até 500) | transação curta; medido em P.6/L.3 | custo de CPU proporcional |
 | R5 | Volume real futuro maior que o ME3; estimativa baixa do planejador em `ins` (laço aninhado quadrático) | teto de 500; M2 no ME3 + P.6 sintético | reavaliar se o limite mudar ou surgirem fichários muito maiores |
 
-**Condição de uso real:** a primeira aplicação sobre exemplares reais (inclusive no ME3) exige: interface implementada e homologada (prévia, confirmação, tratamento de `40001`/`55P03`/`40P01`, histórico conhecendo `CARDS_AUTO_ARRANGED`) e autorização explícita do proprietário.
+**Condição de uso real (histórico):** a primeira aplicação sobre exemplares reais (inclusive no ME3) exigia interface implementada e homologada e autorização explícita do proprietário. Ela ocorreu durante a homologação da E4, antes da autorização específica de execução real, e foi auditada a seguir (abaixo).
+
+### Interface (P2 UI E1–E4) e primeira aplicação real
+
+- **Interface:** prévia somente leitura no painel lateral/faixa inferior (E3); revisão no próprio painel com quantidade, páginas e garantias e a confirmação explícita "Confirmar e posicionar" (E4), única chamada a `applyAutoArrange` (coleção + token); bloqueio de duplo clique; escritas do fichário travadas durante a aplicação; resultado incerto revalidado só por leitura; `40001` → nova prévia; `55P03`/`40P01`/`57014` → nova tentativa pedida que começa por revalidação; nenhum plano novo confirmado sozinho. "Posicionar cartas" e "Confirmar e posicionar" ficam indisponíveis, com o motivo, enquanto outra escrita local estiver em curso (`CLOSEOUT-05`).
+- **Homologação visual da E4:** aprovada pelo proprietário (2026-11-01). `npm run lint` e `npm run build` da E4 **pendentes** no Windows (não declarados PASS).
+- **Primeira aplicação real** (ME3, 2026-11-01, `P2 REAL APPLICATION POSTCHECK-03`, auditoria somente leitura): 1 evento `CARDS_AUTO_ARRANGED`; **147 inserções** em 20 páginas, todas em bolsos reservados compatíveis; 25 posições anteriores preservadas; 172 bolsos ocupados; 31 reservas vazias (= `NO_CANDIDATE` do GATE 04); 0 disponíveis; 0 duplicidades; Histórico = posições (0 divergência); nenhuma escrita em exemplares, alocações, locais, bolsos, reservas, páginas ou coleção na transação. Diferença em relação às 148 previstas no GATE 04: uma colocação manual legítima, anterior, num bolso do plano. **`POST-APPLICATION INTEGRITY PASS`.**
+- **Decisão (proprietário, definitiva):** **não** implementar feature flag adicional para a organização automática. Controles obrigatórios: proteção no servidor (DEFINER, titularidade, `search_path` vazio), token do plano com época, correspondência 1:1, atomicidade e confirmação explícita em duas etapas na interface. Só reabrir diante de um novo risco concreto.
+- **Riscos residuais conhecidos (NÃO PROVADOS, não são PASS):** concorrência real entre sessões (K-M1–K-M3) e espera de trava / `55P03` sob contenção real. A primeira aplicação foi de uma única sessão.
 
 ---
 
@@ -121,3 +129,4 @@ Evidências:
 | 1.2 | **Fechamento do token (2026-11-01, `Binder · P2 TOKEN & CONCURRENCY CLOSEOUT-08`).** A época passa a incluir o marco de cobertura do histórico: limpeza do histórico não permite reautorização silenciosa de token antigo. Sem nova infraestrutura; C-220–C-226 inalteradas. |
 | 1.3 | **Fundação SQL homologada (2026-11-01, `P2 SQL FOUNDATION CLOSEOUT-16`).** Status e §3 passam a homologado; retorno da confirmação detalhado; tratamento de `55P03`/`40P01` na interface; nova §9 com gates, evidências, riscos R1–R5, provas não demonstradas (K-M1–K-M3, `55P03`) e a condição para o primeiro uso real. Contrato funcional inalterado; C-220–C-226 inalteradas. |
 | 1.4 | **Tratamento de erros de concorrência na interface (2026-11-01, `P2 SQL FOUNDATION RELEASE-17 CORRECTION-18`).** §3, §7 e linhas R1/R2 da §9: `40001` (plano alterado → nova prévia e nova confirmação), `55P03` (indisponibilidade temporária → nova tentativa iniciada por revalidação) e `40P01` (falha temporária → nova tentativa controlada iniciada por revalidação) passam a ter tratamentos distintos; nenhuma escrita repetida automaticamente; plano mudado exige revisão e confirmação. Sem mudança de SQLSTATE, token, backend ou C-220–C-226. |
+| 1.5 | **Interface homologada e primeira aplicação real (2026-11-01, `P2 UI E4 FINAL CLOSEOUT-05`).** Status e §7 passam a implementado (E1–E4); §9 ganha a subseção da interface, a homologação visual da E4 (lint/build pendentes no Windows), a primeira aplicação real no ME3 (147 inserções, `POST-APPLICATION INTEGRITY PASS`), a decisão do proprietário de não implementar feature flag adicional e os riscos residuais não provados (K-M1–K-M3, `55P03`). SQL, token e C-220–C-226 inalterados. |

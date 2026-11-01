@@ -38,6 +38,7 @@ export const ACTIVITY_EVENT_TYPES = [
   "BINDER_DELETED_EMPTY",
   "BINDER_OWNERSHIP_TRANSFERRED",
   "LEGACY_CATALOG_INCORPORATION",
+  "CARDS_AUTO_ARRANGED",
 ] as const;
 export type ActivityEventType = (typeof ACTIVITY_EVENT_TYPES)[number];
 
@@ -60,7 +61,7 @@ export function filterCategories(key: ActivityFilterKey): ActivityCategory[] | n
   return key === "ALL" ? null : [key];
 }
 
-/** Mesma regra da 5269 `binder_activity_category` (usada quando a linha não trouxer a categoria). */
+/** Mesma regra da 5269 `binder_activity_category`, estendida pela 5341 (`CARDS_AUTO_ARRANGED` → Cartas); usada quando a linha não trouxer a categoria. */
 export function categoryOf(type: string): ActivityCategory | null {
   switch (type) {
     case "CARD_PLACED":
@@ -70,6 +71,7 @@ export function categoryOf(type: string): ActivityCategory | null {
     case "CARDS_LEFT_BY_STORAGE":
     case "CARDS_LEFT_BY_COLLECTION_STORAGE":
     case "CARD_LEFT_BY_INVENTORY_EXIT":
+    case "CARDS_AUTO_ARRANGED":
       return "CARDS";
     case "POCKET_RESERVED":
     case "RESERVATIONS_RELEASED":
@@ -544,6 +546,13 @@ export function describeEvent(event: ActivityEvent): EventView {
       context = count(n, "página mudou de posição", "páginas mudaram de posição");
       break;
     }
+    case "CARDS_AUTO_ARRANGED": {
+      // P2 (5344): um evento por confirmação, um item CARD/PLACED por carta. Total = item_count do evento.
+      icon = "card";
+      title = withPages(count(n, "carta organizada automaticamente", "cartas organizadas automaticamente"), itemPages(items, "to"), event.truncated);
+      if (collection) context = `Coleção ${collection}`;
+      break;
+    }
     case "CATALOG_NOVELTIES_INCORPORATED": {
       icon = "catalog";
       const reserved = effectCount(event, "RESERVED", "INCORPORATED");
@@ -683,6 +692,8 @@ export function headlineEvent(event: ActivityEvent): string {
     }
     case "PAGES_REORDERED":
       return "Páginas reordenadas";
+    case "CARDS_AUTO_ARRANGED":
+      return `${count(n, "carta organizada", "cartas organizadas")} automaticamente`;
     case "CATALOG_NOVELTIES_INCORPORATED": {
       const k = effectCount(event, "RESERVED", "INCORPORATED");
       return k !== null ? `${count(k, "novidade incorporada", "novidades incorporadas")}` : "Novidades do Catálogo incorporadas";

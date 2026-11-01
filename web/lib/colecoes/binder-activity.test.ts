@@ -69,8 +69,8 @@ function ev(type: string, items: RawItem[], over: Record<string, unknown> = {}):
 
 // ---------------------------------------------------------------------------
 
-test("vocabulário: 24 tipos, todos com categoria e frase própria (sem genérico)", () => {
-  assert.equal(ACTIVITY_EVENT_TYPES.length, 24);
+test("vocabulário: 25 tipos, todos com categoria e frase própria (sem genérico)", () => {
+  assert.equal(ACTIVITY_EVENT_TYPES.length, 25);
   const sample: Record<string, RawItem[]> = {
     BINDER_ASSEMBLED: [{ kind: "PAGE", effect: "PAGE_ADDED", to_page: 1 }],
     CARD_PLACED: [{ kind: "CARD", effect: "PLACED", ...CARD, to_page: 5, to_row: 1, to_col: 1 }],
@@ -99,6 +99,7 @@ test("vocabulário: 24 tipos, todos com categoria e frase própria (sem genéric
     BINDER_DELETED_EMPTY: [{ kind: "BINDER", effect: "CLOSED" }],
     BINDER_OWNERSHIP_TRANSFERRED: [{ kind: "BINDER", effect: "TRANSFERRED" }],
     LEGACY_CATALOG_INCORPORATION: [{ kind: "CARD", effect: "INCORPORATED", ...CARD }],
+    CARDS_AUTO_ARRANGED: [{ kind: "CARD", effect: "PLACED", ...CARD, to_page: 2, to_row: 1, to_col: 1 }],
   };
   const titles = new Set<string>();
   for (const type of ACTIVITY_EVENT_TYPES) {
@@ -111,7 +112,7 @@ test("vocabulário: 24 tipos, todos com categoria e frase própria (sem genéric
     assert.doesNotMatch(view.title + (view.context ?? ""), /[A-Z]{3,}_[A-Z]/, `sem enum exposto em ${type}`);
     titles.add(`${type}:${view.title}`);
   }
-  assert.equal(titles.size, 24);
+  assert.equal(titles.size, 25);
 });
 
 test("categorias espelham a 5269 e os filtros seguem a §3.3", () => {
@@ -265,7 +266,7 @@ test("mensagens de estado e falha", () => {
   assert.match(activityFailureMessage("unknown"), /Não foi possível/);
 });
 
-test("Activity Log: manchete curta objeto + ação para os 24 tipos", () => {
+test("Activity Log: manchete curta objeto + ação para os 25 tipos", () => {
   const card = (name: string) => ({ kind: "CARD", card_name: name, collector_number: "009", from_page: 3, from_row: 2, from_col: 4, to_page: 5, to_row: 1, to_col: 1 });
   assert.equal(headlineEvent(ev("CARD_PLACED", [{ ...card("Exeggcute"), effect: "PLACED", from_page: undefined, from_row: undefined, from_col: undefined }])), "Exeggcute colocada");
   assert.equal(headlineEvent(ev("CARD_MOVED", [{ ...card("Exeggutor de Alola"), effect: "MOVED" }])), "Exeggutor de Alola movida");
@@ -314,4 +315,59 @@ test("detalhes: campos completos, sem inventar dados", () => {
   const sf = detailFields(storage).map((x) => x.label);
   assert.ok(sf.includes("Destino"));
   assert.equal(detailItems(storage).length, 2);
+});
+
+// ---------------------------------------------------------------------------
+// P2 — organização automática (5341/5344): CARDS_AUTO_ARRANGED
+// ---------------------------------------------------------------------------
+
+test("CARDS_AUTO_ARRANGED: categoria Cartas, título com quantidade e páginas, sem identificadores", () => {
+  assert.equal(categoryOf("CARDS_AUTO_ARRANGED"), "CARDS");
+  const token = `aa1:${"ab".repeat(32)}`;
+  const items = [
+    { kind: "CARD", effect: "PLACED", card_name: "Pikachu", collector_number: "025", variant_type_name: "Normal", to_page: 1, to_row: 1, to_col: 1 },
+    { kind: "CARD", effect: "PLACED", card_name: "Raichu", collector_number: "026", variant_type_name: "Normal", to_page: 1, to_row: 1, to_col: 2 },
+    { kind: "CARD", effect: "PLACED", card_name: "Eevee", collector_number: "133", variant_type_name: "Holo Reversa", to_page: 3, to_row: 2, to_col: 1 },
+  ];
+  // Evento como a 5269 devolve: categoria vinda do servidor e resumo com o token da 5344.
+  const e = parseActivityEvent(rawEvent({ event_type: "CARDS_AUTO_ARRANGED", category: "CARDS", summary: { plan_token: token, inserted: 3 } }, items.map((it, i) => ({ ordinal: i + 1, ...it }))));
+  assert.ok(e);
+  assert.equal(e.category, "CARDS");
+  const view = describeEvent(e);
+  assert.equal(view.title, "3 cartas organizadas automaticamente · páginas 1 e 3");
+  assert.equal(view.context, "Coleção Caos Ascendente");
+  assert.equal(view.icon, "card");
+  assert.equal(view.expandable, true);
+  assert.equal(headlineEvent(e), "3 cartas organizadas automaticamente");
+  // Detalhes: um item por carta, posição de destino; o token nunca aparece.
+  assert.deepEqual(detailItems(e).map((l) => l.text), [
+    "Pikachu · 025 · Normal · → página 1 (linha 1, coluna 1)",
+    "Raichu · 026 · Normal · → página 1 (linha 1, coluna 2)",
+    "Eevee · 133 · Holo Reversa · → página 3 (linha 2, coluna 1)",
+  ]);
+  const everything = JSON.stringify([view, headlineEvent(e), detailFields(e), detailItems(e)]);
+  assert.ok(!everything.includes(token), "token não exposto");
+  assert.doesNotMatch(everything, /aa1:|[0-9a-f]{8}-[0-9a-f]{4}-/i, "nenhum identificador exposto");
+  assert.doesNotMatch(everything, /CARDS_AUTO_ARRANGED|PLACED/, "nenhum código interno exposto");
+});
+
+test("CARDS_AUTO_ARRANGED: singular, lista parcial (total do evento) e categoria ausente na linha", () => {
+  const one = ev("CARDS_AUTO_ARRANGED", [{ kind: "CARD", effect: "PLACED", ...CARD, to_page: 7, to_row: 1, to_col: 1 }]);
+  assert.equal(one.category, "CARDS"); // sem `category` na linha → regra local (5341)
+  assert.equal(describeEvent(one).title, "1 carta organizada automaticamente · página 7");
+  assert.equal(headlineEvent(one), "1 carta organizada automaticamente");
+  // 500 cartas, lista truncada: usa item_count e omite as páginas (não conta itens parciais).
+  const big = ev("CARDS_AUTO_ARRANGED", [{ kind: "CARD", effect: "PLACED", ...CARD, to_page: 1, to_row: 1, to_col: 1 }], { item_count: 500, items_truncated: true });
+  assert.equal(describeEvent(big).title, "500 cartas organizadas automaticamente");
+  assert.equal(headlineEvent(big), "500 cartas organizadas automaticamente");
+  assert.ok(headlineEvent(big).length <= 40);
+  assert.match(truncationNote(big) ?? "", /Mostrando 1 de 500/);
+});
+
+test("regressão: eventos anteriores mantêm frases e categorias depois do tipo novo", () => {
+  assert.equal(headlineEvent(ev("CARD_PLACED", [{ kind: "CARD", effect: "PLACED", card_name: "X", to_page: 1 }])), "X colocada");
+  assert.equal(headlineEvent(ev("CATALOG_NOVELTIES_INCORPORATED", [{ kind: "RESERVATION", effect: "RESERVED", ...CARD, to_page: 2 }])), "1 novidade incorporada");
+  assert.equal(categoryOf("CATALOG_NOVELTIES_INCORPORATED"), "CATALOG");
+  assert.equal(categoryOf("CARD_PLACED"), "CARDS");
+  assert.equal(describeEvent(ev("ALGO_NOVO", [])).title, "Atividade no fichário"); // tipo desconhecido continua genérico
 });

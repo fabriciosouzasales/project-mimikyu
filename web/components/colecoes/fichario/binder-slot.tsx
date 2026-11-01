@@ -42,6 +42,13 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 export const SpeciesReferenceVisibleContext = createContext(false);
 
 /**
+ * P2 UI E3: bolsos que a PRÉVIA da organização automática preencheria (ids
+ * da 5343). Projeção local, só visual: nunca é posição gravada, não muda
+ * seleção, arrasto nem navegação. `null` = sem prévia ativa.
+ */
+export const AutoArrangeProjectionContext = createContext<ReadonlySet<string> | null>(null);
+
+/**
  * V1-09: preço NM por variante para a etiqueta do bolso. Só o fichário do
  * DONO fornece (preferência "Exibir preços" ligada); fichário compartilhado e
  * vitrine pública usam o valor padrão `null` — nenhuma etiqueta (D3).
@@ -153,6 +160,9 @@ export function BinderSlotView({
   // D3: só o bolso visualmente vazio mostra a referência (carta, reserva, imagem e mesclagem têm prioridade).
   const speciesVisible = useContext(SpeciesReferenceVisibleContext);
   const speciesRef = shouldShowSpeciesReference(slot, speciesVisible) ? (slot.speciesRef ?? null) : null;
+  // Prévia: só o bolso que aqui também está reservado e vazio (se a tela já diverge, não projeta).
+  const projection = useContext(AutoArrangeProjectionContext);
+  const projected = reserved && !slot.image && projection !== null && projection.has(slot.slotId);
   const canDrag = editable && occupied && !slot.locked && !inTray && !selectionActive;
   // Bolso com imagem nunca recebe carta (o banco recusa com SLOT_HAS_IMAGE).
   const canDrop = editable && !slot.locked && !image && (!inTray || isSource) && !(placingAvailable && occupied);
@@ -181,7 +191,7 @@ export function BinderSlotView({
   const number = face?.collectorNumber ? formatCollectorNumber(face.collectorNumber, face.collectorTotal) : null;
   // Spike binder-nav-01 (EmptySlotQuickActions): bolso vazio e solto convida a "Adicionar carta".
   const addable = editable && !occupied && !image && !slot.locked && !selectionActive && !placing && !inTray;
-  const label = [slotDescription(slot), priceShown && priceCtx ? priceAccessibleText(price, priceCtx.now) : null, speciesRef ? speciesReferenceLabel(speciesRef) : null, addable ? "Enter para adicionar carta" : null, dimmed ? "de outra coleção" : null, slot.locked ? "bolso fixado" : null, inTray ? "carta na Bandeja" : null, selected ? "selecionada" : null]
+  const label = [slotDescription(slot), projected ? "prévia: receberia uma carta na organização automática" : null, priceShown && priceCtx ? priceAccessibleText(price, priceCtx.now) : null, speciesRef ? speciesReferenceLabel(speciesRef) : null, addable ? "Enter para adicionar carta" : null, dimmed ? "de outra coleção" : null, slot.locked ? "bolso fixado" : null, inTray ? "carta na Bandeja" : null, selected ? "selecionada" : null]
     .filter(Boolean)
     .join(", ");
   const validDrop = drop.isOver && canDrop && !isSource;
@@ -271,6 +281,17 @@ export function BinderSlotView({
             style={{ width: control + 6, height: control + 6, background: "hsl(0 0% 0% / 0.5)", boxShadow: "inset 0 0 0 1px hsl(0 0% 100% / 0.22)" }}
           >
             <Plus style={{ width: control * 0.55, height: control * 0.55 }} />
+          </span>
+        </div>
+      ) : null}
+
+      {projected ? (
+        <div className="pointer-events-none absolute inset-0 z-[5] rounded-[4px]" style={{ outline: "1.5px dashed hsl(40 70% 62% / 0.9)", outlineOffset: -3 }} aria-hidden>
+          <span
+            className="absolute left-[6%] top-[6%] rounded-full px-1.5 py-px text-[9px] font-bold uppercase tracking-wide sm:text-[10px]"
+            style={{ background: "hsl(0 0% 0% / 0.65)", color: "hsl(40 80% 78%)" }}
+          >
+            Prévia
           </span>
         </div>
       ) : null}
