@@ -43,6 +43,8 @@ import { getVariantPrices } from "@/lib/pricing/variant-pricing-queries";
 import { getMasterSetPositionPrices, getPokedexPositionPrices, getSetPositionPrices } from "@/lib/pricing/position-pricing-queries";
 import { createClient } from "@/lib/supabase/server";
 import { getCachedUser, getCachedUserProfile } from "@/lib/supabase/request-auth-cache";
+import { getMyWishedByCard } from "@/lib/wishlist/wishlist-queries";
+import { wishedCardIds } from "@/lib/wishlist/wishlist";
 
 export const metadata: Metadata = { title: "Coleção · Minhas coleções" };
 
@@ -218,7 +220,9 @@ export default async function ColecaoPage({
 
   const logoPath = collection?.cardSetLogoPath ?? null;
   // V1-09 Fase B: preço por posição (5333 + 3983) em paralelo com o logo — só a página exibida.
-  const [logoUrl, positionPrices] = await Promise.all([
+  // V1-11 W2: estado da Lista de desejos das cartas da página exibida — uma leitura em
+  // lote (5346, por carta), só no Set padrão; falha = sem marcador.
+  const [logoUrl, positionPrices, wishedCards] = await Promise.all([
     logoPath ? getSetLogoUrls(supabase, [logoPath]).then((urls) => urls.get(logoPath) ?? null) : Promise.resolve(null),
     collection === null
       ? Promise.resolve(null)
@@ -229,6 +233,12 @@ export default async function ColecaoPage({
         : positions
           ? getSetPositionPrices(supabase, collectionId, positions.items)
           : Promise.resolve(null),
+    collection !== null && master === null && positions
+      ? getMyWishedByCard(
+          supabase,
+          positions.items.map((position) => position.cardId),
+        ).then(wishedCardIds)
+      : Promise.resolve(null),
   ]);
 
   return (
@@ -248,6 +258,7 @@ export default async function ColecaoPage({
           registerMode={wantsRegister(query)}
           positionPrices={positionPrices}
           priceNow={Date.now()}
+          wishedCards={wishedCards}
         />
       )}
     </AppShell>

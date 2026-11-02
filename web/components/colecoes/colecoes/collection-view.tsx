@@ -39,6 +39,8 @@ import freeStyles from "./free-collection.module.css";
 import { VariantPriceSummary } from "@/components/card/variant-price-summary";
 import { priceAccessibleText } from "@/lib/pricing/variant-pricing";
 import type { PositionPrice, PositionPrices } from "@/lib/pricing/position-pricing-queries";
+import { WishButton, wishHostClass } from "@/components/wishlist/wish-button";
+import { WishlistController } from "@/components/wishlist/wishlist-controller";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 
@@ -81,6 +83,7 @@ export function CollectionView({
   registerMode = null,
   positionPrices = null,
   priceNow = 0,
+  wishedCards = null,
 }: {
   collection: CollectionSummary;
   /** Cartas do Set inteiro (R2 sem filtro) para os destaques do hero. */
@@ -103,6 +106,11 @@ export function CollectionView({
    */
   positionPrices?: PositionPrices | null;
   priceNow?: number;
+  /**
+   * V1-11 W2: cartas com algum desejo na Lista de desejos (só Set padrão, titular).
+   * `null` = sem leitura → a grade não mostra o marcador.
+   */
+  wishedCards?: ReadonlySet<string> | null;
 }) {
   const total = collection.totalPositions;
   const owned = collection.satisfiedPositions;
@@ -315,20 +323,23 @@ export function CollectionView({
       ) : (
         // Clicar na carta amplia — mesmo preview e mesmo morph do Catálogo Editorial.
         <CardZoomProvider>
-          <ul className={acervoStyles.grid} aria-label={`Cartas — ${segments.find((segment) => segment.key === filter)?.label}`}>
-            {positions.items.map((position, index) => (
-              <li key={position.cardId}>
-                <PositionTile
-                  position={position}
-                  priority={index < PRIORITY_CARD_COUNT}
-                  setCode={setCode}
-                  manageable={canManage}
-                  price={positionPrices?.[position.cardId.toLowerCase()] ?? null}
-                  priceNow={priceNow}
-                />
-              </li>
-            ))}
-          </ul>
+          <WishGrid enabled={wishedCards !== null}>
+            <ul className={acervoStyles.grid} aria-label={`Cartas — ${segments.find((segment) => segment.key === filter)?.label}`}>
+              {positions.items.map((position, index) => (
+                <li key={position.cardId}>
+                  <PositionTile
+                    position={position}
+                    priority={index < PRIORITY_CARD_COUNT}
+                    setCode={setCode}
+                    manageable={canManage}
+                    price={positionPrices?.[position.cardId.toLowerCase()] ?? null}
+                    priceNow={priceNow}
+                    wished={wishedCards ? wishedCards.has(position.cardId.toLowerCase()) : undefined}
+                  />
+                </li>
+              ))}
+            </ul>
+          </WishGrid>
         </CardZoomProvider>
       )}
       </section>
@@ -344,6 +355,14 @@ export function CollectionView({
   );
 }
 
+/**
+ * V1-11 W2: a ilha da Lista de desejos (mesma da W1) só envolve a grade quando a leitura
+ * do estado respondeu — o desejo é pessoal e não cria vínculo com a coleção (C-211).
+ */
+function WishGrid({ enabled, children }: { enabled: boolean; children: ReactNode }) {
+  return enabled ? <WishlistController>{children}</WishlistController> : <>{children}</>;
+}
+
 /** Carta da grade (titular; também a grade do participante VIEWER, com `manageable=false` e sem acervo). */
 export function PositionTile({
   position,
@@ -352,6 +371,7 @@ export function PositionTile({
   manageable,
   price = null,
   priceNow = 0,
+  wished,
 }: {
   position: CollectionPosition;
   priority: boolean;
@@ -360,6 +380,12 @@ export function PositionTile({
   /** V1-09 Fase B: preço da única variante da posição (só o titular recebe; VIEWER nunca). */
   price?: PositionPrice | null;
   priceNow?: number;
+  /**
+   * V1-11 W2: alguma variante da carta está na Lista de desejos. `undefined` = sem
+   * marcador (participante, Master Set ou leitura indisponível). A posição só conhece a
+   * carta: uma variante ativa → inclusão direta; várias → escolha explícita (C-212).
+   */
+  wished?: boolean;
 }) {
   const number = formatCollectorNumber(position.collectorNumber, position.collectorTotal);
   const caption = setCode ? `${setCode.toUpperCase()} · ${number}` : number;
@@ -374,7 +400,7 @@ export function PositionTile({
 
   return (
     <article
-      className={acervoStyles.tile}
+      className={wished === undefined ? acervoStyles.tile : `${acervoStyles.tile} ${wishHostClass}`}
       aria-label={[`${position.cardName}, ${caption}, ${status}`, shownPrice ? priceAccessibleText(shownPrice.price, priceNow) : null]
         .filter(Boolean)
         .join(", ")}
@@ -400,6 +426,10 @@ export function PositionTile({
             ) : null}
           </div>
         </CardZoomTrigger>
+        {wished !== undefined ? (
+          // Irmão do gatilho de ampliar (botão dentro de botão é inválido); canto superior esquerdo homologado.
+          <WishButton cardId={position.cardId} cardName={`${position.cardName} (${caption})`} isWished={wished} />
+        ) : null}
         {shownPrice ? (
           // V1-09 Fase B: mesma etiqueta da Fase A (canto inferior esquerdo), preço unitário da variante.
           <VariantPriceSummary

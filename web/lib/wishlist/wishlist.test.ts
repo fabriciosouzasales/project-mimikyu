@@ -28,6 +28,7 @@ import {
   wishLanguageLabel,
   wishToggleLabel,
   wishlistKpis,
+  wishedCardIds,
 } from "./wishlist.ts";
 
 const CARD = "11111111-1111-4111-8111-111111111111";
@@ -435,4 +436,30 @@ test("FINAL VISUAL POLISH (estático): selos variante → idioma → posse e mar
   assert.match(wish, /left: -0\.1875rem;/);
   assert.doesNotMatch(wish, /\bright:/);
   assert.ok(!css.includes("[data-card-fav]"), "o coração não é mais reposicionado pela Lista de desejos");
+});
+
+test("W2 (Set padrão): wishedCardIds marca só cartas com ao menos uma variante desejada", () => {
+  const A = "11111111-1111-4111-8111-111111111111";
+  const B = "22222222-2222-4222-8222-222222222222";
+  const map = new Map<string, Set<string>>([
+    [A.toUpperCase(), new Set(["v1"])],
+    [B, new Set()],
+  ]);
+  const cards = wishedCardIds(map);
+  assert.ok(cards);
+  assert.equal(cards.size, 1);
+  assert.ok(cards.has(A), "id normalizado em minúsculas, como a grade consulta");
+  assert.ok(!cards.has(B), "carta sem variante desejada não acende o marcador");
+  assert.equal(wishedCardIds(null), null, "leitura falha → sem marcador (nunca um marcador que não funciona)");
+  assert.equal(wishedCardIds(new Map())?.size, 0);
+});
+
+test("W2 (estático): grade de Set padrão usa o marcador por carta da W1, uma leitura em lote, sem SQL novo", () => {
+  const view = readFileSync(new URL("../../components/colecoes/colecoes/collection-view.tsx", import.meta.url), "utf8");
+  assert.match(view, /<WishButton cardId=\{position\.cardId\}/, "marcador por CARTA (escolha explícita quando há várias variantes)");
+  assert.match(view, /<WishlistController>/, "mesma ilha controladora da W1 (clique, escolha, Desfazer/erro)");
+  assert.doesNotMatch(view, /data-wish-variant|variantId=/, "a posição nunca presume variante");
+  const page = readFileSync(new URL("../../app/colecoes/colecoes/[id]/page.tsx", import.meta.url), "utf8");
+  assert.equal((page.match(/getMyWishedByCard\(/g) ?? []).length, 1, "uma leitura em lote por página, nunca por posição");
+  assert.match(page, /master === null && positions/, "só Set padrão (Master Set fora da W2)");
 });

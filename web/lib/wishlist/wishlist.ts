@@ -100,6 +100,21 @@ export function toWishedByCardMap(
   return map;
 }
 
+/**
+ * W2 (Set padrão): cartas com pelo menos uma variante na Lista de desejos, a partir do
+ * mapa carta → variantes da leitura em lote (`get_my_wishlist_state_by_card`). `null`
+ * (leitura falhou) continua `null` — a grade não mostra marcador que não funciona.
+ */
+export function wishedCardIds(map: ReadonlyMap<string, ReadonlySet<string>> | null): ReadonlySet<string> | null {
+  if (!map) return null;
+  const cards = new Set<string>();
+  for (const [card, variants] of map) {
+    const id = normalizeId(card);
+    if (id && variants.size > 0) cards.add(id);
+  }
+  return cards;
+}
+
 /** Ids dos desejos de uma variante (para desmarcar na grade). */
 export function entryIdsOfVariant(rows: readonly { card_variant_id?: unknown; entry_id?: unknown }[], variantId: string): string[] {
   const out: string[] = [];
