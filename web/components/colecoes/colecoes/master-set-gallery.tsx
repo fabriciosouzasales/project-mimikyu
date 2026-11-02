@@ -12,7 +12,7 @@ import {
   masterSetTotalPages,
   positionStatusText,
 } from "@/lib/colecoes/master-set";
-import { CardArt } from "../acervo/card-art";
+import { CARD_GRID_SIZES as GRID_SIZES, CardArt } from "../acervo/card-art";
 import acervoStyles from "../acervo/acervo.module.css";
 import { ManageCopiesButton } from "./collection-manage";
 import styles from "./colecoes.module.css";
@@ -24,7 +24,6 @@ import { priceAccessibleText } from "@/lib/pricing/variant-pricing";
 import type { PositionPrice, PositionPrices } from "@/lib/pricing/position-pricing-queries";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const GRID_SIZES = "(max-width: 767px) 50vw, 11rem";
 
 /**
  * Grade do Master Set (MASTER-SET-FRONTEND-PHASE-02), Server Component.

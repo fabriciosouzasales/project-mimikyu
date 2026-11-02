@@ -3,6 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import styles from "./acervo.module.css";
 
+/** `sizes` das grades de cartas do módulo Coleções (padrão único: CARD GRID UX STANDARDIZATION-01). */
+export const CARD_GRID_SIZES = "(max-width: 767px) 50vw, 11rem";
+
 /**
  * Frente da carta dentro da moldura 8:11 (Meu acervo).
  *

@@ -1,8 +1,8 @@
 /* ---- Lista de desejos (V1-11 W1) ----
    Marcador bookmark (D7): mesma linguagem de chip escuro translúcido do coração de
    Favoritos (V1-10), para conviver no mesmo card sem se confundir com ele (C-97):
-   - fica à ESQUERDA do coração no canto superior direito da arte (o coração é o
-     vizinho da borda; o canto inferior esquerdo é da etiqueta de preço);
+   - fica no canto SUPERIOR ESQUERDO da arte (o superior direito é do coração e da
+     seleção; o inferior esquerdo, da etiqueta de preço);
    - forma distinta (bookmark, não coração) e cor ativa dourada MMKYU (--primary),
      reservada ao estado marcado; o vermelho segue exclusivo de Favoritos;
    - área de toque de 2.75rem (44 px) com desenho de 1.5rem;
@@ -11,7 +11,10 @@
 .wish {
   position: absolute;
   top: -0.1875rem;
-  right: 2.125rem;
+  /* FINAL VISUAL POLISH (teste de Fabrício): marcador no canto SUPERIOR ESQUERDO, espelhando
+     o coração no direito — cada ação no seu canto, sem disputar espaço nem área de toque.
+     O inferior esquerdo segue com o preço; o superior direito, com coração/seleção. */
+  left: -0.1875rem;
   z-index: 4;
   display: grid;
   place-items: center;
@@ -26,9 +29,10 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Página Lista de desejos: sem coração no card, o marcador ocupa o canto. */
+/* Página Lista de desejos: mesmo canto superior esquerdo das demais grades (mantida para o
+   contrato do componente; hoje não altera a posição). */
 .wishCorner {
-  right: -0.1875rem;
+  left: -0.1875rem;
 }
 
 .wishIcon {
@@ -156,144 +160,35 @@
   font-size: 0.75rem;
 }
 
-/* ---- Página Lista de desejos ---- */
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr));
-  gap: 1.75rem 1.25rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
+/* ---- Página Lista de desejos ----
+   CARD GRID UX STANDARDIZATION-01: grade, arte, nome, legenda e selos vêm de
+   acervo.module.css (padrão único do módulo Coleções). Aqui só o que é da Lista. */
 
-@media (max-width: 30rem) {
-  .grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 1.25rem 0.875rem;
-  }
-}
-
-/* BUGFIX-05 (Defeito C): coluna única limitada ao item — sem ela a trilha implícita
-   `auto` cresce até o max-content dos rótulos e invade a carta vizinha. */
-.item {
-  position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0.5rem;
-  min-width: 0;
-  transition: opacity 160ms ease-out;
-}
-
-/* Removido: atenuado no lugar (sem salto de layout) até a próxima navegação. */
-.item[data-wish-removed] .art,
-.item[data-wish-removed] .meta {
-  opacity: 0.4;
-}
-
-.art {
-  position: relative;
-  aspect-ratio: 63 / 88;
-  border-radius: 0.625rem;
-  overflow: hidden;
-  background: hsl(var(--surface-muted));
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.18);
-}
-
-.artButton {
-  display: block;
-  width: 100%;
-  height: 100%;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  cursor: zoom-in;
-}
-
-.artButton:focus-visible {
-  outline: 2px solid hsl(var(--primary));
-  outline-offset: 2px;
-}
-
-.artImage {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.artPlaceholder {
-  display: grid;
-  place-items: center;
-  height: 100%;
-  padding: 0.75rem;
-  color: hsl(var(--muted-foreground));
-  font-size: 0.75rem;
-  text-align: center;
-}
-
-/* Variante desativada no catálogo (C-214): a carta continua, sinalizada. */
-.item[data-unavailable] .artImage {
-  filter: grayscale(0.85);
-  opacity: 0.7;
-}
-
-.meta {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0.25rem;
-  min-width: 0;
-}
-
-.name {
-  overflow: hidden;
-  color: hsl(var(--foreground));
-  font-size: 0.8125rem;
-  font-weight: 500;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.sub {
-  overflow: hidden;
-  color: hsl(var(--muted-foreground));
-  font-size: 0.75rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem;
-  min-width: 0;
-  max-width: 100%;
-}
-
-.badge {
-  display: inline-flex;
-  align-items: center;
-  min-height: 1.25rem;
-  padding: 0 0.4375rem;
-  border: 1px solid hsl(var(--border));
-  border-radius: 999px;
-  color: hsl(var(--muted-foreground));
-  font-size: 0.6875rem;
-  line-height: 1.2;
-  /* Rótulo longo quebra dentro do próprio selo, nunca além do item. */
-  max-width: 100%;
-  min-width: 0;
-  padding-block: 0.125rem;
-  white-space: normal;
-  overflow-wrap: anywhere;
-}
-
-.badgeOwned {
+/* Posse e indisponibilidade: mesmos selos, com o tom semântico (sucesso / atenção). */
+span.tagOwned {
   border-color: hsl(var(--success, 142 50% 40%) / 0.45);
   color: hsl(var(--success, 142 50% 40%));
 }
 
-.badgeWarning {
+span.tagWarning {
   border-color: hsl(var(--warning, 38 90% 45%) / 0.5);
   color: hsl(var(--warning, 38 90% 45%));
+}
+
+/* Variante desativada no catálogo (C-214): a carta continua, sinalizada. */
+/* Selos do item (variante → idioma → posse): compactos, lado a lado, quebrando linha. */
+.tagRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+  margin-top: 0.3125rem;
+}
+
+.wishHost[data-unavailable] img {
+  filter: grayscale(0.85);
+  opacity: 0.7;
 }
 
 .stateIconWish {

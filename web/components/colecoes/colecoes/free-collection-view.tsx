@@ -18,7 +18,7 @@ import { COLECOES_PATH } from "@/lib/colecoes/colecoes";
 import type { CollectionSummary } from "@/lib/colecoes/colecoes-queries";
 import { FREE_COVER_CODE_ENABLED, FREE_COVER_UPLOAD_ENABLED, distinctSetCount, freeCollectionHref, freeHeroCards, freeTotalPages } from "@/lib/colecoes/free-collection";
 import { CardZoomProvider, CardZoomTrigger } from "@/components/card/card-zoom";
-import { CardArt } from "../acervo/card-art";
+import { CARD_GRID_SIZES as GRID_SIZES, CardArt } from "../acervo/card-art";
 import { VariantPriceSummary } from "@/components/card/variant-price-summary";
 import { type VariantPrice, priceAccessibleText } from "@/lib/pricing/variant-pricing";
 import acervoStyles from "../acervo/acervo.module.css";
@@ -37,7 +37,6 @@ import manageStyles from "./collection-manage.module.css";
 import styles from "./colecoes.module.css";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const GRID_SIZES = "(max-width: 767px) 50vw, 11rem";
 
 /**
  * Coleção livre (Server Component) — FREE-COLLECTION-FRONTEND-COMPLETION-01.

@@ -469,7 +469,7 @@ export function PesquisaCardTile({
         </button>
         {/* V1-10: coração irmão do botão de ampliar (botão dentro de botão é inválido). */}
         {isFavorite !== undefined ? <CardFavoriteButton cardId={card.id} cardName={card.name} isFavorite={isFavorite} /> : null}
-        {/* V1-11 W1: marcador da Lista de desejos à esquerda do coração; só a carta é conhecida → escolha de variante (C-212). */}
+        {/* V1-11 W1: marcador da Lista de desejos no canto superior esquerdo (coração no direito); só a carta é conhecida → escolha de variante (C-212). */}
         {isWished !== undefined ? <WishButton cardId={card.id} cardName={card.name} isWished={isWished} /> : null}
       </div>
       <div className="min-w-0 space-y-0.5">

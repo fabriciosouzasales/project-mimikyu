@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { Bookmark } from "lucide-react";
 import { AppShell } from "@/components/app-shell/app-shell";
 import { WishlistView, type WishlistEntryView } from "@/components/wishlist/wishlist-view";
+import { formatCollectorNumber } from "@/lib/colecoes/acervo";
 import { getVariantPrices, pricesToRecord } from "@/lib/pricing/variant-pricing-queries";
 import { createClient } from "@/lib/supabase/server";
 import { getCachedUser } from "@/lib/supabase/request-auth-cache";
@@ -45,10 +46,8 @@ export default async function WishlistPage({
         entryId: entry.entryId,
         cardVariantId: entry.cardVariantId,
         cardName: entry.cardName,
-        caption: [
-          entry.cardSetCode,
-          entry.collectorNumber ? `#${entry.collectorNumber}${entry.collectorTotal ? `/${entry.collectorTotal}` : ""}` : null,
-        ]
+        // CARD GRID UX STANDARDIZATION-01: mesma legenda das demais grades ("ME2 · 125/094").
+        caption: [entry.cardSetCode.toUpperCase(), entry.collectorNumber ? formatCollectorNumber(entry.collectorNumber, entry.collectorTotal) : null]
           .filter(Boolean)
           .join(" · "),
         variantLabel: entry.variantLabel,

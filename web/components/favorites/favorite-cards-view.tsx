@@ -12,11 +12,13 @@ import colecoesStyles from "@/components/colecoes/colecoes/colecoes.module.css";
 import regionStyles from "@/components/colecoes/colecoes/library-modes.module.css";
 import { favoriteHostClass } from "@/components/favorites/card-favorite-button";
 import { CardFavoritesController } from "@/components/favorites/card-favorites-controller";
-import { PesquisaCardTile } from "@/components/pesquisa/pesquisa-view";
+import { CardPriceSummary } from "@/components/card/card-price-summary";
+import { CARD_GRID_SIZES, CardArt } from "@/components/colecoes/acervo/card-art";
+import { CardFavoriteButton } from "@/components/favorites/card-favorite-button";
 import { Button } from "@/components/ui/button";
 import { InlineFeedback } from "@/components/ui/feedback";
 import { usePricingBatch } from "@/hooks/use-pricing-batch";
-import { formatCount } from "@/lib/colecoes/acervo";
+import { formatCollectorNumber, formatCount } from "@/lib/colecoes/acervo";
 import {
   type FavoriteReferenceValue,
   type FavoritesKpi,
@@ -27,6 +29,7 @@ import {
   visibleFavoriteCards,
 } from "@/lib/favorites/card-favorites";
 import { cardImageUrl, type PesquisaCard } from "@/lib/pesquisa/format";
+import type { PricingCacheEntry } from "@/lib/pricing/pricing-batch-client";
 import { canUseViewTransitions, cardImagePreviewTransitionName } from "@/lib/view-transitions";
 import styles from "./card-favorite.module.css";
 
@@ -213,17 +216,14 @@ export function FavoriteCardsView({
         ) : (
           <>
             <CardFavoritesController mode="favorites" onConfirmed={onFavoriteConfirmed}>
-              <ul className={styles.grid} aria-label="Suas cartas favoritas">
+              <ul className={acervoStyles.grid} aria-label="Suas cartas favoritas">
                 {visible.map((card) => (
-                  <li key={card.id} data-fav-item className={favoriteHostClass}>
-                    <PesquisaCardTile
-                      card={card}
-                      onZoom={() => setZoomCard(card)}
-                      isTransitionSource={false}
-                      pricingEntry={pricingByCard.get(card.id)}
-                      isFavorite
-                    />
-                  </li>
+                  <FavoriteCardTile
+                    key={card.id}
+                    card={card}
+                    pricingEntry={pricingByCard.get(card.id)}
+                    onZoom={() => setZoomCard(card)}
+                  />
                 ))}
               </ul>
             </CardFavoritesController>
@@ -346,5 +346,42 @@ function HeroFavoriteCards() {
         />
       </g>
     </svg>
+  );
+}
+
+/**
+ * Carta favorita — CARD GRID UX STANDARDIZATION-01: mesma anatomia das grades do
+ * módulo Coleções (arte 8:11, preço na base da arte, nome, Set · número). Contexto
+ * próprio preservado: a arte amplia a carta (preview), o coração fica no canto e o
+ * preço é o resumo por carta da Pesquisa (abre o detalhe), não o NM de uma variante.
+ */
+function FavoriteCardTile({
+  card,
+  pricingEntry,
+  onZoom,
+}: {
+  card: FavoriteCardView;
+  pricingEntry: PricingCacheEntry | undefined;
+  onZoom: () => void;
+}) {
+  const caption = `${card.cardSet.code.toUpperCase()} · ${formatCollectorNumber(card.collectorNumber, card.collectorTotal)}`;
+  return (
+    <li data-fav-item className={`${acervoStyles.tileSlot} ${favoriteHostClass}`}>
+      <div className={acervoStyles.artWrap}>
+        <button type="button" onClick={onZoom} className={`${acervoStyles.tile} w-full text-left`} aria-label={`Ampliar ${card.name}, ${caption}`}>
+          <div className={acervoStyles.art}>
+            <CardArt src={cardImageUrl(card)} alt="" name={card.name} caption={caption} sizes={CARD_GRID_SIZES} />
+          </div>
+        </button>
+        <CardPriceSummary cardId={card.id} cardName={card.name} entry={pricingEntry} className={styles.artPrice} />
+      </div>
+      <CardFavoriteButton cardId={card.id} cardName={card.name} isFavorite />
+      <div className={acervoStyles.meta} aria-hidden="true">
+        <div className={acervoStyles.name}>{card.name}</div>
+        <div className={acervoStyles.sub}>
+          <span>{caption}</span>
+        </div>
+      </div>
+    </li>
   );
 }

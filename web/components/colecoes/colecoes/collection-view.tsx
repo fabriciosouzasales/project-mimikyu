@@ -18,7 +18,7 @@ import {
 } from "@/lib/colecoes/colecoes";
 import type { CollectionPosition, CollectionSummary, PositionsPage } from "@/lib/colecoes/colecoes-queries";
 import { CardZoomProvider, CardZoomTrigger } from "@/components/card/card-zoom";
-import { CardArt } from "../acervo/card-art";
+import { CARD_GRID_SIZES as GRID_SIZES, CardArt } from "../acervo/card-art";
 import acervoStyles from "../acervo/acervo.module.css";
 import { BinderCover } from "./binder-cover";
 import { CollectionHeroBackdrop, CollectionHeroFan } from "./collection-hero-fan";
@@ -41,7 +41,6 @@ import { priceAccessibleText } from "@/lib/pricing/variant-pricing";
 import type { PositionPrice, PositionPrices } from "@/lib/pricing/position-pricing-queries";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const GRID_SIZES = "(max-width: 767px) 50vw, 11rem";
 
 /**
  * Uma coleção (Server Component): progresso "X de Y" (N10) em destaque, a

@@ -53,7 +53,7 @@ import type { VariantFavorite } from "@/lib/favorites/card-favorites";
 import { WishButton, wishHostClass } from "@/components/wishlist/wish-button";
 import { WishlistController } from "@/components/wishlist/wishlist-controller";
 import { AcervoToolbar } from "./acervo-toolbar";
-import { CardArt } from "./card-art";
+import { CARD_GRID_SIZES as GRID_SIZES, CardArt } from "./card-art";
 import { CardFinishLayers, finishDataAttribute } from "./card-finish-layers";
 import { FinishPointer } from "./finish-pointer";
 import { CopyQuantityControl } from "./copy-quantity-control";
@@ -65,7 +65,6 @@ import styles from "./acervo.module.css";
 import selectionStyles from "./acervo-selection.module.css";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const GRID_SIZES = "(max-width: 767px) 50vw, 11rem";
 
 /**
  * Meu acervo — composição da página (Server Component).

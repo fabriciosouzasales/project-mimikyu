@@ -283,19 +283,26 @@ test("Defeito B (estático): opção salvando fica desabilitada, falha aparece d
   assert.doesNotMatch(toggle, /const state = chooser;/);
 });
 
-test("Defeito C (estático): rótulos da Lista de desejos nunca passam do limite do item", () => {
-  const css = readFileSync(new URL("../../components/wishlist/wishlist.module.css", import.meta.url), "utf8");
+test("Defeito C / CARD GRID UX STANDARDIZATION-01 (estático): grades do módulo Coleções com selo que quebra linha", () => {
+  const css = readFileSync(new URL("../../components/colecoes/acervo/acervo.module.css", import.meta.url), "utf8");
   const block = (sel: string) => {
     const start = css.indexOf(`\n${sel} {`);
     assert.ok(start >= 0, `regra ${sel} ausente`);
     return css.slice(start, css.indexOf("}", start));
   };
-  assert.match(block(".item"), /grid-template-columns:\s*minmax\(0,\s*1fr\)/);
-  assert.match(block(".meta"), /grid-template-columns:\s*minmax\(0,\s*1fr\)/);
-  const badge = block(".badge");
-  assert.match(badge, /max-width:\s*100%/);
-  assert.match(badge, /overflow-wrap:\s*anywhere/);
-  assert.doesNotMatch(badge, /white-space:\s*nowrap/);
+  const tag = block(".tag");
+  assert.match(tag, /max-width:\s*100%/);
+  assert.match(tag, /overflow-wrap:\s*anywhere/);
+  assert.match(tag, /white-space:\s*normal/);
+  assert.doesNotMatch(tag, /white-space:\s*nowrap/);
+  // Lista de desejos e Cartas favoritas usam a mesma grade/arte/legenda do Meu acervo.
+  for (const file of ["../../components/wishlist/wishlist-view.tsx", "../../components/favorites/favorite-cards-view.tsx"]) {
+    const view = readFileSync(new URL(file, import.meta.url), "utf8");
+    assert.match(view, /className=\{acervoStyles\.grid\}/, file);
+    assert.match(view, /acervoStyles\.art\b/, file);
+    assert.match(view, /acervoStyles\.meta\b/, file);
+    assert.match(view, /CARD_GRID_SIZES/, file);
+  }
 });
 
 // TOAST UX CORRECTION-07 — aviso de sucesso com fechamento automático
@@ -411,4 +418,21 @@ test("aviso (estático): hover/foco relidos do DOM a cada aviso e zerados ao fec
   const cleanup = effect.slice(effect.indexOf("return () => {"));
   assert.match(cleanup, /hoverRef\.current = false;/);
   assert.match(cleanup, /focusRef\.current = false;/);
+});
+
+test("FINAL VISUAL POLISH (estático): selos variante → idioma → posse e marcador no canto superior esquerdo", () => {
+  const view = readFileSync(new URL("../../components/wishlist/wishlist-view.tsx", import.meta.url), "utf8");
+  const row = view.slice(view.indexOf("className={styles.tagRow}"));
+  const iVariant = row.indexOf("entry.variantLabel");
+  const iLanguage = row.indexOf("wishLanguageLabel(");
+  const iOwned = row.indexOf("styles.tagOwned");
+  assert.ok(iVariant > 0 && iVariant < iLanguage && iLanguage < iOwned, "ordem variante → idioma → posse");
+  const css = readFileSync(new URL("../../components/wishlist/wishlist.module.css", import.meta.url), "utf8");
+  const tagRow = css.slice(css.indexOf("\n.tagRow {"), css.indexOf("}", css.indexOf("\n.tagRow {")));
+  assert.match(tagRow, /flex-wrap: wrap/);
+  const wish = css.slice(css.indexOf("\n.wish {"), css.indexOf("}", css.indexOf("\n.wish {")));
+  // Marcador espelha o coração (right -0.1875rem) no canto oposto: áreas de toque nunca se cruzam.
+  assert.match(wish, /left: -0\.1875rem;/);
+  assert.doesNotMatch(wish, /\bright:/);
+  assert.ok(!css.includes("[data-card-fav]"), "o coração não é mais reposicionado pela Lista de desejos");
 });

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { AlertCircle, Bookmark, Search, X } from "lucide-react";
 import { addWishlistEntry, removeWishlistEntries } from "@/app/colecoes/lista-de-desejos/actions";
 import { AcervoPriceTag } from "@/components/colecoes/acervo/acervo-price";
+import { CARD_GRID_SIZES as GRID_SIZES, CardArt } from "@/components/colecoes/acervo/card-art";
 import acervoStyles from "@/components/colecoes/acervo/acervo.module.css";
 import colecoesStyles from "@/components/colecoes/colecoes/colecoes.module.css";
 import regionStyles from "@/components/colecoes/colecoes/library-modes.module.css";
@@ -270,45 +271,49 @@ export function WishlistView({
           </section>
         ) : (
           <>
-            <ul className={styles.grid} aria-label="Sua lista de desejos">
+            <ul className={acervoStyles.grid} aria-label="Sua lista de desejos">
               {visible.map((entry) => {
                 const owned = ownershipLabel(entry.ownership);
                 return (
+                  // CARD GRID UX STANDARDIZATION-01: mesma anatomia do Meu acervo e das coleções
+                  // (arte 8:11 com preço na base, nome, Set · número e selos); o marcador da
+                  // Lista de desejos fica no canto da arte, irmão dela.
                   <li
                     key={entry.entryId}
-                    className={`${styles.item} ${styles.wishHost}`}
+                    className={`${acervoStyles.tileSlot} ${styles.wishHost}`}
                     data-unavailable={!entry.variantAvailable || undefined}
                   >
-                    <div className={styles.art}>
-                      {entry.imageUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element -- mesma origem pública e tamanho da grade da Pesquisa
-                        <img className={styles.artImage} src={entry.imageUrl} alt={entry.cardName} loading="lazy" decoding="async" />
-                      ) : (
-                        <div className={styles.artPlaceholder}>{entry.cardName}</div>
-                      )}
-                      <AcervoPriceTag price={prices?.[entry.cardVariantId] ?? null} now={priceNow} />
-                      <button
-                        type="button"
-                        className={`${styles.wish} ${styles.wishCorner}`}
-                        aria-pressed
-                        aria-label={wishToggleLabel(entry.cardName, entry.variantLabel)}
-                        data-pending={pending.has(entry.entryId) || undefined}
-                        aria-busy={pending.has(entry.entryId) || undefined}
-                        disabled={pending.has(entry.entryId)}
-                        onClick={() => void remove(entry)}
-                      >
-                        <Bookmark className={styles.wishIcon} strokeWidth={2} aria-hidden="true" />
-                      </button>
+                    <div className={acervoStyles.artWrap}>
+                      <div className={acervoStyles.art}>
+                        <CardArt src={entry.imageUrl} alt={entry.cardName} name={entry.cardName} caption={entry.caption} sizes={GRID_SIZES} />
+                        <AcervoPriceTag price={prices?.[entry.cardVariantId] ?? null} now={priceNow} />
+                      </div>
                     </div>
-                    <div className={styles.meta}>
-                      <div className={styles.name}>{entry.cardName}</div>
-                      <div className={styles.sub}>{entry.caption}</div>
-                      <div className={styles.badges}>
-                        {entry.variantLabel ? <span className={styles.badge}>{entry.variantLabel}</span> : null}
-                        <span className={styles.badge}>{wishLanguageLabel(entry.languageCode)}</span>
-                        {owned ? <span className={`${styles.badge} ${styles.badgeOwned}`}>{owned}</span> : null}
+                    <button
+                      type="button"
+                      className={`${styles.wish} ${styles.wishCorner}`}
+                      aria-pressed
+                      aria-label={wishToggleLabel(entry.cardName, entry.variantLabel)}
+                      data-pending={pending.has(entry.entryId) || undefined}
+                      aria-busy={pending.has(entry.entryId) || undefined}
+                      disabled={pending.has(entry.entryId)}
+                      onClick={() => void remove(entry)}
+                    >
+                      <Bookmark className={styles.wishIcon} strokeWidth={2} aria-hidden="true" />
+                    </button>
+                    <div className={acervoStyles.meta}>
+                      <div className={acervoStyles.name}>{entry.cardName}</div>
+                      <div className={acervoStyles.sub}>
+                        <span>{entry.caption}</span>
+                      </div>
+                      {/* FINAL VISUAL POLISH: selos numa linha própria, variante → idioma → posse,
+                          lado a lado e quebrando linha só quando não cabem na largura do item. */}
+                      <div className={styles.tagRow}>
+                        {entry.variantLabel ? <span className={acervoStyles.tag}>{entry.variantLabel}</span> : null}
+                        <span className={acervoStyles.tag}>{wishLanguageLabel(entry.languageCode)}</span>
+                        {owned ? <span className={`${acervoStyles.tag} ${styles.tagOwned}`}>{owned}</span> : null}
                         {!entry.variantAvailable ? (
-                          <span className={`${styles.badge} ${styles.badgeWarning}`}>Indisponível no catálogo</span>
+                          <span className={`${acervoStyles.tag} ${styles.tagWarning}`}>Indisponível no catálogo</span>
                         ) : null}
                       </div>
                     </div>

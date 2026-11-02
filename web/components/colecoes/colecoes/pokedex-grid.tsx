@@ -20,7 +20,7 @@ import {
   stateTag,
 } from "@/lib/colecoes/pokedex";
 import { speciesArtworkUrl } from "@/lib/pokedex/artwork";
-import { CardArt } from "../acervo/card-art";
+import { CARD_GRID_SIZES as GRID_SIZES, CardArt } from "../acervo/card-art";
 import { POKEDEX_DIALOG_CLOSED_EVENT } from "./pokedex-bulk-link";
 import { PokedexPositionPanel } from "./pokedex-position-panel";
 import acervoStyles from "../acervo/acervo.module.css";
@@ -31,7 +31,6 @@ import { priceAccessibleText } from "@/lib/pricing/variant-pricing";
 import type { PositionPrice, PositionPrices } from "@/lib/pricing/position-pricing-queries";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const GRID_SIZES = "(max-width: 767px) 50vw, 11rem";
 /** Mesmo teto de prioridade da grade da Pokédex: só o topo visível carrega cedo. */
 const PRIORITY_COUNT = 12;
 
