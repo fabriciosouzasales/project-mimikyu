@@ -1,0 +1,414 @@
+// V1-11 W1 — Lista de desejos: regras puras.
+// Executar: node --experimental-strip-types --test lib/wishlist/wishlist.test.ts (a partir de web/)
+
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { test } from "node:test";
+import {
+  WISH_SUCCESS_NOTICE_MS,
+  cardWishMode,
+  createDismissTimer,
+  entryIdsOfVariant,
+  initialWishEntry,
+  normalizeLanguageCode,
+  ownershipLabel,
+  parsePageParam,
+  parseVariantOptions,
+  parseWishlistPage,
+  parseWishlistSummary,
+  settleChooserWished,
+  settleWish,
+  toWishedByCardMap,
+  toWishedVariantSet,
+  toggleWish,
+  variantRemovalPlan,
+  visibleWishlistEntries,
+  wishErrorMessage,
+  wishFailureReason,
+  wishLanguageLabel,
+  wishToggleLabel,
+  wishlistKpis,
+} from "./wishlist.ts";
+
+const CARD = "11111111-1111-4111-8111-111111111111";
+const CARD_B = "22222222-2222-4222-8222-222222222222";
+const V1 = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const V2 = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+const E1 = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+const E2 = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+const fmt = (n: number) => String(n);
+const money = (n: number) => `R$ ${n}`;
+
+test("idioma: vazio/inválido = qualquer (null); códigos válidos preservados", () => {
+  assert.equal(normalizeLanguageCode(null), null);
+  assert.equal(normalizeLanguageCode(""), null);
+  assert.equal(normalizeLanguageCode("xx-yy"), null);
+  assert.equal(normalizeLanguageCode("pt-BR"), "pt-BR");
+  assert.equal(normalizeLanguageCode("en"), "en");
+  assert.equal(wishLanguageLabel(null), "Qualquer idioma");
+  assert.equal(wishLanguageLabel("pt-BR"), "Português");
+  assert.equal(wishLanguageLabel("en"), "Inglês");
+});
+
+test("posse: quatro níveis; 'não tem' não ganha selo", () => {
+  assert.equal(ownershipLabel("SAME_VARIANT_LANGUAGE"), "Já no acervo");
+  assert.equal(ownershipLabel("SAME_VARIANT_OTHER_LANGUAGE"), "No acervo em outro idioma");
+  assert.equal(ownershipLabel("OTHER_VARIANT"), "Você tem outra variante");
+  assert.equal(ownershipLabel("NONE"), null);
+});
+
+test("estado em lote por variante: variante marcada com qualquer idioma; linhas inválidas descartadas", () => {
+  const set = toWishedVariantSet([
+    { card_variant_id: V1, entry_id: E1 },
+    { card_variant_id: V1, entry_id: E2 },
+    { card_variant_id: "x", entry_id: E1 },
+    { card_variant_id: V2, entry_id: null },
+  ]);
+  assert.deepEqual([...set], [V1]);
+  assert.deepEqual(entryIdsOfVariant([{ card_variant_id: V1, entry_id: E1 }, { card_variant_id: V1, entry_id: E2 }, { card_variant_id: V2, entry_id: E1 }], V1), [E1, E2]);
+});
+
+test("estado em lote por carta: agrupa variantes desejadas por carta", () => {
+  const map = toWishedByCardMap([
+    { card_id: CARD, card_variant_id: V1, entry_id: E1 },
+    { card_id: CARD, card_variant_id: V2, entry_id: E2 },
+    { card_id: CARD_B, card_variant_id: "bad", entry_id: E1 },
+  ]);
+  assert.deepEqual([...(map.get(CARD) ?? [])].sort(), [V1, V2].sort());
+  assert.equal(map.has(CARD_B), false);
+});
+
+test("escolha explícita (C-212): direta só com uma variante ativa; nunca presume", () => {
+  const options = parseVariantOptions([
+    { card_variant_id: V1, variant_label: "Normal", is_default_variant: true },
+    { card_variant_id: V2, variant_label: "", is_default_variant: false },
+    { card_variant_id: "nope" },
+  ]);
+  assert.ok(options);
+  assert.equal(options.length, 2);
+  assert.equal(options[1]?.label, "Variante");
+  assert.equal(cardWishMode(options), "choose");
+  assert.equal(cardWishMode(options.slice(0, 1)), "direct");
+  assert.equal(cardWishMode([]), "none");
+  assert.equal(parseVariantOptions(null), null);
+});
+
+test("página: linha completa; variante desativada sinalizada; só true explícito é disponível", () => {
+  const page = parseWishlistPage([
+    {
+      entry_id: E1, card_variant_id: V1, card_id: CARD, card_name: "Pikachu", collector_number: "025", collector_total: 198,
+      card_set_code: "SV1", card_set_name: "Escarlate e Violeta", variant_label: "Holográfica", variant_available: true,
+      language_code: null, ownership: "OTHER_VARIANT", image_path_pt: "a.png", image_path_en: null,
+      wished_at: "2026-11-01T10:00:00Z", total_count: 3,
+    },
+    {
+      entry_id: E2, card_variant_id: V2, card_id: CARD, card_name: "Pikachu", variant_available: null,
+      language_code: "pt-BR", ownership: "???", wished_at: "2026-11-01T09:00:00Z", total_count: "3",
+    },
+    { entry_id: "bad", card_variant_id: V1, card_id: CARD, card_name: "X", wished_at: "t" },
+  ]);
+  assert.ok(page);
+  assert.equal(page.entries.length, 2);
+  assert.equal(page.totalCount, 3);
+  const [first, second] = page.entries;
+  assert.ok(first && second);
+  assert.equal(first.variantAvailable, true);
+  assert.equal(first.languageCode, null);
+  assert.equal(first.ownership, "OTHER_VARIANT");
+  assert.equal(second.variantAvailable, false);
+  assert.equal(second.languageCode, "pt-BR");
+  assert.equal(second.ownership, "NONE");
+  assert.equal(parseWishlistPage({}), null);
+});
+
+test("resumo (C-216): coerência entre desejos, variantes distintas, cotadas e total", () => {
+  assert.deepEqual(parseWishlistSummary([{ entry_count: 3, variant_count: 2, priced_variant_count: 1, total_brl: "12.5" }]), {
+    entryCount: 3, variantCount: 2, pricedVariantCount: 1, totalBrl: 12.5,
+  });
+  assert.deepEqual(parseWishlistSummary({ entry_count: 0, variant_count: 0, priced_variant_count: 0, total_brl: null }), {
+    entryCount: 0, variantCount: 0, pricedVariantCount: 0, totalBrl: null,
+  });
+  // total sem cotação, cotação sem total, mais variantes que desejos, desejos sem variante → rejeitados
+  assert.equal(parseWishlistSummary({ entry_count: 1, variant_count: 1, priced_variant_count: 0, total_brl: 0 }), null);
+  assert.equal(parseWishlistSummary({ entry_count: 1, variant_count: 1, priced_variant_count: 1, total_brl: null }), null);
+  assert.equal(parseWishlistSummary({ entry_count: 1, variant_count: 2, priced_variant_count: 0, total_brl: null }), null);
+  assert.equal(parseWishlistSummary({ entry_count: 2, variant_count: 0, priced_variant_count: 0, total_brl: null }), null);
+  assert.equal(parseWishlistSummary([{}, {}]), null);
+});
+
+test("indicadores: sem cobertura = '—' (nunca R$ 0); cobertura sobre variantes distintas", () => {
+  const none = wishlistKpis({ summary: { entryCount: 3, variantCount: 2, pricedVariantCount: 0, totalBrl: null }, fallbackEntryCount: 3, format: fmt, formatMoney: money });
+  assert.deepEqual(none.map((k) => k.value), [null, "3", "2"]);
+  assert.equal(none[0]?.hint, "0 de 2 variantes com cotação");
+  const priced = wishlistKpis({ summary: { entryCount: 2, variantCount: 1, pricedVariantCount: 1, totalBrl: 40 }, fallbackEntryCount: 2, format: fmt, formatMoney: money });
+  assert.equal(priced[0]?.value, "R$ 40");
+  assert.equal(priced[0]?.hint, "1 de 1 variante com cotação");
+  const failed = wishlistKpis({ summary: null, fallbackEntryCount: 5, format: fmt, formatMoney: money });
+  assert.deepEqual(failed.map((k) => k.value), [null, "5", null]);
+});
+
+test("máquina de intenção: otimista, uma gravação por vez, última intenção vence, falha reverte", () => {
+  let step = toggleWish(V1, initialWishEntry(false));
+  assert.deepEqual(step.send, { variantId: V1, value: true });
+  // Segundo clique durante a gravação: só muda a intenção.
+  step = toggleWish(V1, step.entry);
+  assert.equal(step.send, null);
+  assert.equal(step.entry.desired, false);
+  // Servidor confirma true; intenção atual é false → reenvia false.
+  const settled = settleWish(V1, step.entry, { ok: true, value: true });
+  assert.deepEqual(settled.send, { variantId: V1, value: false });
+  // Falha reverte ao confirmado.
+  const failed = settleWish(V1, settled.entry, { ok: false });
+  assert.equal(failed.reverted, true);
+  assert.equal(failed.entry.desired, true);
+});
+
+test("erros e rótulos: sem detalhe técnico; nome acessível constante com a variante", () => {
+  assert.equal(wishFailureReason("28000"), "not_authenticated");
+  assert.equal(wishFailureReason("22023"), "invalid");
+  assert.equal(wishFailureReason("P0002"), "variant_unavailable");
+  assert.equal(wishFailureReason("PGRST202"), "unavailable");
+  assert.equal(wishFailureReason("XX000"), "failed");
+  assert.match(wishErrorMessage("Pikachu", "failed"), /Nada foi alterado/);
+  assert.equal(wishToggleLabel("Pikachu", "Holográfica"), "Lista de desejos: Pikachu · Holográfica");
+  assert.equal(wishToggleLabel("Pikachu", null), "Lista de desejos: Pikachu");
+  assert.equal(parsePageParam("2"), 2);
+  assert.equal(parsePageParam("0"), 1);
+});
+
+test("SQL proposto: unicidade NULLS NOT DISTINCT, RLS só do dono, sem vínculo com coleção, grants mínimos", () => {
+  const dir = new URL("../../../database/proposals/2026-11-01-v1-11-w1-wishlist/", import.meta.url);
+  const table = readFileSync(new URL("5345_create_card_wishlist_entry_table.sql", dir), "utf8");
+  const fns = readFileSync(new URL("5346_create_card_wishlist_functions.sql", dir), "utf8");
+  const summary = readFileSync(new URL("5347_create_get_my_wishlist_summary_function.sql", dir), "utf8");
+  assert.match(table, /unique nulls not distinct \(user_id, card_variant_id, language_id\)/);
+  assert.match(table, /using \(user_id = \(select auth\.uid\(\)\)\)/);
+  assert.match(table, /grant select on table public\.card_wishlist_entry to authenticated;/);
+  assert.doesNotMatch(table, /collection_id|layout|slot_id|quantity|priority/i);
+  for (const sql of [fns, summary]) {
+    assert.doesNotMatch(sql, /grant execute[^;]*to (anon|public)/i);
+    assert.match(sql, /set search_path = ''/);
+    assert.doesNotMatch(sql, /p_user_id/);
+  }
+  // Inclusão só em variante ativa; remoção nunca exige variante ativa.
+  assert.match(fns, /CARD_VARIANT_UNAVAILABLE/);
+  assert.match(fns, /on conflict on constraint uq_card_wishlist_entry_user_variant_language do nothing/);
+  // Valor agregado: uma referência por variante distinta, via 3983, NULL sem cobertura.
+  assert.match(summary, /array_agg\(distinct w\.card_variant_id/);
+  assert.match(summary, /get_card_variants_pricing_summary/);
+  assert.match(summary, /case when v_priced = 0 then null else v_total end/);
+});
+
+test("CORRECTION-02: desmarcar a variante nunca remove vários idiomas de uma vez", () => {
+  assert.equal(variantRemovalPlan([]), "none");
+  assert.equal(variantRemovalPlan([E1]), "remove");
+  assert.equal(variantRemovalPlan([E1, E2]), "blocked");
+  assert.equal(wishFailureReason("P0002"), "variant_unavailable");
+  assert.match(wishErrorMessage("Pikachu · Holográfica", "multiple_entries"), /mais de um idioma. Nada foi removido/);
+  // Bloqueio = falha: a máquina reverte ao confirmado (marcado) e não reenvia.
+  const pending = toggleWish(V1, initialWishEntry(true));
+  assert.deepEqual(pending.send, { variantId: V1, value: false });
+  const settled = settleWish(V1, pending.entry, { ok: false });
+  assert.equal(settled.reverted, true);
+  assert.equal(settled.entry.desired, true);
+  assert.equal(settled.send, null);
+  // A action usa o plano: com mais de um desejo responde multiple_entries sem chamar a remoção.
+  const actions = readFileSync(new URL("../../app/colecoes/lista-de-desejos/actions.ts", import.meta.url), "utf8");
+  const body = actions.slice(actions.indexOf("export async function setVariantWished"), actions.indexOf("export type AddWishResult"));
+  assert.ok(body.indexOf('reason: "multiple_entries"') > -1);
+  assert.ok(body.indexOf('reason: "multiple_entries"') < body.indexOf("remove_my_wishlist_entries"));
+});
+
+// ---------------------------------------------------------------------------
+// HOMOLOGATION-04 — regressões dos Defeitos A e B
+// ---------------------------------------------------------------------------
+
+test("Defeito A: entrada removida (confirmada) some da grade; demais permanecem", () => {
+  const server = [{ entryId: "a" }, { entryId: "b" }, { entryId: "c" }];
+  const visible = visibleWishlistEntries(server, new Set(["b"]), []);
+  assert.deepEqual(visible.map((e) => e.entryId), ["a", "c"]);
+  // Nada oculto = lista do servidor intacta (nenhum outro desejo removido por engano).
+  assert.deepEqual(visibleWishlistEntries(server, new Set(), []).map((e) => e.entryId), ["a", "b", "c"]);
+});
+
+test("Defeito A: Desfazer recoloca a carta (id novo) sem duplicar quando o servidor relê", () => {
+  const before = [{ entryId: "a" }, { entryId: "c" }];
+  const restored = [{ entryId: "b2" }];
+  // Antes da releitura: aparece na hora.
+  assert.deepEqual(visibleWishlistEntries(before, new Set(["b"]), restored).map((e) => e.entryId), ["b2", "a", "c"]);
+  // Depois da releitura (servidor já traz b2): uma única vez.
+  const after = [{ entryId: "a" }, { entryId: "b2" }, { entryId: "c" }];
+  assert.deepEqual(visibleWishlistEntries(after, new Set(["b"]), restored).map((e) => e.entryId), ["a", "b2", "c"]);
+  // Restaurado e removido de novo: oculto.
+  assert.deepEqual(visibleWishlistEntries(after, new Set(["b", "b2"]), restored).map((e) => e.entryId), ["a", "c"]);
+});
+
+test("Defeito A (estático): remoção só depois da confirmação e página relida do servidor", () => {
+  const view = readFileSync(new URL("../../components/wishlist/wishlist-view.tsx", import.meta.url), "utf8");
+  assert.match(view, /router\.refresh\(\)/);
+  assert.match(view, /visibleWishlistEntries\(entries, hidden, restored\)/);
+  assert.match(view, /visible\.map\(/);
+  assert.doesNotMatch(view, /entries\.map\(\(entry\)/);
+  // Ocultar acontece no ramo de sucesso, depois do await (nunca antes da resposta).
+  const remove = view.slice(view.indexOf("async function remove("), view.indexOf("async function undo("));
+  assert.ok(remove.indexOf("await removeWishlistEntries") < remove.indexOf("setHidden("));
+  assert.ok(remove.indexOf("if (ok)") < remove.indexOf("setHidden("));
+});
+
+test("Defeito B: estado da escolha vem do servidor; falha volta ao persistido", () => {
+  const persisted = new Set(["v1"]);
+  assert.deepEqual([...settleChooserWished(persisted, "v2", { ok: true, value: true })].sort(), ["v1", "v2"]);
+  assert.deepEqual([...settleChooserWished(persisted, "v1", { ok: true, value: false })], []);
+  assert.deepEqual([...settleChooserWished(persisted, "v2", { ok: false })], ["v1"]);
+  // Não muta o conjunto original.
+  assert.deepEqual([...persisted], ["v1"]);
+});
+
+test("Defeito B (estático): opção salvando fica desabilitada, falha aparece dentro do diálogo, fechamento usa o persistido", () => {
+  const src = readFileSync(new URL("../../components/wishlist/wishlist-controller.tsx", import.meta.url), "utf8");
+  const dialog = src.slice(src.indexOf("<DialogContent>"), src.indexOf("</DialogContent>"));
+  assert.match(dialog, /disabled=\{saving\}/);
+  assert.match(dialog, /aria-busy=\{saving \|\| undefined\}/);
+  assert.match(dialog, /Salvando…/);
+  assert.match(dialog, /role="alert"/);
+  assert.match(dialog, /chooser\.error/);
+  const close = src.slice(src.indexOf("function closeChooser()"), src.indexOf("function onClick("));
+  assert.match(close, /confirmCard\(/);
+  assert.doesNotMatch(close, /chooser\.wished/);
+  const confirm = src.slice(src.indexOf("function confirmCard("), src.indexOf("async function toggleOption("));
+  assert.match(confirm, /persistedByCard\.current\.get/);
+  // Sem leitura de `chooser` capturado em fechamento antigo dentro de toggleOption.
+  const toggle = src.slice(src.indexOf("async function toggleOption("), src.indexOf("function closeChooser()"));
+  assert.match(toggle, /chooserRef\.current/);
+  assert.doesNotMatch(toggle, /const state = chooser;/);
+});
+
+test("Defeito C (estático): rótulos da Lista de desejos nunca passam do limite do item", () => {
+  const css = readFileSync(new URL("../../components/wishlist/wishlist.module.css", import.meta.url), "utf8");
+  const block = (sel: string) => {
+    const start = css.indexOf(`\n${sel} {`);
+    assert.ok(start >= 0, `regra ${sel} ausente`);
+    return css.slice(start, css.indexOf("}", start));
+  };
+  assert.match(block(".item"), /grid-template-columns:\s*minmax\(0,\s*1fr\)/);
+  assert.match(block(".meta"), /grid-template-columns:\s*minmax\(0,\s*1fr\)/);
+  const badge = block(".badge");
+  assert.match(badge, /max-width:\s*100%/);
+  assert.match(badge, /overflow-wrap:\s*anywhere/);
+  assert.doesNotMatch(badge, /white-space:\s*nowrap/);
+});
+
+// TOAST UX CORRECTION-07 — aviso de sucesso com fechamento automático
+function fakeClock() {
+  let t = 0;
+  let seq = 0;
+  const timers = new Map<number, { at: number; fn: () => void }>();
+  return {
+    clock: {
+      now: () => t,
+      set: (fn: () => void, ms: number) => {
+        const id = ++seq;
+        timers.set(id, { at: t + ms, fn });
+        return id;
+      },
+      clear: (h: unknown) => {
+        timers.delete(h as number);
+      },
+    },
+    advance(ms: number) {
+      t += ms;
+      for (const [id, timer] of [...timers]) {
+        if (timer.at <= t) {
+          timers.delete(id);
+          timer.fn();
+        }
+      }
+    },
+    pending: () => timers.size,
+  };
+}
+
+test("aviso: fecha sozinho após o prazo (8 s) e uma única vez", () => {
+  assert.equal(WISH_SUCCESS_NOTICE_MS, 8000);
+  const c = fakeClock();
+  let closed = 0;
+  const timer = createDismissTimer(() => closed++, WISH_SUCCESS_NOTICE_MS, c.clock);
+  timer.start();
+  c.advance(7999);
+  assert.equal(closed, 0);
+  c.advance(1);
+  assert.equal(closed, 1);
+  c.advance(10_000);
+  assert.equal(closed, 1);
+});
+
+test("aviso: fechar manualmente/desmontar cancela; nunca dispara depois", () => {
+  const c = fakeClock();
+  let closed = 0;
+  const timer = createDismissTimer(() => closed++, 8000, c.clock);
+  timer.start();
+  c.advance(3000);
+  timer.cancel();
+  assert.equal(c.pending(), 0);
+  c.advance(20_000);
+  assert.equal(closed, 0);
+});
+
+test("aviso: nova remoção reinicia o prazo inteiro, sem dois disparos", () => {
+  const c = fakeClock();
+  let closed = 0;
+  const timer = createDismissTimer(() => closed++, 8000, c.clock);
+  timer.start();
+  c.advance(6000);
+  timer.start();
+  assert.equal(c.pending(), 1);
+  c.advance(6000);
+  assert.equal(closed, 0);
+  c.advance(2000);
+  assert.equal(closed, 1);
+});
+
+test("aviso: hover/foco pausam (Desfazer continua disponível) e retomam com o tempo restante", () => {
+  const c = fakeClock();
+  let closed = 0;
+  const timer = createDismissTimer(() => closed++, 8000, c.clock);
+  timer.start();
+  c.advance(5000);
+  timer.pause();
+  c.advance(60_000);
+  assert.equal(closed, 0);
+  timer.resume();
+  c.advance(2999);
+  assert.equal(closed, 0);
+  c.advance(1);
+  assert.equal(closed, 1);
+});
+
+test("aviso (estático): X acessível, erro sem fechamento automático, Desfazer preservado", () => {
+  const view = readFileSync(new URL("../../components/wishlist/wishlist-view.tsx", import.meta.url), "utf8");
+  assert.match(view, /aria-label="Fechar aviso"/);
+  assert.match(view, /if \(!lastRemoved \|\| error\) return;/);
+  assert.match(view, /createDismissTimer\(\(\) => setLastRemoved\(null\), WISH_SUCCESS_NOTICE_MS\)/);
+  assert.match(view, /onMouseEnter=\{\(\) => holdNotice\("hover", true\)\}/);
+  assert.match(view, /onFocus=\{\(\) => holdNotice\("focus", true\)\}/);
+  assert.match(view, /Desfazer/);
+  assert.match(view, /timer\.cancel\(\)/);
+});
+
+test("aviso (estático): X fora do bloco que quebra linha, sempre à direita", () => {
+  const view = readFileSync(new URL("../../components/wishlist/wishlist-view.tsx", import.meta.url), "utf8");
+  const success = view.slice(view.indexOf('<InlineFeedback tone="success">'), view.indexOf("</InlineFeedback>", view.indexOf('<InlineFeedback tone="success">')));
+  assert.ok(success.indexOf("</span>\n                  <NoticeClose") > 0, "X deve ser irmão do bloco do texto/Desfazer");
+  const css = readFileSync(new URL("../../components/wishlist/wishlist.module.css", import.meta.url), "utf8");
+  assert.match(css, /\.notice > button:last-child \{[^}]*margin-left:\s*auto/);
+});
+
+test("aviso (estático): hover/foco relidos do DOM a cada aviso e zerados ao fechar (prazo nunca fica preso)", () => {
+  const view = readFileSync(new URL("../../components/wishlist/wishlist-view.tsx", import.meta.url), "utf8");
+  const effect = view.slice(view.indexOf("if (!lastRemoved || error) return;"), view.indexOf("}, [lastRemoved, error]);"));
+  assert.match(effect, /hoverRef\.current = node\?\.matches\(":hover"\)/);
+  assert.match(effect, /focusRef\.current = node \? node\.contains\(document\.activeElement\)/);
+  const cleanup = effect.slice(effect.indexOf("return () => {"));
+  assert.match(cleanup, /hoverRef\.current = false;/);
+  assert.match(cleanup, /focusRef\.current = false;/);
+});

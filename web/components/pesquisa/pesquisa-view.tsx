@@ -10,6 +10,9 @@ import { CardPriceSummary } from "@/components/card/card-price-summary";
 import { CardFavoriteButton, favoriteHostClass } from "@/components/favorites/card-favorite-button";
 import { CardFavoritesController } from "@/components/favorites/card-favorites-controller";
 import { useCardFavoriteIds } from "@/components/favorites/use-card-favorite-ids";
+import { WishButton, wishHostClass } from "@/components/wishlist/wish-button";
+import { WishlistController } from "@/components/wishlist/wishlist-controller";
+import { useWishedCards } from "@/components/wishlist/use-wished-cards";
 import { HoloCard } from "@/components/card/holo-card";
 import { usePricingBatch } from "@/hooks/use-pricing-batch";
 import type { PricingCacheEntry } from "@/lib/pricing/pricing-batch-client";
@@ -84,6 +87,8 @@ export function PesquisaView() {
   const pricingByCard = usePricingBatch(cards.map((card) => card.id));
   // V1-10: favoritos das cartas na tela — uma leitura em lote por leva de resultados.
   const { favorites, markConfirmed } = useCardFavoriteIds(cards.map((card) => card.id));
+  // V1-11 W1: cartas com alguma variante na Lista de desejos — uma leitura em lote por leva.
+  const { wished, available: wishAvailable, markCard } = useWishedCards(cards.map((card) => card.id));
   const [totalCount, setTotalCount] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -357,18 +362,21 @@ export function PesquisaView() {
         ) : (
           <>
             <CardFavoritesController onConfirmed={markConfirmed}>
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-                {cards.map((card) => (
-                  <PesquisaCardTile
-                    key={card.id}
-                    card={card}
-                    onZoom={() => openZoom(card)}
-                    isTransitionSource={transitionTargetId === card.id && zoomCard?.id !== card.id}
-                    pricingEntry={pricingByCard.get(card.id)}
-                    isFavorite={favorites.has(card.id.toLowerCase())}
-                  />
-                ))}
-              </div>
+              <WishlistController onCardConfirmed={markCard}>
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+                  {cards.map((card) => (
+                    <PesquisaCardTile
+                      key={card.id}
+                      card={card}
+                      onZoom={() => openZoom(card)}
+                      isTransitionSource={transitionTargetId === card.id && zoomCard?.id !== card.id}
+                      pricingEntry={pricingByCard.get(card.id)}
+                      isFavorite={favorites.has(card.id.toLowerCase())}
+                      isWished={wishAvailable ? wished.has(card.id.toLowerCase()) : undefined}
+                    />
+                  ))}
+                </div>
+              </WishlistController>
             </CardFavoritesController>
             {hasMore && (
               <div className="mt-6 flex justify-center">
@@ -405,6 +413,7 @@ export function PesquisaCardTile({
   isTransitionSource,
   pricingEntry,
   isFavorite,
+  isWished,
 }: {
   card: PesquisaCard;
   onZoom: () => void;
@@ -413,6 +422,8 @@ export function PesquisaCardTile({
   pricingEntry: PricingCacheEntry | undefined;
   /** V1-10: estado favorito inicial do coração (o `CardFavoritesController` do grid cuida do clique). `undefined` = sem coração. */
   isFavorite?: boolean;
+  /** V1-11 W1: alguma variante da carta está na Lista de desejos (o `WishlistController` do grid cuida do clique). `undefined` = sem marcador. */
+  isWished?: boolean;
 }) {
   const imageUrl = cardImageUrl(card);
   return (
@@ -434,7 +445,7 @@ export function PesquisaCardTile({
           mudança, o `<button>` também envolvia a identificação abaixo da
           carta — agora só a imagem é clicável, texto vira irmão fora do
           botão. */}
-      <div className={cn("relative", favoriteHostClass)}>
+      <div className={cn("relative", favoriteHostClass, wishHostClass)}>
         <button
           type="button"
           onClick={onZoom}
@@ -458,6 +469,8 @@ export function PesquisaCardTile({
         </button>
         {/* V1-10: coração irmão do botão de ampliar (botão dentro de botão é inválido). */}
         {isFavorite !== undefined ? <CardFavoriteButton cardId={card.id} cardName={card.name} isFavorite={isFavorite} /> : null}
+        {/* V1-11 W1: marcador da Lista de desejos à esquerda do coração; só a carta é conhecida → escolha de variante (C-212). */}
+        {isWished !== undefined ? <WishButton cardId={card.id} cardName={card.name} isWished={isWished} /> : null}
       </div>
       <div className="min-w-0 space-y-0.5">
         <p className="truncate text-xs font-medium text-foreground">{card.name}</p>

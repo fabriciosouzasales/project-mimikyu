@@ -50,6 +50,8 @@ import {
 import { CardFavoriteButton, favoriteHostClass } from "@/components/favorites/card-favorite-button";
 import { CardFavoritesController } from "@/components/favorites/card-favorites-controller";
 import type { VariantFavorite } from "@/lib/favorites/card-favorites";
+import { WishButton, wishHostClass } from "@/components/wishlist/wish-button";
+import { WishlistController } from "@/components/wishlist/wishlist-controller";
 import { AcervoToolbar } from "./acervo-toolbar";
 import { CardArt } from "./card-art";
 import { CardFinishLayers, finishDataAttribute } from "./card-finish-layers";
@@ -100,6 +102,7 @@ export function AcervoView({
   prices = null,
   priceNow = 0,
   favorites = null,
+  wishedVariants = null,
 }: {
   state: AcervoState;
   summary: AcervoSummary | null;
@@ -119,6 +122,8 @@ export function AcervoView({
   priceNow?: number;
   /** V1-10: carta e estado favorito por variante (5336); `null` = leitura indisponível (sem corações). */
   favorites?: Map<string, VariantFavorite> | null;
+  /** V1-11 W1: variantes com algum desejo (5346); `null` = leitura indisponível (sem marcadores). */
+  wishedVariants?: Set<string> | null;
 }) {
   const canAdd = addLanguages.length > 0;
   const isEmptyAcervo = summary !== null && summary.totalCopies === 0;
@@ -210,29 +215,42 @@ export function AcervoView({
             ) : (
               <>
                 <CardFavoritesController>
-                  <ul className={styles.grid} aria-label="Cartas do seu acervo">
-                    {page.items.map((item, index) => {
-                      const favorite = favorites?.get(item.cardVariantId.toLowerCase()) ?? null;
-                      return (
-                        <li key={`${item.cardVariantId}.${item.languageCode}`} className={`${styles.tileSlot} ${favoriteHostClass}`}>
-                          <AcervoTile
-                            item={item}
-                            state={state}
-                            storageKind={storageKind}
-                            priority={state.page === 1 && index < PRIORITY_CARD_COUNT}
-                            price={prices?.get(item.cardVariantId.toLowerCase()) ?? null}
-                            priceNow={priceNow}
-                          />
-                          {/* V1-10: coração irmão do link do cartão (canto superior direito da arte). */}
-                          {favorite ? (
-                            <HiddenWhileSelecting>
-                              <CardFavoriteButton cardId={favorite.cardId} cardName={item.cardName} isFavorite={favorite.isFavorite} />
-                            </HiddenWhileSelecting>
-                          ) : null}
-                        </li>
-                      );
-                    })}
-                  </ul>
+                  <WishlistController>
+                    <ul className={styles.grid} aria-label="Cartas do seu acervo">
+                      {page.items.map((item, index) => {
+                        const favorite = favorites?.get(item.cardVariantId.toLowerCase()) ?? null;
+                        return (
+                          <li key={`${item.cardVariantId}.${item.languageCode}`} className={`${styles.tileSlot} ${favoriteHostClass} ${wishHostClass}`}>
+                            <AcervoTile
+                              item={item}
+                              state={state}
+                              storageKind={storageKind}
+                              priority={state.page === 1 && index < PRIORITY_CARD_COUNT}
+                              price={prices?.get(item.cardVariantId.toLowerCase()) ?? null}
+                              priceNow={priceNow}
+                            />
+                            {/* V1-10: coração irmão do link do cartão (canto superior direito da arte). */}
+                            {favorite ? (
+                              <HiddenWhileSelecting>
+                                <CardFavoriteButton cardId={favorite.cardId} cardName={item.cardName} isFavorite={favorite.isFavorite} />
+                              </HiddenWhileSelecting>
+                            ) : null}
+                            {/* V1-11 W1: "quero outra" — variante conhecida, inclusão direta com qualquer idioma (C-212). */}
+                            {wishedVariants ? (
+                              <HiddenWhileSelecting>
+                                <WishButton
+                                  variantId={item.cardVariantId.toLowerCase()}
+                                  cardName={item.cardName}
+                                  variantLabel={variantName(item.variantLabel)}
+                                  isWished={wishedVariants.has(item.cardVariantId.toLowerCase())}
+                                />
+                              </HiddenWhileSelecting>
+                            ) : null}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </WishlistController>
                 </CardFavoritesController>
                 {pages > 1 ? <Pagination state={state} pages={pages} /> : null}
                 <AcervoSelectionBar />

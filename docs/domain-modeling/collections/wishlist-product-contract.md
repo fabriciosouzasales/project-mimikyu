@@ -4,8 +4,8 @@
 |---|---|
 | **Documento** | Contrato funcional de produto da Lista de desejos (Wishlist) — V1-11 |
 | **Arquivo** | `docs/domain-modeling/collections/wishlist-product-contract.md` |
-| **Versão** | 1.1 |
-| **Status** | **APROVADO (W0)** — decisões D1–D9 do proprietário (2026-10-31, `V1-11 W0 — PRODUCT CONTRACT CONSOLIDATION-02`), sobre o diagnóstico `V1-11 WISHLIST PRODUCT & CONTRACT DISCOVERY-01`. **Sem modelo físico**: nenhum SQL, migration ou código existe para a Wishlist; a fundação física é a W1, ainda não iniciada. |
+| **Versão** | 1.3 |
+| **Status** | **APROVADO (W0)** — decisões D1–D9 do proprietário (2026-10-31, `V1-11 W0 — PRODUCT CONTRACT CONSOLIDATION-02`), sobre o diagnóstico `V1-11 WISHLIST PRODUCT & CONTRACT DISCOVERY-01`. **W1 ENCERRADA (2026-11-02):** 5345–5347 no LIVE e em `database/schema/` (harness 5873: 17/17 checagens PASS), frontend homologado, publicação pendente; L1 resolvida pelas leituras de estado em lote (por variante e por carta). Contrato inalterado. |
 | **Autoridade** | Em domínio prevalecem `concept-decisions.md` **C-91–C-102** (inalteradas) e **C-210–C-219** (novas, W0) e `logical-model.md` **LDM-79–LDM-90** (inalteradas) e **LDM-204–LDM-208**. Este documento é a leitura funcional consolidada; em caso de divergência, os C-*/LDM-* vencem. Nomenclatura: North Star **N27**. |
 | **Fora de escopo** | SQL, migrations, telas, Conexão Inteligente (CI-N1/CI-N2), marketplace, pagamentos, quantidade, prioridade, preço-alvo, alertas, condição e graduação. |
 | **Documentos relacionados** | `concept-decisions.md`, `logical-model.md`, `north-star-2026-10-16.md`, `architecture/ubiquitous-language.md`, `docs/ROADMAP.md` (V1-11), `docs/05d-colecoes-e-usuarios.md`, `docs/05f-pricing.md` (V1-09), `COLLECTION-FUNCTIONAL-COVERAGE-AUDIT-01.md` (WF-02/WF-03) |
@@ -162,3 +162,5 @@ Estado derivado, nunca gravado, em quatro níveis: tem esta variante neste idiom
 |---|---|
 | 1.0 | **Criação (2026-10-31, `V1-11 W0 — PRODUCT CONTRACT CONSOLIDATION-02`).** Consolida D1–D9 do proprietário e o ajuste do Fichário como entrada obrigatória; registra C-210–C-218, LDM-204–LDM-207 e N27; quatro cenários do Fichário verificados contra `5223`/`5225`; lacunas L1–L7. C-91–C-102 e LDM-79–LDM-90 inalteradas. Sem SQL, código ou alteração visual. |
 | 1.1 | **Ajustes da auditoria (2026-10-31, `V1-11 W0 DOCUMENTATION AUDIT CLOSEOUT-03`).** L6 decidida (C-219, LDM-208; §5-A com a compatibilidade conferida contra `5313`, `5320`, `5315`/`5316`/`5318`); §4.1/§4.2 explicitam que posição só com espécie, referência incompleta ou carta ambígua não autoriza inclusão automática e que nenhuma posição faltante vira desejo automaticamente; §7 explicita contagem por variante + idioma, cobertura sobre variantes distintas com cotação válida e natureza da referência NM; L2/L6 reescritas. Pricing inalterado. |
+| 1.2 | **Status atualizado pela W1 (2026-11-01, `V1-11 W1 IMPLEMENTATION-01`).** Só o campo Status: SQL 5345–5347 + 5873 propostos, não executados; L1 atendida (estado em lote). Nenhuma regra alterada. |
+| 1.3 | **W1 encerrada (2026-11-02, `FINAL CLOSEOUT & CONTROLLED COMMIT-06`).** Só o campo Status: SQL no LIVE e canônico, frontend homologado, publicação pendente. Nenhuma regra alterada. |

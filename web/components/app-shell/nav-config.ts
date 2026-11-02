@@ -1,6 +1,7 @@
 import {
   Activity,
   BookOpen,
+  Bookmark,
   Boxes,
   CircleDollarSign,
   Copy,
@@ -288,6 +289,9 @@ export const NAV_SECTIONS: NavSection[] = [
       // V1-10 (2026-10-31): Cartas favoritas — favoritos pessoais de cartas (C-82–C-90),
       // independentes de acervo e coleção. Distinto de "Pokémon Favoritos" (espécies, Pokédex P6).
       { href: "/colecoes/favoritos", label: "Cartas favoritas", section: "Gerenciar", icon: Heart },
+      // V1-11 W1 (2026-11-01): Lista de desejos — intenção pessoal e privada por variante
+      // (C-91–C-102, C-210–C-219). Bookmark, distinto do coração de Favoritos (D7).
+      { href: "/colecoes/lista-de-desejos", label: "Lista de desejos", section: "Gerenciar", icon: Bookmark },
       { href: "/colecoes/locais", label: "Meus locais", section: "Organizar", icon: MapPin },
     ],
   },

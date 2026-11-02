@@ -1,0 +1,356 @@
+/* ---- Lista de desejos (V1-11 W1) ----
+   Marcador bookmark (D7): mesma linguagem de chip escuro translúcido do coração de
+   Favoritos (V1-10), para conviver no mesmo card sem se confundir com ele (C-97):
+   - fica à ESQUERDA do coração no canto superior direito da arte (o coração é o
+     vizinho da borda; o canto inferior esquerdo é da etiqueta de preço);
+   - forma distinta (bookmark, não coração) e cor ativa dourada MMKYU (--primary),
+     reservada ao estado marcado; o vermelho segue exclusivo de Favoritos;
+   - área de toque de 2.75rem (44 px) com desenho de 1.5rem;
+   - desktop (hover fino): desmarcado só aparece com hover/foco do card; toque: sempre.
+   Só transform/opacity/background animam; prefers-reduced-motion neutraliza pela regra global. */
+.wish {
+  position: absolute;
+  top: -0.1875rem;
+  right: 2.125rem;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: hsl(0 0% 100% / 0.92);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Página Lista de desejos: sem coração no card, o marcador ocupa o canto. */
+.wishCorner {
+  right: -0.1875rem;
+}
+
+.wishIcon {
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0.3125rem;
+  border-radius: 999px;
+  overflow: visible;
+  fill: transparent;
+  stroke: currentColor;
+  background: hsl(0 0% 4% / 0.56);
+  box-shadow:
+    0 1px 3px rgb(0 0 0 / 0.35),
+    inset 0 0 0 1px hsl(0 0% 100% / 0.1);
+  transition:
+    transform 160ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 160ms ease-out,
+    background-color 160ms ease-out;
+}
+
+.wish[aria-pressed="true"] {
+  color: hsl(var(--primary));
+}
+
+.wish[aria-pressed="true"] .wishIcon {
+  fill: hsl(var(--primary));
+}
+
+.wish[data-pending] .wishIcon {
+  opacity: 0.7;
+}
+
+.wish:active .wishIcon {
+  transform: scale(0.9);
+}
+
+.wish:focus-visible {
+  outline: none;
+}
+
+.wish:focus-visible .wishIcon {
+  outline: 2px solid hsl(var(--primary));
+  outline-offset: 2px;
+  opacity: 1;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .wish[aria-pressed="false"] .wishIcon {
+    opacity: 0;
+  }
+
+  .wishHost:hover .wish[aria-pressed="false"] .wishIcon,
+  .wishHost:focus-within .wish[aria-pressed="false"] .wishIcon {
+    opacity: 1;
+  }
+
+  .wish:hover .wishIcon {
+    background: hsl(0 0% 4% / 0.72);
+    transform: scale(1.08);
+  }
+}
+
+/* ---- Escolha de variante (C-212) ---- */
+.chooserList {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chooserOption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.5rem;
+  background: hsl(var(--surface));
+  color: hsl(var(--foreground));
+  font-size: 0.875rem;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 160ms ease-out, background-color 160ms ease-out;
+}
+
+.chooserOption:hover {
+  border-color: hsl(var(--primary) / 0.5);
+}
+
+.chooserOption:focus-visible {
+  outline: 2px solid hsl(var(--primary));
+  outline-offset: 2px;
+}
+
+.chooserOption[aria-pressed="true"] {
+  border-color: hsl(var(--primary));
+  background: hsl(var(--primary) / 0.08);
+}
+
+.chooserOption[data-pending] {
+  opacity: 0.7;
+}
+
+.chooserMark {
+  flex: none;
+  width: 1.125rem;
+  height: 1.125rem;
+  fill: transparent;
+  stroke: currentColor;
+  color: hsl(var(--muted-foreground));
+}
+
+.chooserOption[aria-pressed="true"] .chooserMark {
+  color: hsl(var(--primary));
+  fill: hsl(var(--primary));
+}
+
+.chooserDefault {
+  margin-left: 0.375rem;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.75rem;
+}
+
+/* ---- Página Lista de desejos ---- */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr));
+  gap: 1.75rem 1.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (max-width: 30rem) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.25rem 0.875rem;
+  }
+}
+
+/* BUGFIX-05 (Defeito C): coluna única limitada ao item — sem ela a trilha implícita
+   `auto` cresce até o max-content dos rótulos e invade a carta vizinha. */
+.item {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.5rem;
+  min-width: 0;
+  transition: opacity 160ms ease-out;
+}
+
+/* Removido: atenuado no lugar (sem salto de layout) até a próxima navegação. */
+.item[data-wish-removed] .art,
+.item[data-wish-removed] .meta {
+  opacity: 0.4;
+}
+
+.art {
+  position: relative;
+  aspect-ratio: 63 / 88;
+  border-radius: 0.625rem;
+  overflow: hidden;
+  background: hsl(var(--surface-muted));
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.18);
+}
+
+.artButton {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: zoom-in;
+}
+
+.artButton:focus-visible {
+  outline: 2px solid hsl(var(--primary));
+  outline-offset: 2px;
+}
+
+.artImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.artPlaceholder {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  padding: 0.75rem;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.75rem;
+  text-align: center;
+}
+
+/* Variante desativada no catálogo (C-214): a carta continua, sinalizada. */
+.item[data-unavailable] .artImage {
+  filter: grayscale(0.85);
+  opacity: 0.7;
+}
+
+.meta {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.name {
+  overflow: hidden;
+  color: hsl(var(--foreground));
+  font-size: 0.8125rem;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sub {
+  overflow: hidden;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.75rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.25rem;
+  padding: 0 0.4375rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 999px;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.6875rem;
+  line-height: 1.2;
+  /* Rótulo longo quebra dentro do próprio selo, nunca além do item. */
+  max-width: 100%;
+  min-width: 0;
+  padding-block: 0.125rem;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.badgeOwned {
+  border-color: hsl(var(--success, 142 50% 40%) / 0.45);
+  color: hsl(var(--success, 142 50% 40%));
+}
+
+.badgeWarning {
+  border-color: hsl(var(--warning, 38 90% 45%) / 0.5);
+  color: hsl(var(--warning, 38 90% 45%));
+}
+
+.stateIconWish {
+  color: hsl(var(--primary));
+  background: hsl(var(--primary) / 0.1);
+}
+
+.ledgerPending dd {
+  color: hsl(var(--muted-foreground) / 0.7);
+}
+
+dl.wishLedger {
+  grid-template-columns: minmax(13.5rem, 1.45fr) repeat(2, minmax(0, 1fr));
+}
+
+dl.wishLedger > div {
+  min-width: 0;
+}
+
+dl.wishLedger > div:first-child dd {
+  font-size: clamp(1.5rem, 4.6cqi, 2.25rem);
+  white-space: nowrap;
+}
+
+@container acervo-hero (max-width: 46rem) {
+  dl.wishLedger {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  dl.wishLedger > div:first-child {
+    grid-column: 1 / -1;
+  }
+
+  dl.wishLedger > div:first-child dd {
+    font-size: clamp(1.75rem, 9cqi, 2.25rem);
+  }
+}
+
+/* Aviso: conteúdo (texto + Desfazer) pode quebrar linha; o X fica sempre à direita, centralizado. */
+.notice {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.notice > button:last-child {
+  flex: none;
+  margin-left: auto;
+}
+
+.undo {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  min-width: 0;
+}
