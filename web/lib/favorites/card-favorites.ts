@@ -300,3 +300,21 @@ export function favoritesKpis(input: {
     },
   ];
 }
+
+/**
+ * Página Cartas favoritas (HOMOLOGATION-04): o que a grade mostra entre a confirmação de
+ * um desfavoritar/“Desfazer” e a releitura do servidor. `hidden` = cartas cujo
+ * desfavoritar o banco confirmou; `restored` = cartas refavoritadas pelo “Desfazer” que
+ * a página ainda não releu. Nunca duplica (a linha do servidor vence) e nunca mostra
+ * uma carta oculta.
+ */
+export function visibleFavoriteCards<T extends { id: string }>(
+  server: readonly T[],
+  hidden: ReadonlySet<string>,
+  restored: readonly T[],
+): T[] {
+  const key = (id: string) => id.toLowerCase();
+  const serverIds = new Set(server.map((card) => key(card.id)));
+  const extra = restored.filter((card) => !serverIds.has(key(card.id)) && !hidden.has(key(card.id)));
+  return [...extra, ...server.filter((card) => !hidden.has(key(card.id)))];
+}

@@ -2,6 +2,7 @@
 // Executar: node --experimental-strip-types --test lib/favorites/card-favorites.test.ts (a partir de web/)
 
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import {
   favoritesKpis,
@@ -18,6 +19,7 @@ import {
   toVariantFavoriteMap,
   parseFavoriteReferenceValue,
   formatBrlWhole,
+  visibleFavoriteCards,
 } from "./card-favorites.ts";
 
 const CARD = "11111111-1111-4111-8111-111111111111";
@@ -157,4 +159,27 @@ test("valor de referência: só a forma da 5340 é aceita", () => {
   assert.equal(parseFavoriteReferenceValue({ favorite_count: 2, priced_count: 1, total_brl: -1 }), null);
   assert.equal(parseFavoriteReferenceValue({ favorite_count: 1.5, priced_count: 1, total_brl: 1 }), null);
   assert.equal(parseFavoriteReferenceValue(null), null);
+});
+
+// HOMOLOGATION-04 — desfavoritar na página Cartas favoritas
+test("favoritas: carta desfavoritada (confirmada) sai da grade; Desfazer recoloca sem duplicar", () => {
+  const server = [{ id: "A" }, { id: "b" }, { id: "c" }];
+  assert.deepEqual(visibleFavoriteCards(server, new Set(["a"]), []).map((c) => c.id), ["b", "c"]);
+  // Antes da releitura: restaurada aparece na hora; depois da releitura: uma vez só.
+  assert.deepEqual(visibleFavoriteCards([{ id: "b" }], new Set(), [{ id: "a" }]).map((c) => c.id), ["a", "b"]);
+  assert.deepEqual(visibleFavoriteCards(server, new Set(), [{ id: "a" }]).map((c) => c.id), ["A", "b", "c"]);
+  // Nada oculto = lista intacta (nenhuma outra carta some).
+  assert.deepEqual(visibleFavoriteCards(server, new Set(), []).length, 3);
+});
+
+test("favoritas (estático): remoção só após confirmação do servidor + releitura da página", () => {
+  const view = readFileSync(new URL("../../components/favorites/favorite-cards-view.tsx", import.meta.url), "utf8");
+  assert.match(view, /onConfirmed=\{onFavoriteConfirmed\}/);
+  assert.match(view, /router\.refresh\(\)/);
+  assert.match(view, /visible\.map\(/);
+  assert.doesNotMatch(view, /\{cards\.map\(/);
+  const ctrl = readFileSync(new URL("../../components/favorites/card-favorites-controller.tsx", import.meta.url), "utf8");
+  // onConfirmed só no ramo final (não revertido) da máquina de intenção.
+  assert.ok(ctrl.indexOf("if (step.reverted)") < ctrl.indexOf("onConfirmed?.("));
+  assert.match(ctrl, /mode === "favorites" && !step\.entry\.confirmed\) entries\.current\.delete/);
 });

@@ -36,7 +36,7 @@ export function CardFavoritesController({
   onConfirmed,
 }: {
   children: ReactNode;
-  /** "favorites": página Cartas favoritas — desfavoritar atenua a carta no lugar. */
+  /** "favorites": página Cartas favoritas — atenua enquanto grava; a página remove após a confirmação. */
   mode?: "grid" | "favorites";
   onConfirmed?: (cardId: string, isFavorite: boolean) => void;
 }) {
@@ -86,6 +86,9 @@ export function CardFavoritesController({
       void write(step.send, cardName);
     } else {
       setAnnouncement(favoriteAnnouncement(cardName, step.entry.confirmed));
+      // Página de favoritos: a carta desfavoritada sai da grade; se voltar ("Desfazer"),
+      // nasce do estado do servidor (`aria-pressed`), não de uma intenção antiga.
+      if (mode === "favorites" && !step.entry.confirmed) entries.current.delete(send.cardId);
       onConfirmed?.(send.cardId, step.entry.confirmed);
     }
   }

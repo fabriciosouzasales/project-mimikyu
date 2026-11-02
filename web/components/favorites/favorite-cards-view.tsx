@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { setCardFavorite } from "@/app/colecoes/favoritos/actions";
 import { AlertCircle, Heart, Search } from "lucide-react";
 import { CardImagePreview } from "@/components/card/card-image-preview";
 import { CardPreviewOverlay } from "@/components/card/card-preview-overlay";
@@ -12,9 +14,18 @@ import { favoriteHostClass } from "@/components/favorites/card-favorite-button";
 import { CardFavoritesController } from "@/components/favorites/card-favorites-controller";
 import { PesquisaCardTile } from "@/components/pesquisa/pesquisa-view";
 import { Button } from "@/components/ui/button";
+import { InlineFeedback } from "@/components/ui/feedback";
 import { usePricingBatch } from "@/hooks/use-pricing-batch";
 import { formatCount } from "@/lib/colecoes/acervo";
-import { type FavoriteReferenceValue, type FavoritesKpi, favoritesKpis, formatBrlWhole } from "@/lib/favorites/card-favorites";
+import {
+  type FavoriteReferenceValue,
+  type FavoritesKpi,
+  favoriteAnnouncement,
+  favoriteErrorMessage,
+  favoritesKpis,
+  formatBrlWhole,
+  visibleFavoriteCards,
+} from "@/lib/favorites/card-favorites";
 import { cardImageUrl, type PesquisaCard } from "@/lib/pesquisa/format";
 import { canUseViewTransitions, cardImagePreviewTransitionName } from "@/lib/view-transitions";
 import styles from "./card-favorite.module.css";
@@ -35,7 +46,10 @@ export type FavoriteCardView = PesquisaCard;
  * aprovado; os pendentes aparecem como "—" com o motivo, nunca como zero.
  *
  * A grade usa colunas de largura própria (auto-fill). Cada carta é o tile da Pesquisa com
- * o mesmo coração; desfavoritar atenua a carta no lugar até a próxima navegação.
+ * o mesmo coração. HOMOLOGATION-04: desfavoritar atenua a carta enquanto grava; quando o
+ * banco confirma, ela sai da grade e a página é relida do servidor (total e indicadores
+ * corretos); "Desfazer" refavorita e recoloca a carta sem recarregar. Falha = carta volta
+ * ao normal + mensagem (nada some sem confirmação).
  */
 export function FavoriteCardsView({
   cards,
@@ -60,7 +74,64 @@ export function FavoriteCardsView({
 }) {
   const pricingByCard = usePricingBatch((cards ?? []).map((card) => card.id));
   const [zoomCard, setZoomCard] = useState<FavoriteCardView | null>(null);
+  const router = useRouter();
+  const [, startRefresh] = useTransition();
+  const [hidden, setHidden] = useState<ReadonlySet<string>>(() => new Set());
+  const [restored, setRestored] = useState<readonly FavoriteCardView[]>([]);
+  const [lastRemoved, setLastRemoved] = useState<FavoriteCardView | null>(null);
+  const [undoing, setUndoing] = useState(false);
+  const [announcement, setAnnouncement] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const visible = cards === null ? null : visibleFavoriteCards(cards, hidden, restored);
   const hasFavorites = cards !== null && totalCount > 0;
+
+  function refresh() {
+    startRefresh(() => router.refresh());
+  }
+
+  function toggleHidden(cardId: string, on: boolean) {
+    setHidden((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(cardId.toLowerCase());
+      else next.delete(cardId.toLowerCase());
+      return next;
+    });
+  }
+
+  /** Chamado pelo controlador só depois que o servidor confirma o estado final. */
+  function onFavoriteConfirmed(cardId: string, isFavorite: boolean) {
+    if (isFavorite) return;
+    const card = (visible ?? []).find((item) => item.id.toLowerCase() === cardId.toLowerCase()) ?? null;
+    toggleHidden(cardId, true);
+    setLastRemoved(card);
+    setError(null);
+    refresh();
+  }
+
+  async function undo(card: FavoriteCardView) {
+    if (undoing) return;
+    setUndoing(true);
+    setError(null);
+    let reason: Parameters<typeof favoriteErrorMessage>[1] = "failed";
+    let ok = false;
+    try {
+      const result = await setCardFavorite(card.id, true);
+      ok = result.ok && result.favorite;
+      if (!result.ok) reason = result.reason;
+    } catch {
+      ok = false;
+    }
+    setUndoing(false);
+    if (ok) {
+      setRestored((prev) => [card, ...prev.filter((item) => item.id.toLowerCase() !== card.id.toLowerCase())]);
+      toggleHidden(card.id, false);
+      setLastRemoved(null);
+      setAnnouncement(favoriteAnnouncement(card.name, true));
+      refresh();
+    } else {
+      setError(favoriteErrorMessage(card.name, reason));
+    }
+  }
 
   return (
     <div className={acervoStyles.root}>
@@ -106,7 +177,7 @@ export function FavoriteCardsView({
               </Button>
             </div>
           </section>
-        ) : cards.length === 0 && page === 1 ? (
+        ) : visible === null ? null : visible.length === 0 && page === 1 && totalCount <= hidden.size ? (
           <section className={acervoStyles.state} aria-labelledby="favoritos-vazio">
             <div className={`${acervoStyles.stateIcon} ${styles.stateIconFavorite}`} aria-hidden="true">
               <Heart className="h-6 w-6" />
@@ -127,7 +198,7 @@ export function FavoriteCardsView({
               </Button>
             </div>
           </section>
-        ) : cards.length === 0 ? (
+        ) : visible.length === 0 ? (
           <section className={acervoStyles.state} aria-labelledby="favoritos-pagina-vazia">
             <h2 id="favoritos-pagina-vazia" className={acervoStyles.stateTitle}>
               Esta página não tem cartas
@@ -141,9 +212,9 @@ export function FavoriteCardsView({
           </section>
         ) : (
           <>
-            <CardFavoritesController mode="favorites">
+            <CardFavoritesController mode="favorites" onConfirmed={onFavoriteConfirmed}>
               <ul className={styles.grid} aria-label="Suas cartas favoritas">
-                {cards.map((card) => (
+                {visible.map((card) => (
                   <li key={card.id} data-fav-item className={favoriteHostClass}>
                     <PesquisaCardTile
                       card={card}
@@ -177,6 +248,28 @@ export function FavoriteCardsView({
           </>
         )}
       </div>
+
+      <p className="sr-only" aria-live="polite">
+        {announcement}
+      </p>
+      {lastRemoved || error ? (
+        <div className="pointer-events-none sticky bottom-4 z-20 mt-6 flex justify-center">
+          <div className="pointer-events-auto max-w-md bg-surface shadow-lg" role={error ? "alert" : undefined}>
+            {error ? (
+              <InlineFeedback tone="error">{error}</InlineFeedback>
+            ) : lastRemoved ? (
+              <InlineFeedback tone="success">
+                <span className="inline-flex flex-wrap items-center gap-3">
+                  {lastRemoved.name} saiu dos favoritos.
+                  <Button type="button" variant="outline" size="sm" disabled={undoing} onClick={() => void undo(lastRemoved)}>
+                    {undoing ? "Desfazendo…" : "Desfazer"}
+                  </Button>
+                </span>
+              </InlineFeedback>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
 
       <CardPreviewOverlay
         open={Boolean(zoomCard)}
