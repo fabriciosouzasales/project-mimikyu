@@ -69,6 +69,11 @@ export type MasterSetView = {
    * "Adicionar cartas" não aparece.
    */
   linkable: number | null;
+  /**
+   * V1-11 W3: posições (carta|acabamento) da página com desejo na Lista de desejos
+   * (5348, uma leitura em lote). `null` = sem leitura → a grade não mostra o marcador.
+   */
+  wishedPositions?: ReadonlySet<string> | null;
 };
 
 export function CollectionView({
@@ -307,6 +312,7 @@ export function CollectionView({
           manageable={canManage}
           prices={positionPrices}
           priceNow={priceNow}
+          wishedPositions={master.wishedPositions ?? null}
         />
       ) : positions === null ? (
         <ReadError retryHref={collectionHref(collection.id, filter)} />

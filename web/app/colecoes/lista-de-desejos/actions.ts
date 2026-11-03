@@ -1,6 +1,7 @@
 "use server";
 
 import {
+  ANY_FINISH,
   type SetWishResult,
   type WishFailureReason,
   type WishVariantOption,
@@ -8,6 +9,8 @@ import {
   variantRemovalPlan,
   normalizeId,
   normalizeLanguageCode,
+  parseFinishKey,
+  parseFinishVariantOptions,
   parseVariantOptions,
   wishFailureReason,
 } from "@/lib/wishlist/wishlist";
@@ -144,6 +147,33 @@ export async function readCardWishOptions(cardId: string): Promise<CardWishOptio
   const options = error ? null : parseVariantOptions(data);
   if (!options) {
     console.error(JSON.stringify({ scope: "wishlist.read", fn: "get_catalog_card_variants_for_picker", ms: Date.now() - startedAt, code: error?.code ?? "BAD_SHAPE" }));
+    return null;
+  }
+  if (options.length === 0) return { options, wished: [] };
+  const wished = await getMyWishedVariants(supabase, options.map((option) => option.variantId));
+  if (!wished) return null;
+  return { options, wished: [...wished] };
+}
+
+/**
+ * W3 (Master Set): variantes ativas COMPATÍVEIS com a posição (carta + acabamento; 5348)
+ * e quais já estão na lista. `finishKey` = id do acabamento, ou `"*"` para a posição de
+ * carta secreta (qualquer acabamento). Nunca devolve variante de outro acabamento.
+ * `null` = indisponível (inclusive antes de 5348 existir no LIVE).
+ */
+export async function readPositionWishOptions(cardId: string, finishKey: string): Promise<CardWishOptions | null> {
+  const id = normalizeId(cardId);
+  const finish = parseFinishKey(finishKey);
+  if (!id || !finish) return null;
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("get_catalog_card_variants_for_finish", {
+    p_card_id: id,
+    p_variant_type_id: finish === ANY_FINISH ? null : finish,
+  });
+  const options = error ? null : parseFinishVariantOptions(data, finish);
+  if (!options) {
+    console.error(JSON.stringify({ scope: "wishlist.read", fn: "get_catalog_card_variants_for_finish", ms: Date.now() - startedAt, code: error?.code ?? "BAD_SHAPE" }));
     return null;
   }
   if (options.length === 0) return { options, wished: [] };

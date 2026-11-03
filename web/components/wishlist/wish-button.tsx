@@ -12,6 +12,9 @@ import styles from "./wishlist.module.css";
  * - `variantId`: a variante é conhecida (Acervo) — clique define o desejo da variante;
  * - `cardId`: só a carta é conhecida (Pesquisa) — clique abre a escolha explícita de
  *   variante, ou age direto quando a carta tem uma única variante ativa (C-212).
+ * - `cardId` + `finish` (W3, Master Set): a posição é carta + acabamento — só as
+ *   variantes ativas desse acabamento entram na decisão (`"*"` = carta secreta,
+ *   qualquer acabamento).
  *
  * Deve ser IRMÃO do link/botão que abre a carta e ficar dentro de um elemento
  * posicionado com a classe `wishHostClass`. Nome acessível constante com carta e
@@ -22,6 +25,7 @@ export function WishButton({
   variantLabel = null,
   variantId,
   cardId,
+  finish,
   isWished,
   corner = false,
 }: {
@@ -29,6 +33,8 @@ export function WishButton({
   variantLabel?: string | null;
   variantId?: string;
   cardId?: string;
+  /** W3: acabamento da posição (id ou `"*"`); só com `cardId`. */
+  finish?: string;
   isWished: boolean;
   /** Sem coração no card (página Lista de desejos): ocupa o canto. */
   corner?: boolean;
@@ -39,6 +45,7 @@ export function WishButton({
       className={corner ? `${styles.wish} ${styles.wishCorner}` : styles.wish}
       data-wish-variant={variantId}
       data-wish-card={variantId ? undefined : cardId}
+      data-wish-finish={variantId ? undefined : finish}
       data-wish-name={cardName}
       aria-pressed={isWished}
       aria-label={wishToggleLabel(cardName, variantLabel)}

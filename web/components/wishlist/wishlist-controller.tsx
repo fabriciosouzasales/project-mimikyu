@@ -3,7 +3,7 @@
 import { type MouseEvent, type ReactNode, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Bookmark } from "lucide-react";
-import { readCardWishOptions, setVariantWished } from "@/app/colecoes/lista-de-desejos/actions";
+import { readCardWishOptions, readPositionWishOptions, setVariantWished } from "@/app/colecoes/lista-de-desejos/actions";
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { InlineFeedback } from "@/components/ui/feedback";
 import {
@@ -12,9 +12,11 @@ import {
   type WishOutcome,
   type WishSend,
   type WishVariantOption,
+  ANY_FINISH,
   cardWishMode,
   initialWishEntry,
   normalizeId,
+  parseFinishKey,
   settleChooserWished,
   settleWish,
   toggleWish,
@@ -23,8 +25,20 @@ import {
 } from "@/lib/wishlist/wishlist";
 import styles from "./wishlist.module.css";
 
+/**
+ * Alvo de um marcador de carta. `finish` (W3, Master Set) restringe a decisão às
+ * variantes do acabamento da posição (`"*"` = carta secreta); `null` = carta inteira
+ * (Pesquisa, Set padrão — comportamento da W1/W2, inalterado).
+ */
+type CardTarget = { cardId: string; finish: string | null };
+
+function targetKey(target: CardTarget): string {
+  return target.finish === null ? target.cardId : `${target.cardId}|${target.finish}`;
+}
+
 type Chooser = {
   cardId: string;
+  finish: string | null;
   cardName: string;
   options: WishVariantOption[];
   /** Estado PERSISTIDO (confirmado pelo servidor) — o marcador da escolha nunca mente. */
@@ -46,6 +60,9 @@ type Chooser = {
  * - Marcador de CARTA (`data-wish-card`, Pesquisa): lê as variantes ativas da carta
  *   (5163) e o que já está na lista. Uma variante → age direto; mais de uma → abre a
  *   escolha explícita (C-212); nenhuma → avisa, sem presumir nada.
+ * - Marcador de POSIÇÃO (`data-wish-card` + `data-wish-finish`, W3 Master Set): a mesma
+ *   decisão, mas só entre as variantes ativas do acabamento da posição (5348) — nunca
+ *   uma variante incompatível; pintura e estado por carta + acabamento.
  * - Escolha de variante (HOMOLOGATION-04): cada opção mostra "Salvando…" e fica
  *   desabilitada enquanto grava; o marcador da opção só muda com a confirmação do
  *   servidor; falhas aparecem DENTRO do diálogo (com saída para a Lista de desejos
@@ -91,8 +108,12 @@ export function WishlistController({
     });
   }
 
-  function paintCard(cardId: string, wished: boolean, pending: boolean) {
-    rootRef.current?.querySelectorAll<HTMLButtonElement>(`button[data-wish-card="${cardId}"]`).forEach((button) => {
+  function paintCard(target: CardTarget, wished: boolean, pending: boolean) {
+    const selector =
+      target.finish === null
+        ? `button[data-wish-card="${target.cardId}"]:not([data-wish-finish])`
+        : `button[data-wish-card="${target.cardId}"][data-wish-finish="${target.finish}"]`;
+    rootRef.current?.querySelectorAll<HTMLButtonElement>(selector).forEach((button) => {
       button.setAttribute("aria-pressed", String(wished));
       if (pending) button.setAttribute("data-pending", "");
       else button.removeAttribute("data-pending");
@@ -109,86 +130,94 @@ export function WishlistController({
     }
   }
 
-  async function writeVariant(send: WishSend, name: string, cardId: string | null) {
+  async function writeVariant(send: WishSend, name: string, card: CardTarget | null) {
     const { outcome, reason } = await callSet(send);
     const current = entries.current.get(send.variantId) ?? initialWishEntry(send.value);
     const step = settleWish(send.variantId, current, outcome);
     entries.current.set(send.variantId, step.entry);
     paintVariant(send.variantId, step.entry);
-    if (cardId) paintCard(cardId, step.entry.desired, step.entry.inFlight);
+    if (card) paintCard(card, step.entry.desired, step.entry.inFlight);
 
     if (step.reverted) {
       fail(wishErrorMessage(name, reason), reason);
     } else if (step.send) {
-      void writeVariant(step.send, name, cardId);
+      void writeVariant(step.send, name, card);
     } else {
       setAnnouncement(wishAnnouncement(name, step.entry.confirmed));
-      if (cardId) onCardConfirmed?.(cardId, step.entry.confirmed ? [send.variantId] : []);
+      if (card && card.finish === null) onCardConfirmed?.(card.cardId, step.entry.confirmed ? [send.variantId] : []);
     }
   }
 
-  function toggleVariant(variantId: string, initiallyWished: boolean, name: string, cardId: string | null) {
+  function toggleVariant(variantId: string, initiallyWished: boolean, name: string, card: CardTarget | null) {
     const current = entries.current.get(variantId) ?? initialWishEntry(initiallyWished);
     const step = toggleWish(variantId, current);
     entries.current.set(variantId, step.entry);
     paintVariant(variantId, step.entry);
-    if (cardId) paintCard(cardId, step.entry.desired, step.entry.inFlight);
+    if (card) paintCard(card, step.entry.desired, step.entry.inFlight);
     fail(null);
-    if (step.send) void writeVariant(step.send, name, cardId);
+    if (step.send) void writeVariant(step.send, name, card);
   }
 
-  async function openCard(button: HTMLButtonElement, cardId: string, name: string) {
+  async function openCard(button: HTMLButtonElement, target: CardTarget, name: string) {
+    const { cardId, finish } = target;
     const wasWished = button.getAttribute("aria-pressed") === "true";
-    paintCard(cardId, wasWished, true);
+    paintCard(target, wasWished, true);
     fail(null);
     let data: Awaited<ReturnType<typeof readCardWishOptions>> = null;
     try {
-      data = await readCardWishOptions(cardId);
+      data = finish === null ? await readCardWishOptions(cardId) : await readPositionWishOptions(cardId, finish);
     } catch {
       data = null;
     }
-    paintCard(cardId, wasWished, false);
+    paintCard(target, wasWished, false);
     if (!data) {
       fail(wishErrorMessage(name, "unavailable"));
       return;
     }
     const mode = cardWishMode(data.options);
     if (mode === "none") {
-      fail(`${name} não tem variante disponível no catálogo para a lista de desejos.`);
+      fail(
+        finish === null || finish === ANY_FINISH
+          ? `${name} não tem variante disponível no catálogo para a lista de desejos.`
+          : `${name} não tem variante ativa neste acabamento para a lista de desejos.`,
+      );
       return;
     }
     const single = data.options[0];
     if (mode === "direct" && single) {
-      toggleVariant(single.variantId, data.wished.includes(single.variantId), name, cardId);
+      toggleVariant(single.variantId, data.wished.includes(single.variantId), name, target);
       return;
     }
     const persisted = new Set(data.wished);
-    persistedByCard.current.set(cardId, persisted);
-    const opened: Chooser = { cardId, cardName: name, options: data.options, wished: persisted, saving: new Set(), error: null };
+    persistedByCard.current.set(targetKey(target), persisted);
+    const opened: Chooser = { cardId, finish, cardName: name, options: data.options, wished: persisted, saving: new Set(), error: null };
     chooserRef.current = opened;
     setChooser(opened);
   }
 
-  function updateChooser(cardId: string, change: (prev: Chooser) => Chooser) {
+  function updateChooser(key: string, change: (prev: Chooser) => Chooser) {
     setChooser((prev) => {
-      const next = prev && prev.cardId === cardId ? change(prev) : prev;
+      const next = prev && targetKey(prev) === key ? change(prev) : prev;
       chooserRef.current = next;
       return next;
     });
   }
 
   /** Marcador da carta + aviso à grade a partir do estado PERSISTIDO (nunca do otimista). */
-  function confirmCard(cardId: string) {
-    const persisted = persistedByCard.current.get(cardId) ?? new Set<string>();
-    const busy = (savingByCard.current.get(cardId) ?? 0) > 0;
-    paintCard(cardId, persisted.size > 0, busy);
-    if (!busy) onCardConfirmed?.(cardId, [...persisted]);
+  function confirmCard(target: CardTarget) {
+    const key = targetKey(target);
+    const persisted = persistedByCard.current.get(key) ?? new Set<string>();
+    const busy = (savingByCard.current.get(key) ?? 0) > 0;
+    paintCard(target, persisted.size > 0, busy);
+    if (!busy && target.finish === null) onCardConfirmed?.(target.cardId, [...persisted]);
   }
 
   async function toggleOption(option: WishVariantOption) {
     const state = chooserRef.current;
     if (!state) return;
-    const { cardId, cardName } = state;
+    const { cardName } = state;
+    const target: CardTarget = { cardId: state.cardId, finish: state.finish };
+    const key = targetKey(target);
     // O botão já fica desabilitado enquanto salva; este guarda só evita gravação dupla.
     if (state.saving.has(option.variantId)) return;
     const next = !state.wished.has(option.variantId);
@@ -200,20 +229,20 @@ export function WishlistController({
       return copy;
     };
 
-    savingByCard.current.set(cardId, (savingByCard.current.get(cardId) ?? 0) + 1);
-    updateChooser(cardId, (prev) => ({ ...prev, saving: withSaving(prev.saving, true), error: null }));
+    savingByCard.current.set(key, (savingByCard.current.get(key) ?? 0) + 1);
+    updateChooser(key, (prev) => ({ ...prev, saving: withSaving(prev.saving, true), error: null }));
     fail(null);
 
     const { outcome, reason } = await callSet({ variantId: option.variantId, value: next });
 
-    const persisted = settleChooserWished(persistedByCard.current.get(cardId) ?? new Set(), option.variantId, outcome);
-    persistedByCard.current.set(cardId, persisted);
-    savingByCard.current.set(cardId, Math.max(0, (savingByCard.current.get(cardId) ?? 1) - 1));
+    const persisted = settleChooserWished(persistedByCard.current.get(key) ?? new Set(), option.variantId, outcome);
+    persistedByCard.current.set(key, persisted);
+    savingByCard.current.set(key, Math.max(0, (savingByCard.current.get(key) ?? 1) - 1));
 
     const message = outcome.ok ? null : wishErrorMessage(label, reason);
-    const stillOpen = chooserRef.current?.cardId === cardId;
+    const stillOpen = chooserRef.current !== null && targetKey(chooserRef.current) === key;
     if (stillOpen) {
-      updateChooser(cardId, (prev) => ({
+      updateChooser(key, (prev) => ({
         ...prev,
         wished: persisted,
         saving: withSaving(prev.saving, false),
@@ -221,7 +250,7 @@ export function WishlistController({
       }));
     } else {
       // Diálogo já fechado: a carta reflete o que o servidor confirmou; a falha vai ao aviso da grade.
-      confirmCard(cardId);
+      confirmCard(target);
       if (message) fail(message, reason);
     }
     if (outcome.ok) setAnnouncement(wishAnnouncement(label, outcome.value));
@@ -232,7 +261,7 @@ export function WishlistController({
     if (!state) return;
     chooserRef.current = null;
     setChooser(null);
-    confirmCard(state.cardId);
+    confirmCard({ cardId: state.cardId, finish: state.finish });
   }
 
   function onClick(event: MouseEvent<HTMLDivElement>) {
@@ -249,7 +278,15 @@ export function WishlistController({
       return;
     }
     const cardId = normalizeId(button.dataset.wishCard);
-    if (cardId && !button.hasAttribute("data-pending")) void openCard(button, cardId, name);
+    if (!cardId || button.hasAttribute("data-pending")) return;
+    // W3: com `data-wish-finish`, a decisão fica restrita ao acabamento da posição;
+    // valor inválido = nenhuma ação (nunca cai para "qualquer variante").
+    if (button.dataset.wishFinish === undefined) {
+      void openCard(button, { cardId, finish: null }, name);
+      return;
+    }
+    const finish = parseFinishKey(button.dataset.wishFinish);
+    if (finish) void openCard(button, { cardId, finish }, name);
   }
 
   return (
@@ -281,7 +318,9 @@ export function WishlistController({
           <DialogHeader>
             <DialogTitle>Qual variante você deseja?</DialogTitle>
             <DialogDescription>
-              {chooser?.cardName} tem mais de uma variante. Marque as que você quer na lista de desejos — vale qualquer idioma.
+              {chooser?.cardName} tem mais de uma variante
+              {chooser && chooser.finish !== null && chooser.finish !== ANY_FINISH ? " neste acabamento" : ""}. Marque as que você quer
+              na lista de desejos — vale qualquer idioma.
             </DialogDescription>
           </DialogHeader>
           <DialogBody>

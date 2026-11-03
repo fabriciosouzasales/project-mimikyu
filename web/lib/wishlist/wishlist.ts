@@ -115,6 +115,62 @@ export function wishedCardIds(map: ReadonlyMap<string, ReadonlySet<string>> | nu
   return cards;
 }
 
+/**
+ * W3 (Master Set): acabamento de uma posição. A posição é (carta, acabamento); a de
+ * carta secreta não tem acabamento e aceita qualquer um (regra de 5198) — `ANY_FINISH`.
+ */
+export const ANY_FINISH = "*";
+
+/** Chave de acabamento da posição: id do tipo de acabamento, ou `ANY_FINISH` quando `null`. Valor inválido = `null`. */
+export function wishFinishKey(variantTypeId: string | null | undefined): string | null {
+  if (variantTypeId === null || variantTypeId === undefined) return ANY_FINISH;
+  return normalizeId(variantTypeId);
+}
+
+/** Valor de acabamento vindo do cliente (atributo do marcador): `ANY_FINISH` ou um id válido. */
+export function parseFinishKey(value: unknown): string | null {
+  if (value === ANY_FINISH) return ANY_FINISH;
+  return normalizeId(value);
+}
+
+/** Chave da posição (carta + acabamento) na marcação da grade do Master Set. */
+export function wishPositionKey(cardId: string, finishKey: string): string {
+  return `${cardId.toLowerCase()}|${finishKey}`;
+}
+
+/**
+ * Linhas de `get_my_wishlist_state_by_card_finish` (5348) → posições marcadas. Um
+ * desejo marca a posição do acabamento DA VARIANTE desejada e a posição de carta
+ * secreta da carta (que aceita qualquer acabamento). Nunca marca outro acabamento.
+ */
+export function toWishedPositionKeys(
+  rows: readonly { card_id?: unknown; variant_type_id?: unknown; card_variant_id?: unknown; entry_id?: unknown }[],
+): Set<string> {
+  const keys = new Set<string>();
+  for (const row of rows) {
+    const cardId = normalizeId(row?.card_id);
+    if (!cardId || !normalizeId(row?.card_variant_id) || !normalizeId(row?.entry_id)) continue;
+    keys.add(wishPositionKey(cardId, ANY_FINISH));
+    const finish = normalizeId(row?.variant_type_id);
+    if (finish) keys.add(wishPositionKey(cardId, finish));
+  }
+  return keys;
+}
+
+/**
+ * Linhas de `get_catalog_card_variants_for_finish` (5348) → opções COMPATÍVEIS com a
+ * posição. Defesa em profundidade: mesmo que o banco devolva outra coisa, uma variante
+ * de outro acabamento (ou sem acabamento numa posição de acabamento) nunca é oferecida.
+ */
+export function parseFinishVariantOptions(rows: unknown, finishKey: string): WishVariantOption[] | null {
+  if (!Array.isArray(rows)) return null;
+  const compatible =
+    finishKey === ANY_FINISH
+      ? rows
+      : rows.filter((raw) => normalizeId((raw as Record<string, unknown> | null)?.variant_type_id) === finishKey);
+  return parseVariantOptions(compatible);
+}
+
 /** Ids dos desejos de uma variante (para desmarcar na grade). */
 export function entryIdsOfVariant(rows: readonly { card_variant_id?: unknown; entry_id?: unknown }[], variantId: string): string[] {
   const out: string[] = [];

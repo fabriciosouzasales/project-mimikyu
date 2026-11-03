@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { AlertTriangle, Check, Sparkles, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,9 @@ import freeStyles from "./free-collection.module.css";
 import { VariantPriceSummary } from "@/components/card/variant-price-summary";
 import { priceAccessibleText } from "@/lib/pricing/variant-pricing";
 import type { PositionPrice, PositionPrices } from "@/lib/pricing/position-pricing-queries";
+import { WishButton, wishHostClass } from "@/components/wishlist/wish-button";
+import { WishlistController } from "@/components/wishlist/wishlist-controller";
+import { wishFinishKey, wishPositionKey } from "@/lib/wishlist/wishlist";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 
@@ -34,6 +38,10 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
  * contexto de edição e impressão não multiplicam posições (C-187): a grade só
  * mostra o que o banco devolve. O acabamento aparece como uma linha discreta
  * sob o número da carta.
+ *
+ * V1-11 W3: marcador da Lista de desejos por POSIÇÃO (carta + acabamento), no canto
+ * superior esquerdo (Card Grid UX). Só aparece quando a leitura do estado respondeu
+ * (`wishedPositions` ≠ `null`); a decisão de variante fica restrita ao acabamento.
  */
 export function MasterSetGallery({
   collectionId,
@@ -46,6 +54,7 @@ export function MasterSetGallery({
   manageable,
   prices = null,
   priceNow = 0,
+  wishedPositions = null,
 }: {
   collectionId: string;
   collectionName: string;
@@ -59,6 +68,8 @@ export function MasterSetGallery({
   /** V1-09 Fase B: preço por posição (chave = `positionKey`). */
   prices?: PositionPrices | null;
   priceNow?: number;
+  /** V1-11 W3: posições (carta|acabamento) com desejo. `null` = sem leitura → sem marcador. */
+  wishedPositions?: ReadonlySet<string> | null;
 }) {
   const pages = positions ? masterSetTotalPages(positions.total) : 1;
   const retryHref = pageHref(collectionId, filter, page);
@@ -72,21 +83,24 @@ export function MasterSetGallery({
       ) : (
         <>
           <CardZoomProvider>
-            <ul className={acervoStyles.grid} aria-label="Posições do Master Set">
-              {positions.items.map((position, index) => (
-                <li key={position.key}>
-                  <MasterTile
-                    collectionId={collectionId}
-                    position={position}
-                    priority={page === 1 && index < PRIORITY_CARD_COUNT}
-                    setCode={setCode}
-                    manageable={manageable}
-                    price={prices?.[position.key] ?? null}
-                    priceNow={priceNow}
-                  />
-                </li>
-              ))}
-            </ul>
+            <WishGrid enabled={wishedPositions !== null}>
+              <ul className={acervoStyles.grid} aria-label="Posições do Master Set">
+                {positions.items.map((position, index) => (
+                  <li key={position.key}>
+                    <MasterTile
+                      collectionId={collectionId}
+                      position={position}
+                      priority={page === 1 && index < PRIORITY_CARD_COUNT}
+                      setCode={setCode}
+                      manageable={manageable}
+                      price={prices?.[position.key] ?? null}
+                      priceNow={priceNow}
+                      wished={positionWished(position, wishedPositions)}
+                    />
+                  </li>
+                ))}
+              </ul>
+            </WishGrid>
           </CardZoomProvider>
           {pages > 1 ? <Pager collectionId={collectionId} filter={filter} page={page} pages={pages} /> : null}
         </>
@@ -98,6 +112,17 @@ export function MasterSetGallery({
   );
 }
 
+function WishGrid({ enabled, children }: { enabled: boolean; children: ReactNode }) {
+  return enabled ? <WishlistController>{children}</WishlistController> : <>{children}</>;
+}
+
+/** Estado do marcador da posição; `undefined` = sem marcador (sem leitura ou acabamento inválido). */
+function positionWished(position: MasterSetPosition, wishedPositions: ReadonlySet<string> | null): boolean | undefined {
+  if (!wishedPositions) return undefined;
+  const finish = wishFinishKey(position.variantTypeId);
+  return finish ? wishedPositions.has(wishPositionKey(position.cardId, finish)) : undefined;
+}
+
 function MasterTile({
   collectionId,
   position,
@@ -106,6 +131,7 @@ function MasterTile({
   manageable,
   price,
   priceNow,
+  wished,
 }: {
   collectionId: string;
   position: MasterSetPosition;
@@ -115,6 +141,8 @@ function MasterTile({
   /** Preço da única variante desta posição (carta + acabamento). */
   price: PositionPrice | null;
   priceNow: number;
+  /** V1-11 W3: estado do marcador da Lista de desejos; `undefined` = sem marcador. */
+  wished?: boolean;
 }) {
   const number = formatCollectorNumber(position.collectorNumber, position.collectorTotal);
   const caption = setCode ? `${setCode.toUpperCase()} · ${number}` : number;
@@ -123,10 +151,11 @@ function MasterTile({
   const canAdd =
     MASTER_SET_ADD_FROM_ACERVO_ENABLED && manageable && !position.isSatisfied && position.copiesAvailable > 0;
   const shownPrice = position.isSatisfied ? price : null;
+  const wishFinish = wishFinishKey(position.variantTypeId);
 
   return (
     <article
-      className={acervoStyles.tile}
+      className={wished === undefined ? acervoStyles.tile : `${acervoStyles.tile} ${wishHostClass}`}
       aria-label={[
         `${position.cardName}, ${caption}, ${position.isSecret ? "carta secreta, " : ""}${finish}, ${positionStatusText(position)}`,
         shownPrice ? priceAccessibleText(shownPrice.price, priceNow) : null,
@@ -148,6 +177,14 @@ function MasterTile({
             ) : null}
           </div>
         </CardZoomTrigger>
+        {wished !== undefined && wishFinish ? (
+          <WishButton
+            cardId={position.cardId}
+            finish={wishFinish}
+            cardName={`${position.cardName} (${caption} · ${finish})`}
+            isWished={wished}
+          />
+        ) : null}
         {shownPrice ? (
           // V1-09 Fase B: etiqueta da variante desta posição (carta + acabamento) — nunca de outro acabamento.
           <VariantPriceSummary

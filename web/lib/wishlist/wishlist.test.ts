@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import {
+  ANY_FINISH,
   WISH_SUCCESS_NOTICE_MS,
   cardWishMode,
   createDismissTimer,
@@ -12,6 +13,8 @@ import {
   initialWishEntry,
   normalizeLanguageCode,
   ownershipLabel,
+  parseFinishKey,
+  parseFinishVariantOptions,
   parsePageParam,
   parseVariantOptions,
   parseWishlistPage,
@@ -19,6 +22,7 @@ import {
   settleChooserWished,
   settleWish,
   toWishedByCardMap,
+  toWishedPositionKeys,
   toWishedVariantSet,
   toggleWish,
   variantRemovalPlan,
@@ -28,6 +32,8 @@ import {
   wishLanguageLabel,
   wishToggleLabel,
   wishlistKpis,
+  wishFinishKey,
+  wishPositionKey,
   wishedCardIds,
 } from "./wishlist.ts";
 
@@ -462,4 +468,117 @@ test("W2 (estático): grade de Set padrão usa o marcador por carta da W1, uma l
   const page = readFileSync(new URL("../../app/colecoes/colecoes/[id]/page.tsx", import.meta.url), "utf8");
   assert.equal((page.match(/getMyWishedByCard\(/g) ?? []).length, 1, "uma leitura em lote por página, nunca por posição");
   assert.match(page, /master === null && positions/, "só Set padrão (Master Set fora da W2)");
+});
+
+// ---------------------------------------------------------------------------
+// W3 — Master Set (posição = carta + acabamento)
+// ---------------------------------------------------------------------------
+
+const HOLO = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+const REVERSE = "ffffffff-ffff-4fff-8fff-ffffffffffff";
+const V3 = "99999999-9999-4999-8999-999999999999";
+const finishRow = (id: string, finish: string | null, isDefault = false) => ({
+  card_variant_id: id,
+  variant_type_id: finish,
+  is_default_variant: isDefault,
+  variant_label: `Variante ${id.slice(0, 2)}`,
+  variant_order: 1,
+});
+
+test("W3: chave de acabamento — NULL é a posição secreta (qualquer acabamento); valor inválido não vira 'qualquer'", () => {
+  assert.equal(wishFinishKey(null), ANY_FINISH);
+  assert.equal(wishFinishKey(undefined), ANY_FINISH);
+  assert.equal(wishFinishKey(HOLO.toUpperCase()), HOLO);
+  assert.equal(wishFinishKey("lixo"), null, "acabamento inválido = sem marcador, nunca 'qualquer variante'");
+  assert.equal(parseFinishKey(ANY_FINISH), ANY_FINISH);
+  assert.equal(parseFinishKey(HOLO), HOLO);
+  assert.equal(parseFinishKey(""), null);
+  assert.equal(parseFinishKey(undefined), null);
+  assert.equal(wishPositionKey(CARD.toUpperCase(), HOLO), `${CARD}|${HOLO}`);
+});
+
+test("W3: estado por posição — desejo marca o acabamento da variante e a posição secreta, nunca outro acabamento", () => {
+  const keys = toWishedPositionKeys([
+    { card_id: CARD, variant_type_id: HOLO, card_variant_id: V1, entry_id: E1 },
+    { card_id: CARD, variant_type_id: HOLO, card_variant_id: V1, entry_id: E2 }, // outro idioma, mesma posição
+    { card_id: CARD_B, variant_type_id: null, card_variant_id: V2, entry_id: E1 }, // variante sem acabamento
+    { card_id: CARD, variant_type_id: REVERSE, card_variant_id: V3, entry_id: null }, // linha incompleta: ignorada
+  ]);
+  assert.ok(keys.has(wishPositionKey(CARD, HOLO)), "posição (carta, Holo) acesa");
+  assert.ok(keys.has(wishPositionKey(CARD, ANY_FINISH)), "posição secreta da carta aceita qualquer acabamento");
+  assert.ok(!keys.has(wishPositionKey(CARD, REVERSE)), "outro acabamento da mesma carta NÃO acende (estado inativo)");
+  assert.ok(keys.has(wishPositionKey(CARD_B, ANY_FINISH)));
+  assert.equal(keys.size, 3);
+  assert.equal(toWishedPositionKeys([]).size, 0, "sem desejos = todas as posições inativas");
+});
+
+test("W3: opções compatíveis — nenhuma, uma (inclusão direta) ou várias (escolha explícita); incompatíveis nunca entram", () => {
+  // Nenhuma compatível: a carta tem variante, mas não neste acabamento.
+  const none = parseFinishVariantOptions([finishRow(V1, REVERSE)], HOLO);
+  assert.deepEqual(none, []);
+  assert.equal(cardWishMode(none ?? []), "none");
+
+  // Uma compatível entre várias variantes da carta: inclusão direta só nela.
+  const one = parseFinishVariantOptions([finishRow(V1, HOLO), finishRow(V2, REVERSE, true)], HOLO);
+  assert.deepEqual(one?.map((option) => option.variantId), [V1], "a variante padrão de outro acabamento não é presumida");
+  assert.equal(cardWishMode(one ?? []), "direct");
+
+  // Várias compatíveis: escolha explícita, na ordem recebida (padrão primeiro, pelo banco).
+  const many = parseFinishVariantOptions([finishRow(V2, HOLO, true), finishRow(V1, HOLO), finishRow(V3, REVERSE)], HOLO);
+  assert.deepEqual(many?.map((option) => option.variantId), [V2, V1]);
+  assert.equal(cardWishMode(many ?? []), "choose");
+
+  // Variante sem acabamento numa posição de acabamento: incompatível.
+  assert.deepEqual(parseFinishVariantOptions([finishRow(V1, null)], HOLO), []);
+
+  // Posição secreta: qualquer acabamento vale.
+  const secret = parseFinishVariantOptions([finishRow(V1, HOLO), finishRow(V2, REVERSE), finishRow(V3, null)], ANY_FINISH);
+  assert.equal(secret?.length, 3);
+  assert.equal(cardWishMode(secret ?? []), "choose");
+
+  assert.equal(parseFinishVariantOptions(null, HOLO), null, "resposta fora do contrato = indisponível");
+});
+
+test("W3 (SQL 5348, estático): só variantes ativas de carta ativa, filtro por acabamento, identidade só por auth.uid()", () => {
+  const sql = readFileSync(
+    new URL("../../../database/schema/5348_create_wishlist_finish_functions.sql", import.meta.url),
+    "utf8",
+  );
+  assert.match(sql, /join public\.card_variant cv on cv\.card_id = c\.id and cv\.is_active/, "variante inativa nunca é oferecida");
+  assert.match(sql, /and c\.is_active/, "carta inativa nunca é oferecida");
+  assert.match(sql, /p_variant_type_id is null or cv\.variant_type_id = p_variant_type_id/, "acabamento da posição (NULL = secreta)");
+  assert.match(sql, /where w\.user_id = v_user/, "estado só do usuário da sessão");
+  assert.equal((sql.match(/security definer/g) ?? []).length, 2);
+  assert.equal((sql.match(/set search_path = ''/g) ?? []).length, 2);
+  assert.equal((sql.match(/from anon;/g) ?? []).length, 2, "anon sem EXECUTE");
+  assert.doesNotMatch(sql, /insert into|update public|delete from|create table/i, "só leituras — escrita continua na W1 (5346)");
+});
+
+test("W3 (estático): grade do Master Set usa marcador por POSIÇÃO, uma leitura em lote, regras de escrita da W1", () => {
+  const gallery = readFileSync(new URL("../../components/colecoes/colecoes/master-set-gallery.tsx", import.meta.url), "utf8");
+  assert.match(gallery, /<WishButton\s+cardId=\{position\.cardId\}\s+finish=\{wishFinish\}/, "marcador por carta + acabamento");
+  assert.doesNotMatch(gallery, /variantId=/, "a posição nunca presume variante");
+  assert.match(gallery, /<WishlistController>/, "mesma ilha da W1 (inclusão, escolha, remoção, erros)");
+  // Regressão de navegação: zoom, preço, exemplares, adicionar do acervo e paginação preservados.
+  for (const kept of ["<CardZoomTrigger id={position.key}", "<VariantPriceSummary", "<ManageCopiesButton", "<AddFromAcervoButton", "<Pager "]) {
+    assert.ok(gallery.includes(kept), `preservado: ${kept}`);
+  }
+  assert.ok(
+    gallery.indexOf("</CardZoomTrigger>") < gallery.indexOf("<WishButton"),
+    "marcador é IRMÃO do gatilho de ampliação (nunca dentro dele)",
+  );
+
+  const page = readFileSync(new URL("../../app/colecoes/colecoes/[id]/page.tsx", import.meta.url), "utf8");
+  assert.equal((page.match(/getMyWishedPositionKeys\(/g) ?? []).length, 1, "uma leitura em lote por página");
+  assert.match(page, /master\?\.positions\s*\?\s*getMyWishedPositionKeys/, "só Master Set, só a página exibida");
+
+  const controller = readFileSync(new URL("../../components/wishlist/wishlist-controller.tsx", import.meta.url), "utf8");
+  assert.match(controller, /readPositionWishOptions\(cardId, finish\)/, "opções restritas ao acabamento da posição");
+  assert.match(controller, /:not\(\[data-wish-finish\]\)/, "marcadores da W1/W2 (sem acabamento) pintados como antes");
+  assert.match(controller, /\[data-wish-finish="\$\{target\.finish\}"\]/, "posições pintadas por carta + acabamento");
+  assert.equal((controller.match(/setVariantWished\(/g) ?? []).length, 1, "inclusão/remoção pela mesma action da W1 (bloqueio com vários desejos)");
+
+  const actions = readFileSync(new URL("../../app/colecoes/lista-de-desejos/actions.ts", import.meta.url), "utf8");
+  assert.match(actions, /get_catalog_card_variants_for_finish/);
+  assert.match(actions, /parseFinishVariantOptions\(data, finish\)/, "filtro de compatibilidade também no servidor da aplicação");
 });

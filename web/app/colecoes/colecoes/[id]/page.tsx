@@ -43,7 +43,7 @@ import { getVariantPrices } from "@/lib/pricing/variant-pricing-queries";
 import { getMasterSetPositionPrices, getPokedexPositionPrices, getSetPositionPrices } from "@/lib/pricing/position-pricing-queries";
 import { createClient } from "@/lib/supabase/server";
 import { getCachedUser, getCachedUserProfile } from "@/lib/supabase/request-auth-cache";
-import { getMyWishedByCard } from "@/lib/wishlist/wishlist-queries";
+import { getMyWishedByCard, getMyWishedPositionKeys } from "@/lib/wishlist/wishlist-queries";
 import { wishedCardIds } from "@/lib/wishlist/wishlist";
 
 export const metadata: Metadata = { title: "Coleção · Minhas coleções" };
@@ -222,7 +222,9 @@ export default async function ColecaoPage({
   // V1-09 Fase B: preço por posição (5333 + 3983) em paralelo com o logo — só a página exibida.
   // V1-11 W2: estado da Lista de desejos das cartas da página exibida — uma leitura em
   // lote (5346, por carta), só no Set padrão; falha = sem marcador.
-  const [logoUrl, positionPrices, wishedCards] = await Promise.all([
+  // V1-11 W3: no Master Set, estado por posição (carta + acabamento) da página exibida —
+  // uma leitura em lote (5348); falha ou 5348 ausente no LIVE = sem marcador.
+  const [logoUrl, positionPrices, wishedCards, wishedPositions] = await Promise.all([
     logoPath ? getSetLogoUrls(supabase, [logoPath]).then((urls) => urls.get(logoPath) ?? null) : Promise.resolve(null),
     collection === null
       ? Promise.resolve(null)
@@ -239,6 +241,12 @@ export default async function ColecaoPage({
           positions.items.map((position) => position.cardId),
         ).then(wishedCardIds)
       : Promise.resolve(null),
+    master?.positions
+      ? getMyWishedPositionKeys(
+          supabase,
+          master.positions.items.map((position) => position.cardId),
+        )
+      : Promise.resolve(null),
   ]);
 
   return (
@@ -253,7 +261,7 @@ export default async function ColecaoPage({
           heroPositions={(filter === "todas" ? positions : heroSource)?.items ?? []}
           linkable={linkable}
           logoUrl={logoUrl}
-          master={master}
+          master={master ? { ...master, wishedPositions } : null}
           binder={binder}
           registerMode={wantsRegister(query)}
           positionPrices={positionPrices}

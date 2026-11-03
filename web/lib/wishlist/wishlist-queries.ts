@@ -7,6 +7,7 @@ import {
   parseWishlistPage,
   parseWishlistSummary,
   toWishedByCardMap,
+  toWishedPositionKeys,
   toWishedVariantSet,
 } from "./wishlist.ts";
 
@@ -62,6 +63,29 @@ export async function getMyWishedByCard(supabase: SupabaseClient, cardIds: reado
   const merged = new Map<string, Set<string>>();
   for (const map of results as Map<string, Set<string>>[]) for (const [card, set] of map) merged.set(card, set);
   return merged;
+}
+
+/**
+ * W3 (Master Set): posições (carta + acabamento) com desejo, para as cartas da página
+ * (5348, em lote). `null` = leitura falhou ou 5348 ainda não existe no LIVE — a grade
+ * não mostra marcador.
+ */
+export async function getMyWishedPositionKeys(supabase: SupabaseClient, cardIds: readonly string[]): Promise<Set<string> | null> {
+  const blocks = chunkIds(cardIds);
+  if (blocks.length === 0) return new Set();
+  const startedAt = Date.now();
+  const results = await Promise.all(
+    blocks.map(async (block) => {
+      const { data, error } = await supabase.rpc("get_my_wishlist_state_by_card_finish", { p_card_ids: block });
+      if (error || !Array.isArray(data)) {
+        logFailure("get_my_wishlist_state_by_card_finish", startedAt, error);
+        return null;
+      }
+      return toWishedPositionKeys(data);
+    }),
+  );
+  if (results.some((set) => set === null)) return null;
+  return new Set(results.flatMap((set) => [...(set as Set<string>)]));
 }
 
 /** Uma página da Lista de desejos, mais recentes primeiro. */
