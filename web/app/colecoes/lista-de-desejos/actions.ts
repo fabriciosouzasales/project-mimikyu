@@ -3,6 +3,8 @@
 import {
   ANY_FINISH,
   type SetWishResult,
+  type SpeciesWishCardsPage,
+  SPECIES_CARDS_PAGE_SIZE,
   type WishFailureReason,
   type WishVariantOption,
   entryIdsOfVariant,
@@ -11,6 +13,7 @@ import {
   normalizeLanguageCode,
   parseFinishKey,
   parseFinishVariantOptions,
+  parseSpeciesCardsPage,
   parseVariantOptions,
   wishFailureReason,
 } from "@/lib/wishlist/wishlist";
@@ -180,4 +183,34 @@ export async function readPositionWishOptions(cardId: string, finishKey: string)
   const wished = await getMyWishedVariants(supabase, options.map((option) => option.variantId));
   if (!wished) return null;
   return { options, wished: [...wished] };
+}
+
+export type SpeciesWishCards = SpeciesWishCardsPage & { wished: string[] };
+
+/**
+ * W4 (Pokédex, lacuna L3): uma página das cartas ativas de uma espécie (5349) e quais
+ * delas já têm desejo (5346, em lote para a página) — base da escolha EXPLÍCITA da
+ * carta; a variante segue a regra da W1 (5163). Nada é gravado aqui e nada liga o
+ * desejo à Pokédex. `null` = indisponível (inclusive antes de 5349 existir no LIVE).
+ */
+export async function readSpeciesWishCards(speciesId: string, offset: number): Promise<SpeciesWishCards | null> {
+  const id = normalizeId(speciesId);
+  if (!id || !Number.isInteger(offset) || offset < 0 || offset > 10000) return null;
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("get_catalog_cards_for_species", {
+    p_species_id: id,
+    p_limit: SPECIES_CARDS_PAGE_SIZE,
+    p_offset: offset,
+  });
+  const page = error ? null : parseSpeciesCardsPage(data);
+  if (!page) {
+    console.error(JSON.stringify({ scope: "wishlist.read", fn: "get_catalog_cards_for_species", ms: Date.now() - startedAt, code: error?.code ?? "BAD_SHAPE" }));
+    return null;
+  }
+  if (page.items.length === 0) return { ...page, wished: [] };
+  const map = await getMyWishedByCard(supabase, page.items.map((card) => card.cardId));
+  if (!map) return null;
+  const wished = page.items.filter((card) => (map.get(card.cardId)?.size ?? 0) > 0).map((card) => card.cardId);
+  return { ...page, wished };
 }

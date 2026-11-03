@@ -6,6 +6,10 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import {
   ANY_FINISH,
+  SPECIES_CARDS_PAGE_SIZE,
+  appendSpeciesCards,
+  nextSpeciesCardsOffset,
+  parseSpeciesCardsPage,
   WISH_SUCCESS_NOTICE_MS,
   cardWishMode,
   createDismissTimer,
@@ -581,4 +585,101 @@ test("W3 (estático): grade do Master Set usa marcador por POSIÇÃO, uma leitur
   const actions = readFileSync(new URL("../../app/colecoes/lista-de-desejos/actions.ts", import.meta.url), "utf8");
   assert.match(actions, /get_catalog_card_variants_for_finish/);
   assert.match(actions, /parseFinishVariantOptions\(data, finish\)/, "filtro de compatibilidade também no servidor da aplicação");
+});
+
+// ---------------------------------------------------------------------------
+// W4 — Pokédex (lacuna L3): escolha explícita da carta de uma espécie
+// ---------------------------------------------------------------------------
+
+const speciesRow = (id: string, variants: number, total = 3) => ({
+  card_id: id,
+  card_name: "Pikachu",
+  collector_number: "25",
+  collector_total: 102,
+  card_set_code: "base1",
+  card_set_name: "Base Set",
+  image_path_pt: null,
+  image_path_en: "base1/en/25.webp",
+  active_variant_count: variants,
+  total_count: total,
+});
+
+test("W4: cartas da espécie — nenhuma, uma ou várias; carta sem variante ativa nunca é oferecida", () => {
+  const none = parseSpeciesCardsPage([]);
+  assert.deepEqual(none, { items: [], total: 0 }, "sem carta elegível = estado vazio, sem ação");
+
+  const one = parseSpeciesCardsPage([speciesRow(V1, 1, 1)]);
+  assert.equal(one?.items.length, 1);
+  assert.equal(one?.items[0]?.activeVariants, 1);
+  assert.equal(one?.items[0]?.collectorTotal, 102);
+
+  const many = parseSpeciesCardsPage([speciesRow(V1, 1), speciesRow(V2, 3), speciesRow(V3, 0)]);
+  assert.deepEqual(many?.items.map((card) => card.cardId), [V1, V2], "variante inativa/sem variante ativa: fora");
+  assert.equal(many?.total, 3, "total vem do banco (paginação)");
+  assert.equal(parseSpeciesCardsPage(null), null, "resposta fora do contrato = indisponível");
+  assert.ok(SPECIES_CARDS_PAGE_SIZE >= 1 && SPECIES_CARDS_PAGE_SIZE <= 60, "dentro do limite aceito pela 5349");
+});
+
+test("W4: escolha da variante segue a W1 — uma ativa = direta, várias = escolha explícita", () => {
+  const single = parseVariantOptions([{ card_variant_id: V1, variant_label: "Normal", is_default_variant: true }]) ?? [];
+  const several = parseVariantOptions([
+    { card_variant_id: V1, variant_label: "Normal", is_default_variant: true },
+    { card_variant_id: V2, variant_label: "Holo", is_default_variant: false },
+  ]) ?? [];
+  assert.equal(cardWishMode(single), "direct");
+  assert.equal(cardWishMode(several), "choose", "nunca presume a variante padrão");
+});
+
+test("W4: paginação da escolha não repete carta e para no total", () => {
+  const first = parseSpeciesCardsPage([speciesRow(V1, 1, 3), speciesRow(V2, 1, 3)])?.items ?? [];
+  const again = parseSpeciesCardsPage([speciesRow(V2, 1, 3), speciesRow(V3, 2, 3)])?.items ?? [];
+  const merged = appendSpeciesCards(first, again);
+  assert.deepEqual(merged.map((card) => card.cardId), [V1, V2, V3]);
+  assert.equal(nextSpeciesCardsOffset(2, 3), 2);
+  assert.equal(nextSpeciesCardsOffset(3, 3), null);
+});
+
+test("W4 (SQL 5349, estático): só cartas ativas POKEMON da espécie com variante ativa; leitura; auth.uid()", () => {
+  const sql = readFileSync(
+    new URL("../../../database/schema/5349_create_get_catalog_cards_for_species_function.sql", import.meta.url),
+    "utf8",
+  );
+  assert.match(sql, /join public\.card c\s+on c\.id = cps\.card_id and c\.is_active/);
+  assert.match(sql, /cc\.code = 'POKEMON'/, "mesma regra de espécie do vínculo da Pokédex (5208)");
+  assert.match(sql, /where cv\.card_id = c\.id and cv\.is_active/, "variante inativa não conta");
+  assert.match(sql, /and v\.n > 0/, "carta sem variante ativa fica de fora");
+  assert.match(sql, /auth\.uid\(\) is null/);
+  assert.match(sql, /security definer/);
+  assert.match(sql, /set search_path = ''/);
+  assert.match(sql, /from anon;/);
+  assert.doesNotMatch(sql, /insert into|update public|delete from|create table|card_wishlist_entry/i, "só leitura de catálogo; sem dado de usuário");
+});
+
+test("W4 (estático): Pokédex usa a escolha explícita da W1, sem vínculo com a posição nem com a coleção", () => {
+  const picker = readFileSync(new URL("../../components/wishlist/species-wish-picker.tsx", import.meta.url), "utf8");
+  assert.match(picker, /<WishButton cardId=\{card\.cardId\}/, "marcador por CARTA (variante pela regra da W1)");
+  assert.doesNotMatch(picker, /variantId=|finish=/, "a espécie nunca presume carta nem variante");
+  assert.match(picker, /<WishlistController onCardConfirmed=/, "inclusão, escolha, remoção e feedback da W1");
+  assert.doesNotMatch(picker, /positionId|collectionId|linkPokedexCopy|colecoes\/colecoes\/actions/, "nada liga o desejo à Pokédex/coleção");
+  assert.match(picker, /status: "closed"/, "divulgação progressiva: nada é lido antes de abrir");
+
+  const actions = readFileSync(new URL("../../app/colecoes/lista-de-desejos/actions.ts", import.meta.url), "utf8");
+  const body = actions.slice(actions.indexOf("export async function readSpeciesWishCards"));
+  assert.match(body, /get_catalog_cards_for_species/);
+  assert.equal((body.match(/getMyWishedByCard\(/g) ?? []).length, 1, "estado em lote, uma leitura por página");
+  assert.doesNotMatch(body, /add_my_wishlist_entry|remove_my_wishlist_entries/, "abrir a escolha nunca grava");
+
+  const panel = readFileSync(new URL("../../components/colecoes/colecoes/pokedex-position-panel.tsx", import.meta.url), "utf8");
+  assert.match(panel, /<SpeciesWishPicker speciesId=\{position\.speciesId\} speciesName=\{position\.speciesName\} \/>/);
+  // PANEL-VISIBILITY-FIX-03: a ação fica antes das seções de vínculo (nunca no fim do corpo rolável).
+  assert.ok(
+    panel.indexOf("<SpeciesWishPicker") < panel.indexOf("---- Nesta posição ----") &&
+      panel.indexOf("<SpeciesWishPicker") < panel.indexOf("---- Adicionar ----"),
+    "Lista de desejos acima de 'Nesta posição' e 'Adicionar' — visível sem rolar a lista do acervo",
+  );
+  for (const kept of ["Adicionar a esta posição", "readPokedexLinkCandidates", "Ver {position.speciesName} na Pokédex"]) {
+    assert.ok(panel.includes(kept), `painel preservado: ${kept}`);
+  }
+  const grid = readFileSync(new URL("../../components/colecoes/colecoes/pokedex-grid.tsx", import.meta.url), "utf8");
+  assert.doesNotMatch(grid, /WishButton|wishlist/i, "a grade (captura, número, preço) não ganha marcador sobreposto");
 });

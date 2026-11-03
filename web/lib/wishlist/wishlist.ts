@@ -171,6 +171,70 @@ export function parseFinishVariantOptions(rows: unknown, finishKey: string): Wis
   return parseVariantOptions(compatible);
 }
 
+// ---------------------------------------------------------------------------
+// W4 — Pokédex (lacuna L3): cartas de uma espécie para a escolha explícita
+// ---------------------------------------------------------------------------
+
+/** Página da escolha de carta por espécie (5349 aceita 1..60). */
+export const SPECIES_CARDS_PAGE_SIZE = 24;
+
+export type SpeciesWishCard = {
+  cardId: string;
+  name: string;
+  collectorNumber: string | null;
+  collectorTotal: number | null;
+  setCode: string | null;
+  setName: string | null;
+  imagePathPt: string | null;
+  imagePathEn: string | null;
+  activeVariants: number;
+};
+
+export type SpeciesWishCardsPage = { items: SpeciesWishCard[]; total: number };
+
+/**
+ * Linhas de `get_catalog_cards_for_species` (5349) → página. Defesa em profundidade:
+ * carta sem variante ativa nunca entra (não haveria ação válida para ela).
+ */
+export function parseSpeciesCardsPage(rows: unknown): SpeciesWishCardsPage | null {
+  if (!Array.isArray(rows)) return null;
+  const items: SpeciesWishCard[] = [];
+  let total = 0;
+  const text = (value: unknown) => (typeof value === "string" && value.trim() !== "" ? value.trim() : null);
+  for (const raw of rows) {
+    const row = raw as Record<string, unknown> | null;
+    const cardId = normalizeId(row?.card_id);
+    const variants = Number(row?.active_variant_count);
+    if (!row || !cardId || !Number.isInteger(variants) || variants < 1) continue;
+    const count = Number(row.total_count);
+    if (Number.isFinite(count) && count > total) total = count;
+    const collectorTotal = Number(row.collector_total);
+    items.push({
+      cardId,
+      name: text(row.card_name) ?? "Carta",
+      collectorNumber: text(row.collector_number),
+      collectorTotal: Number.isInteger(collectorTotal) && collectorTotal > 0 ? collectorTotal : null,
+      setCode: text(row.card_set_code),
+      setName: text(row.card_set_name),
+      imagePathPt: text(row.image_path_pt),
+      imagePathEn: text(row.image_path_en),
+      activeVariants: variants,
+    });
+  }
+  return { items, total: Math.max(total, items.length) };
+}
+
+/** Junta páginas sem repetir carta (releituras e cliques duplos não duplicam a grade). */
+export function appendSpeciesCards(current: readonly SpeciesWishCard[], next: readonly SpeciesWishCard[]): SpeciesWishCard[] {
+  const seen = new Set(current.map((card) => card.cardId));
+  return [...current, ...next.filter((card) => !seen.has(card.cardId))];
+}
+
+/** Próximo offset da escolha, ou `null` quando já carregou tudo. */
+export function nextSpeciesCardsOffset(loaded: number, total: number): number | null {
+  return loaded < total ? loaded : null;
+}
+
 /** Ids dos desejos de uma variante (para desmarcar na grade). */
 export function entryIdsOfVariant(rows: readonly { card_variant_id?: unknown; entry_id?: unknown }[], variantId: string): string[] {
   const out: string[] = [];

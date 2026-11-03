@@ -17,6 +17,7 @@ import { Pokeball } from "@/components/icons/pokeball-icon";
 import { SpeciesArtwork } from "@/components/pokedex/species-artwork";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SpeciesWishPicker } from "@/components/wishlist/species-wish-picker";
 import { useRestoreFocus } from "@/hooks/use-restore-focus";
 import { cardFrontUrl, formatCount } from "@/lib/colecoes/acervo";
 import { collectionFailureMessage } from "@/lib/colecoes/colecoes";
@@ -299,6 +300,13 @@ export function PokedexPositionPanel({
                 <Notice title="Nada foi alterado">{feedback.text}</Notice>
               )
             ) : null}
+
+            {/* ---- Lista de desejos (V1-11 W4) ----
+                PANEL-VISIBILITY-FIX-03: logo abaixo do destaque da espécie, antes das seções de
+                vínculo — no fim do corpo rolável ela ficava a milhares de pixels abaixo da dobra
+                quando a lista do acervo é longa ("Outra carta"). Separada por divisória: é uma
+                ação independente da coleção, não uma forma de "Adicionar a esta posição". */}
+            <SpeciesWishPicker speciesId={position.speciesId} speciesName={position.speciesName} />
 
             {/* ---- Nesta posição ---- */}
             {copies.status === "error" ? (
