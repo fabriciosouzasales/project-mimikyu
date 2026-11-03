@@ -62,10 +62,23 @@ export const DialogContent = forwardRef<
      * Default `true` — preserva o comportamento de todo Dialog existente.
      */
     animated?: boolean;
+    /**
+     * Onde o Portal monta (padrão: `document.body`). V1-11 W5: o Fichário é uma
+     * sobreposição própria que pode entrar em tela cheia — fora dele, o diálogo
+     * ficaria atrás ou invisível. Default `undefined` preserva todo Dialog existente.
+     */
+    container?: HTMLElement | null;
+    /** Classes extras do véu (ex.: camada acima da sobreposição do Fichário). */
+    overlayClassName?: string;
   }
->(({ className, children, hideClose, size = "default", animated = true, ...props }, ref) => (
-  <DialogPrimitive.Portal>
-    <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-foreground/20 data-[state=open]:animate-overlay-in data-[state=closed]:animate-overlay-out" />
+>(({ className, children, hideClose, size = "default", animated = true, container, overlayClassName, ...props }, ref) => (
+  <DialogPrimitive.Portal container={container ?? undefined}>
+    <DialogPrimitive.Overlay
+      className={cn(
+        "fixed inset-0 z-40 bg-foreground/20 data-[state=open]:animate-overlay-in data-[state=closed]:animate-overlay-out",
+        overlayClassName,
+      )}
+    />
     <DialogPrimitive.Content
       ref={ref}
       className={cn(

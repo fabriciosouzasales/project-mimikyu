@@ -8,6 +8,10 @@ import {
   ANY_FINISH,
   SPECIES_CARDS_PAGE_SIZE,
   appendSpeciesCards,
+  binderWishReadPlan,
+  binderWishState,
+  binderWishTarget,
+  binderWishTargetCovered,
   nextSpeciesCardsOffset,
   parseSpeciesCardsPage,
   WISH_SUCCESS_NOTICE_MS,
@@ -277,7 +281,7 @@ test("Defeito B: estado da escolha vem do servidor; falha volta ao persistido", 
 
 test("Defeito B (estático): opção salvando fica desabilitada, falha aparece dentro do diálogo, fechamento usa o persistido", () => {
   const src = readFileSync(new URL("../../components/wishlist/wishlist-controller.tsx", import.meta.url), "utf8");
-  const dialog = src.slice(src.indexOf("<DialogContent>"), src.indexOf("</DialogContent>"));
+  const dialog = src.slice(src.indexOf("<DialogContent"), src.indexOf("</DialogContent>"));
   assert.match(dialog, /disabled=\{saving\}/);
   assert.match(dialog, /aria-busy=\{saving \|\| undefined\}/);
   assert.match(dialog, /Salvando…/);
@@ -682,4 +686,109 @@ test("W4 (estático): Pokédex usa a escolha explícita da W1, sem vínculo com 
   }
   const grid = readFileSync(new URL("../../components/colecoes/colecoes/pokedex-grid.tsx", import.meta.url), "utf8");
   assert.doesNotMatch(grid, /WishButton|wishlist/i, "a grade (captura, número, preço) não ganha marcador sobreposto");
+});
+
+// ---------------------------------------------------------------------------
+// W5 — Fichário
+// ---------------------------------------------------------------------------
+
+const VT = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+const slot = (over: Partial<Parameters<typeof binderWishTarget>[0]>) => ({
+  state: "EMPTY",
+  present: null,
+  presentCardId: null,
+  expectedCardId: null,
+  ...over,
+});
+
+test("W5: bolso ocupado deseja a variante exata do exemplar (mesmo divergindo da reserva)", () => {
+  for (const state of ["OCCUPIED_MATCH", "OCCUPIED_UNPLANNED", "OCCUPIED_MISMATCH"]) {
+    const target = binderWishTarget(slot({ state, present: { cardVariantId: V1.toUpperCase() }, presentCardId: CARD, expectedCardId: CARD_B }));
+    assert.deepEqual(target, { kind: "variant", variantId: V1, cardId: CARD, key: `v:${V1}` });
+  }
+});
+
+test("W5: bolso ocupado sem variante legível não ganha marcador", () => {
+  assert.equal(binderWishTarget(slot({ state: "OCCUPIED_MATCH", present: { cardVariantId: null }, presentCardId: CARD })), null);
+  assert.equal(binderWishTarget(slot({ state: "OCCUPIED_MATCH", present: null, presentCardId: CARD })), null);
+});
+
+test("W5: reserva respeita a granularidade — variante, carta + acabamento ou só carta", () => {
+  assert.deepEqual(binderWishTarget(slot({ state: "RESERVED_EMPTY", expectedCardId: CARD, expectedCardVariantId: V2, expectedVariantTypeId: VT })), {
+    kind: "variant",
+    variantId: V2,
+    cardId: CARD,
+    key: `v:${V2}`,
+  });
+  assert.deepEqual(binderWishTarget(slot({ state: "RESERVED_EMPTY", expectedCardId: CARD, expectedVariantTypeId: VT })), {
+    kind: "position",
+    cardId: CARD,
+    finish: VT,
+    key: `p:${wishPositionKey(CARD, VT)}`,
+  });
+  assert.deepEqual(binderWishTarget(slot({ state: "RESERVED_EMPTY", expectedCardId: CARD })), {
+    kind: "position",
+    cardId: CARD,
+    finish: ANY_FINISH,
+    key: `p:${wishPositionKey(CARD, ANY_FINISH)}`,
+  });
+});
+
+test("W5: bolso vazio, sem referência ou com id inválido nunca inventa carta", () => {
+  assert.equal(binderWishTarget(slot({ state: "EMPTY" })), null);
+  assert.equal(binderWishTarget(slot({ state: "EMPTY", expectedCardId: CARD })), null);
+  assert.equal(binderWishTarget(slot({ state: "RESERVED_EMPTY", expectedCardId: null })), null);
+  assert.equal(binderWishTarget(slot({ state: "RESERVED_EMPTY", expectedCardId: "nao-e-uuid" })), null);
+  assert.equal(binderWishTarget(slot({ state: "QUALQUER" as string, expectedCardId: CARD })), null);
+});
+
+test("W5: leitura agregada sem repetição (variantes e cartas)", () => {
+  const plan = binderWishReadPlan([
+    slot({ state: "OCCUPIED_MATCH", present: { cardVariantId: V1 }, presentCardId: CARD }),
+    slot({ state: "OCCUPIED_UNPLANNED", present: { cardVariantId: V1 }, presentCardId: CARD }),
+    slot({ state: "RESERVED_EMPTY", expectedCardId: CARD, expectedCardVariantId: V2 }),
+    slot({ state: "RESERVED_EMPTY", expectedCardId: CARD_B, expectedVariantTypeId: VT }),
+    slot({ state: "RESERVED_EMPTY", expectedCardId: CARD_B }),
+    slot({ state: "EMPTY" }),
+  ]);
+  assert.deepEqual(plan, { variantIds: [V1, V2], cardIds: [CARD_B] });
+  assert.deepEqual(binderWishReadPlan([]), { variantIds: [], cardIds: [] });
+});
+
+test("W5: estado do marcador — desconhecido sem leitura, depois desejado/não desejado", () => {
+  const variant = binderWishTarget(slot({ state: "OCCUPIED_MATCH", present: { cardVariantId: V1 }, presentCardId: CARD }));
+  const position = binderWishTarget(slot({ state: "RESERVED_EMPTY", expectedCardId: CARD, expectedVariantTypeId: VT }));
+  assert.ok(variant && position);
+  const none = { variants: new Set<string>(), positions: new Set<string>(), known: new Set<string>() };
+  assert.equal(binderWishState(variant, none), null);
+  assert.equal(binderWishState(position, none), null);
+  const known = new Set([variant.key, position.key]);
+  assert.equal(binderWishState(variant, { ...none, known }), false);
+  assert.equal(binderWishState(variant, { ...none, known, variants: new Set([V1]) }), true);
+  assert.equal(binderWishState(position, { ...none, known, positions: new Set([wishPositionKey(CARD, VT)]) }), true);
+  // Desejo de OUTRO acabamento não marca a reserva deste acabamento.
+  assert.equal(binderWishState(position, { ...none, known, positions: new Set([wishPositionKey(CARD, ANY_FINISH)]) }), false);
+});
+
+test("W5: cobertura da leitura por alvo", () => {
+  const variant = binderWishTarget(slot({ state: "OCCUPIED_MATCH", present: { cardVariantId: V1 }, presentCardId: CARD }));
+  const position = binderWishTarget(slot({ state: "RESERVED_EMPTY", expectedCardId: CARD_B }));
+  assert.ok(variant && position);
+  assert.equal(binderWishTargetCovered(variant, new Set([V1]), new Set()), true);
+  assert.equal(binderWishTargetCovered(variant, new Set(), new Set([CARD])), false);
+  assert.equal(binderWishTargetCovered(position, new Set(), new Set([CARD_B])), true);
+  assert.equal(binderWishTargetCovered(position, new Set([V1]), new Set()), false);
+});
+
+test("W5: o Fichário só LÊ — a camada não chama nenhuma escrita do Fichário", () => {
+  const layer = readFileSync(new URL("../../components/colecoes/fichario/binder-wish.tsx", import.meta.url), "utf8");
+  assert.ok(!/fichario\/actions/.test(layer), "a camada não importa actions do Fichário");
+  assert.ok(/readBinderWishState/.test(layer));
+  const actions = readFileSync(new URL("../../app/colecoes/lista-de-desejos/actions.ts", import.meta.url), "utf8");
+  const start = actions.indexOf("export async function readBinderWishState");
+  const body = actions.slice(start, actions.indexOf("\n}\n", start));
+  // Só as duas leituras em lote da W1/W3; nenhuma RPC/tabela direta, nenhuma escrita.
+  assert.match(body, /getMyWishedVariants\(/);
+  assert.match(body, /getMyWishedPositionKeys\(/);
+  assert.doesNotMatch(body, /\.rpc\(|\.from\(|insert|update|delete/i);
 });

@@ -276,6 +276,14 @@ export type BinderSlot = {
   /** 5248: exemplar no bolso — identidade da posição (alocação pode ser nula: carta sem coleção). */
   physicalCardId?: string | null;
   expectedCardId: string | null;
+  /**
+   * V1-11 W5: granularidade da reserva (5223 `expected_card_variant_id` /
+   * `expected_variant_type_id`) — só para o marcador da Lista de desejos saber se
+   * a reserva é de uma variante exata, de carta + acabamento ou só da carta.
+   * Ausente em conteúdo otimista.
+   */
+  expectedCardVariantId?: string | null;
+  expectedVariantTypeId?: string | null;
   presentCardId: string | null;
   presentVariantTypeId: string | null;
   /** 5230: coleção da carta no bolso e coleção dona da reserva (fichário compartilhado). */
@@ -405,6 +413,8 @@ export function parseBinderPages(rows: unknown): BinderPage[] | null {
       allocationId: str(r.collection_allocation_id),
       physicalCardId: str(r.physical_card_id),
       expectedCardId: str(r.expected_card_id),
+      expectedCardVariantId: str(r.expected_card_variant_id),
+      expectedVariantTypeId: str(r.expected_variant_type_id),
       presentCardId: str(r.present_card_id),
       presentVariantTypeId: str(r.present_variant_type_id),
       presentCollectionId: str(r.present_collection_id),

@@ -636,3 +636,75 @@ export function createDismissTimer(onDismiss: () => void, delayMs: number, clock
     },
   };
 }
+
+// ---------------------------------------------------------------------------
+// W5 — Fichário: qual carta/variante cada bolso pode desejar
+// ---------------------------------------------------------------------------
+
+/** O mínimo de um bolso (5223) que a decisão precisa — sem acoplar ao tipo do Fichário. */
+export type BinderWishSlotInput = {
+  state: string;
+  present: { cardVariantId?: string | null } | null;
+  presentCardId: string | null;
+  expectedCardId: string | null;
+  expectedCardVariantId?: string | null;
+  expectedVariantTypeId?: string | null;
+};
+
+/**
+ * Alvo do marcador de um bolso (V1-11 W5). Nunca inventa carta:
+ * - bolso OCUPADO → a variante exata do exemplar que está nele (inclusive quando ele
+ *   diverge da reserva: o marcador fala da carta que aparece no bolso);
+ * - bolso RESERVADO e vazio → a reserva, na granularidade dela: variante exata
+ *   (`variant`), carta + acabamento (`position`, escolha restrita ao acabamento — 5348)
+ *   ou só a carta (`position` com `"*"`, qualquer acabamento);
+ * - bolso vazio, com imagem, ou sem referência legível → nenhum alvo (`null`).
+ * O desejo nunca é ligado ao bolso: o alvo só diz O QUE desejar.
+ */
+export type BinderWishTarget =
+  | { kind: "variant"; variantId: string; cardId: string | null; key: string }
+  | { kind: "position"; cardId: string; finish: string; key: string };
+
+const OCCUPIED_STATES = new Set(["OCCUPIED_MATCH", "OCCUPIED_UNPLANNED", "OCCUPIED_MISMATCH"]);
+
+export function binderWishTarget(slot: BinderWishSlotInput): BinderWishTarget | null {
+  if (OCCUPIED_STATES.has(slot.state)) {
+    const variantId = normalizeId(slot.present?.cardVariantId);
+    if (!variantId) return null;
+    return { kind: "variant", variantId, cardId: normalizeId(slot.presentCardId), key: `v:${variantId}` };
+  }
+  if (slot.state !== "RESERVED_EMPTY") return null;
+  const cardId = normalizeId(slot.expectedCardId);
+  if (!cardId) return null;
+  const variantId = normalizeId(slot.expectedCardVariantId);
+  if (variantId) return { kind: "variant", variantId, cardId, key: `v:${variantId}` };
+  const finish = normalizeId(slot.expectedVariantTypeId) ?? ANY_FINISH;
+  return { kind: "position", cardId, finish, key: `p:${wishPositionKey(cardId, finish)}` };
+}
+
+/** Uma leitura agregada para os bolsos carregados: variantes e cartas, sem repetição. */
+export function binderWishReadPlan(slots: Iterable<BinderWishSlotInput>): { variantIds: string[]; cardIds: string[] } {
+  const variantIds = new Set<string>();
+  const cardIds = new Set<string>();
+  for (const slot of slots) {
+    const target = binderWishTarget(slot);
+    if (!target) continue;
+    if (target.kind === "variant") variantIds.add(target.variantId);
+    else cardIds.add(target.cardId);
+  }
+  return { variantIds: [...variantIds], cardIds: [...cardIds] };
+}
+
+/** Estado lido do marcador (`null` = ainda não lido ou leitura falhou → sem marcador). */
+export function binderWishState(
+  target: BinderWishTarget,
+  state: { variants: ReadonlySet<string>; positions: ReadonlySet<string>; known: ReadonlySet<string> },
+): boolean | null {
+  if (!state.known.has(target.key)) return null;
+  return target.kind === "variant" ? state.variants.has(target.variantId) : state.positions.has(wishPositionKey(target.cardId, target.finish));
+}
+
+/** O alvo foi coberto por uma leitura bem-sucedida com estes ids? */
+export function binderWishTargetCovered(target: BinderWishTarget, variantIds: ReadonlySet<string>, cardIds: ReadonlySet<string>): boolean {
+  return target.kind === "variant" ? variantIds.has(target.variantId) : cardIds.has(target.cardId);
+}

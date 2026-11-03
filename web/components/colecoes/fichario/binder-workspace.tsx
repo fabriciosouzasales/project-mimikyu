@@ -133,6 +133,7 @@ import { cn } from "@/lib/utils";
 import { SideArrowButton, TopNavControls, FOCUS_RING } from "./binder-chrome";
 import { BINDER_SPREAD_MEDIA, BinderObjectFrame } from "./binder-object";
 import { PageGrid } from "./binder-page-grid";
+import { BinderWishLayer } from "./binder-wish";
 import type { BinderFinish } from "@/lib/colecoes/binder-finish";
 import { AddPagesDialog } from "./binder-add-pages";
 import { AvailablePanel, type AvailableState } from "./binder-available";
@@ -488,6 +489,8 @@ export function BinderWorkspace({
   }, [slotIndex, trayIds]);
 
   const fail = useCallback((reason: SlotFailure) => setToast({ tone: "error", text: slotFailureMessage(reason) }), []);
+  // V1-11 W5: o resultado da Lista de desejos usa o mesmo aviso do Fichário (visível em tela cheia).
+  const onWishFeedback = useCallback((feedback: { tone: "success" | "error"; text: string }) => setToast({ tone: feedback.tone, text: feedback.text }), []);
 
   // ---- fichário compartilhado: Cartas disponíveis e "Só desta coleção" ----
   const shared = participantCount > 1;
@@ -1975,6 +1978,7 @@ export function BinderWorkspace({
             <SideArrowButton direction="prev" onClick={back} disabled={view <= 1} dragActive={dragging !== null} />
           </div>
 
+          <BinderWishLayer pages={cache} dialogContainer={rootRef} onFeedback={onWishFeedback}>
           <section ref={stageRef} className={ws.stage} aria-label={`${binderName} — ${label}`}>
             {fit.pocket > 0 ? (
               <BinderObject
@@ -2009,6 +2013,7 @@ export function BinderWorkspace({
               />
             ) : null}
           </section>
+          </BinderWishLayer>
 
           <div className={ws.next}>
             <SideArrowButton direction="next" onClick={forward} disabled={view >= lastView} dragActive={dragging !== null} />

@@ -65,6 +65,9 @@ export function BinderOverlayShell({
     first.focus({ preventScroll: true });
     function onKey(event: KeyboardEvent) {
       if (event.key !== "Tab" || !dialog) return;
+      // Diálogo aninhado com prisão de foco própria (Radix — ex.: escolha de variante da
+      // Lista de desejos, V1-11 W5) cuida do próprio Tab; os demais seguem como antes.
+      if ((event.target as HTMLElement | null)?.closest("[data-focus-trap='self']")) return;
       const items = [...dialog.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((el) => el.offsetParent !== null || el === document.activeElement);
       if (items.length === 0) return;
       const firstItem = items[0];

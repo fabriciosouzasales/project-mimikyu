@@ -17,7 +17,7 @@ import {
   parseVariantOptions,
   wishFailureReason,
 } from "@/lib/wishlist/wishlist";
-import { getMyWishedByCard, getMyWishedVariants } from "@/lib/wishlist/wishlist-queries";
+import { getMyWishedByCard, getMyWishedPositionKeys, getMyWishedVariants } from "@/lib/wishlist/wishlist-queries";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -133,6 +133,24 @@ export async function readWishedVariantIds(variantIds: string[]): Promise<string
   const supabase = await createClient();
   const set = await getMyWishedVariants(supabase, variantIds);
   return set ? [...set] : null;
+}
+
+export type BinderWishRead = { variants: string[]; positions: string[] };
+
+/**
+ * W5 (Fichário): estado agregado dos marcadores dos bolsos carregados — uma chamada por
+ * lote de páginas, nunca por bolso. Variantes (5346) para bolsos ocupados e reservas de
+ * variante exata; posições carta + acabamento (5348) para as demais reservas. Só lê:
+ * nada aqui conhece fichário, bolso ou exemplar. `null` = indisponível.
+ */
+export async function readBinderWishState(variantIds: string[], cardIds: string[]): Promise<BinderWishRead | null> {
+  if (!Array.isArray(variantIds) || !Array.isArray(cardIds)) return null;
+  if (variantIds.length > 2000 || cardIds.length > 2000) return null;
+  if (variantIds.length === 0 && cardIds.length === 0) return { variants: [], positions: [] };
+  const supabase = await createClient();
+  const [variants, positions] = await Promise.all([getMyWishedVariants(supabase, variantIds), getMyWishedPositionKeys(supabase, cardIds)]);
+  if (!variants || !positions) return null;
+  return { variants: [...variants], positions: [...positions] };
 }
 
 export type CardWishOptions = { options: WishVariantOption[]; wished: string[] };

@@ -30,7 +30,9 @@ import { speciesArtworkUrl } from "@/lib/pokedex/artwork";
 import { type VariantPrice, formatBrl, isPriceMuted, isPriceShown, priceAccessibleText, priceIndicator, priceState } from "@/lib/pricing/variant-pricing";
 import { StateGlyph } from "@/components/card/variant-price-summary";
 import { cn } from "@/lib/utils";
+import { type BinderWishTarget, binderWishState, binderWishTarget, wishToggleLabel } from "@/lib/wishlist/wishlist";
 import { PocketArt } from "./binder-page";
+import { BinderWishContext } from "./binder-wish";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 
@@ -189,6 +191,11 @@ export function BinderSlotView({
   const priceShown = price !== null && priceCtx !== null && isPriceShown(priceState(price, priceCtx.now));
   const src = cardFrontUrl(SUPABASE_URL, face?.imagePath ?? null);
   const number = face?.collectorNumber ? formatCollectorNumber(face.collectorNumber, face.collectorTotal) : null;
+  // V1-11 W5: Lista de desejos — só no fichário do titular (contexto), só com referência legível e estado lido.
+  const wishCtx = useContext(BinderWishContext);
+  const wishTarget = wishCtx && !image ? binderWishTarget(slot) : null;
+  const wished = wishTarget && wishCtx ? binderWishState(wishTarget, wishCtx) : null;
+  const wishShown = wishTarget !== null && wished !== null;
   // Spike binder-nav-01 (EmptySlotQuickActions): bolso vazio e solto convida a "Adicionar carta".
   const addable = editable && !occupied && !image && !slot.locked && !selectionActive && !placing && !inTray;
   const label = [slotDescription(slot), projected ? "prévia: receberia uma carta na organização automática" : null, priceShown && priceCtx ? priceAccessibleText(price, priceCtx.now) : null, speciesRef ? speciesReferenceLabel(speciesRef) : null, addable ? "Enter para adicionar carta" : null, dimmed ? "de outra coleção" : null, slot.locked ? "bolso fixado" : null, inTray ? "carta na Bandeja" : null, selected ? "selecionada" : null]
@@ -201,6 +208,8 @@ export function BinderSlotView({
   const showActions = editable && !selectionActive;
   // Controles proporcionais ao bolso: legíveis em 2×2, sem cobrir a arte em 5×4.
   const control = Math.round(Math.min(26, Math.max(18, pocket * 0.2)));
+  // Com o marcador no canto superior direito, cadeado e divergência descem logo abaixo dele.
+  const badgeShift = wishShown ? control + 4 : 0;
 
   const activate = (event: React.MouseEvent | React.KeyboardEvent) => {
     const additive = "ctrlKey" in event && (event.ctrlKey || event.metaKey || event.shiftKey);
@@ -317,12 +326,12 @@ export function BinderSlotView({
       ) : null}
 
       {slot.locked ? (
-        <Badge side="right" tone="hsl(205 80% 75%)">
+        <Badge side="right" tone="hsl(205 80% 75%)" shift={badgeShift}>
           <Lock className="h-2 w-2 sm:h-2.5 sm:w-2.5" fill="currentColor" aria-hidden />
         </Badge>
       ) : null}
       {slot.state === "OCCUPIED_MISMATCH" ? (
-        <Badge side="right" offset={slot.locked ? 1 : 0} tone="hsl(38 92% 70%)" title="Diferente da carta reservada">
+        <Badge side="right" offset={slot.locked ? 1 : 0} shift={badgeShift} tone="hsl(38 92% 70%)" title="Diferente da carta reservada">
           <Shuffle className="h-2 w-2 sm:h-2.5 sm:w-2.5" aria-hidden />
         </Badge>
       ) : null}
@@ -374,6 +383,20 @@ export function BinderSlotView({
           size={control}
           name={face?.cardName ?? "carta"}
           onToggle={() => handlers.onToggleSelect(slot)}
+        />
+      ) : null}
+
+      {wishShown && wishTarget && face ? (
+        <WishMark
+          target={wishTarget}
+          wished={wished === true}
+          inert={selectionActive || placing}
+          size={control}
+          name={[face.cardName, [face.setCode?.toUpperCase(), number].filter(Boolean).join(" · ")].filter(Boolean).join(" — ")}
+          // Reserva só da carta ("*"): sem rótulo de acabamento — a escolha vem depois, explícita.
+          variantLabel={
+            occupied ? (slot.present?.variantLabel ?? null) : wishTarget.kind === "position" && wishTarget.finish === "*" ? null : (slot.expected?.finishName ?? null)
+          }
         />
       ) : null}
 
@@ -537,14 +560,29 @@ function SlotImageArt({ image, priority }: { image: SlotImage; priority: boolean
   );
 }
 
-function Badge({ side, tone, title, offset = 0, children }: { side: "left" | "right"; tone: string; title?: string; offset?: number; children: React.ReactNode }) {
+function Badge({
+  side,
+  tone,
+  title,
+  offset = 0,
+  shift = 0,
+  children,
+}: {
+  side: "left" | "right";
+  tone: string;
+  title?: string;
+  offset?: number;
+  /** px extras (W5: espaço do marcador da Lista de desejos acima dos selos). */
+  shift?: number;
+  children: React.ReactNode;
+}) {
   return (
     <div
       className={cn(
         "pointer-events-none absolute z-10 flex h-3.5 w-3.5 items-center justify-center rounded-full sm:h-4 sm:w-4",
         side === "left" ? "left-[6%]" : "right-[6%]",
       )}
-      style={{ top: `calc(6% + ${offset * 1.25}rem)`, background: "hsl(0 0% 0% / 0.55)", color: tone }}
+      style={{ top: `calc(6% + ${offset * 1.25}rem + ${shift}px)`, background: "hsl(0 0% 0% / 0.55)", color: tone }}
       title={title}
       aria-hidden
     >
@@ -572,6 +610,78 @@ function Tip({ label, children }: { label: string; children: React.ReactNode }) 
         </TooltipPrimitive.Content>
       </TooltipPrimitive.Portal>
     </TooltipPrimitive.Root>
+  );
+}
+
+/**
+ * V1-11 W5 — marcador da Lista de desejos no bolso. Mesmo bookmark da W1 (identidade
+ * única da Lista no produto), mas separado de "Reservar bolso": fica SOZINHO no canto
+ * superior DIREITO, fora da cápsula de ações da base (onde a reserva mora com o rótulo
+ * "Reservar este bolso"), e o nome acessível/tooltip dizem "Lista de desejos". Desejada
+ * = bookmark dourado preenchido, sempre visível; não desejada = aparece só em hover/foco
+ * do bolso (no toque, tocar o bolso revela, como as demais ações).
+ *
+ * O clique é tratado pelo `WishlistController` do Fichário (delegação por `data-wish-*`);
+ * nunca chega ao bolso, ao arrasto nem à seleção. Com seleção ativa ou carta na mão, o
+ * marcador fica inerte (o estado continua visível; o clique vai para o bolso).
+ */
+function WishMark({
+  target,
+  wished,
+  inert,
+  size,
+  name,
+  variantLabel,
+}: {
+  target: BinderWishTarget;
+  wished: boolean;
+  inert: boolean;
+  size: number;
+  name: string;
+  variantLabel: string | null;
+}) {
+  const label = wishToggleLabel(name, variantLabel);
+  return (
+    <TooltipPrimitive.Provider delayDuration={300}>
+      <Tip label={wished ? "Na Lista de desejos — clique para tirar" : "Adicionar à Lista de desejos"}>
+        <button
+          type="button"
+          className={cn(
+            "group/wish absolute right-[4%] top-[4%] z-30 flex items-center justify-center rounded-full transition-opacity duration-150 motion-reduce:transition-none",
+            "opacity-0 aria-pressed:opacity-100",
+            !inert && "group-hover/slot:opacity-100 group-focus-within/slot:opacity-100 focus-visible:opacity-100",
+            inert && "pointer-events-none",
+            RING,
+          )}
+          style={{ width: size + 8, height: size + 8, margin: -4 }}
+          data-wish-variant={target.kind === "variant" ? target.variantId : undefined}
+          data-wish-card={target.kind === "position" ? target.cardId : undefined}
+          data-wish-finish={target.kind === "position" ? target.finish : undefined}
+          data-wish-name={name}
+          aria-pressed={wished}
+          aria-label={label}
+          disabled={inert}
+          tabIndex={inert ? -1 : undefined}
+          onPointerDown={(event) => event.stopPropagation()}
+        >
+          <span
+            className={cn(
+              "flex items-center justify-center rounded-full transition-[background-color,color,transform] duration-150 group-active/wish:scale-90 group-data-[pending]/wish:opacity-70 motion-reduce:transition-none",
+              "bg-[hsl(0_0%_0%/0.55)] text-white/90 shadow-[0_1px_3px_rgba(0,0,0,0.45),inset_0_0_0_1.5px_hsl(0_0%_100%/0.6)]",
+              "group-aria-pressed/wish:bg-[hsl(0_0%_0%/0.62)] group-aria-pressed/wish:text-[hsl(40_80%_62%)] group-aria-pressed/wish:shadow-[0_1px_3px_rgba(0,0,0,0.5),inset_0_0_0_1.5px_hsl(40_70%_62%/0.85)]",
+            )}
+            style={{ width: size, height: size }}
+          >
+            <Bookmark
+              className="fill-transparent group-aria-pressed/wish:fill-current"
+              style={{ width: size * 0.56, height: size * 0.56 }}
+              strokeWidth={2.2}
+              aria-hidden
+            />
+          </span>
+        </button>
+      </Tip>
+    </TooltipPrimitive.Provider>
   );
 }
 

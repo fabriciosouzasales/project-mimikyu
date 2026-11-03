@@ -1,6 +1,6 @@
 "use client";
 
-import { type MouseEvent, type ReactNode, useEffect, useRef, useState } from "react";
+import { type KeyboardEvent, type MouseEvent, type ReactNode, type RefObject, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Bookmark } from "lucide-react";
 import { readCardWishOptions, readPositionWishOptions, setVariantWished } from "@/app/colecoes/lista-de-desejos/actions";
@@ -74,10 +74,28 @@ type Chooser = {
 export function WishlistController({
   children,
   onCardConfirmed,
+  onVariantConfirmed,
+  onTargetConfirmed,
+  onFeedback,
+  dialogContainer,
+  className,
 }: {
   children: ReactNode;
   /** Avisa a grade (Pesquisa) do conjunto final de variantes desejadas da carta. */
   onCardConfirmed?: (cardId: string, variantIds: string[]) => void;
+  /** W5 (Fichário): estado CONFIRMADO de uma variante (marcador direto ou escolha). */
+  onVariantConfirmed?: (variantId: string, wished: boolean) => void;
+  /** W5 (Fichário): estado CONFIRMADO de um alvo de carta (com ou sem acabamento). */
+  onTargetConfirmed?: (cardId: string, finish: string | null, wished: boolean) => void;
+  /**
+   * W5 (Fichário): a superfície exibe o resultado no próprio aviso (sucesso e falha);
+   * sem isto, o controlador mostra o aviso fixo de falha e anuncia o sucesso (W1–W4).
+   */
+  onFeedback?: (feedback: { tone: "success" | "error"; text: string }) => void;
+  /** W5 (Fichário): monta a escolha de variante dentro da sobreposição/tela cheia. */
+  dialogContainer?: RefObject<HTMLElement | null>;
+  /** Classe da raiz (o Fichário usa `contents` para não alterar a própria grade). */
+  className?: string;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const entries = useRef(new Map<string, WishEntry>());
@@ -86,8 +104,16 @@ export function WishlistController({
   // CORRECTION-02: com desejos em mais de um idioma, a remoção é escolhida na página.
   const [errorLinksToList, setErrorLinksToList] = useState(false);
   const fail = (message: string | null, reason?: WishFailureReason) => {
+    if (onFeedback) {
+      if (message) onFeedback({ tone: "error", text: message });
+      return;
+    }
     setError(message);
     setErrorLinksToList(reason === "multiple_entries");
+  };
+  const announce = (text: string) => {
+    if (onFeedback) onFeedback({ tone: "success", text });
+    else setAnnouncement(text);
   };
   const [chooser, setChooser] = useState<Chooser | null>(null);
   // HOMOLOGATION-04 (Defeito B): a escolha lê sempre o estado mais recente (ref), não um
@@ -143,7 +169,9 @@ export function WishlistController({
     } else if (step.send) {
       void writeVariant(step.send, name, card);
     } else {
-      setAnnouncement(wishAnnouncement(name, step.entry.confirmed));
+      announce(wishAnnouncement(name, step.entry.confirmed));
+      onVariantConfirmed?.(send.variantId, step.entry.confirmed);
+      if (card) onTargetConfirmed?.(card.cardId, card.finish, step.entry.confirmed);
       if (card && card.finish === null) onCardConfirmed?.(card.cardId, step.entry.confirmed ? [send.variantId] : []);
     }
   }
@@ -209,6 +237,7 @@ export function WishlistController({
     const persisted = persistedByCard.current.get(key) ?? new Set<string>();
     const busy = (savingByCard.current.get(key) ?? 0) > 0;
     paintCard(target, persisted.size > 0, busy);
+    if (!busy) onTargetConfirmed?.(target.cardId, target.finish, persisted.size > 0);
     if (!busy && target.finish === null) onCardConfirmed?.(target.cardId, [...persisted]);
   }
 
@@ -253,7 +282,11 @@ export function WishlistController({
       confirmCard(target);
       if (message) fail(message, reason);
     }
-    if (outcome.ok) setAnnouncement(wishAnnouncement(label, outcome.value));
+    if (outcome.ok) {
+      onVariantConfirmed?.(option.variantId, outcome.value);
+      // Com o diálogo aberto, a própria opção mostra o estado; o aviso só anuncia.
+      setAnnouncement(wishAnnouncement(label, outcome.value));
+    }
   }
 
   function closeChooser() {
@@ -289,13 +322,19 @@ export function WishlistController({
     if (finish) void openCard(button, { cardId, finish }, name);
   }
 
+  // W5: dentro do Fichário, setas/Página/Home/End não podem virar páginas atrás da escolha.
+  const container = dialogContainer?.current ?? null;
+  const keepKeysInside = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End"].includes(event.key)) event.stopPropagation();
+  };
+
   return (
-    <div ref={rootRef} onClickCapture={onClick}>
+    <div ref={rootRef} onClickCapture={onClick} className={className}>
       {children}
       <p className="sr-only" aria-live="polite">
         {announcement}
       </p>
-      {error ? (
+      {error && !onFeedback ? (
         <div className="pointer-events-none sticky bottom-4 z-20 mt-6 flex justify-center" role="alert">
           <div className="pointer-events-auto max-w-md bg-surface shadow-lg">
             <InlineFeedback tone="error">
@@ -314,7 +353,13 @@ export function WishlistController({
       ) : null}
 
       <Dialog open={chooser !== null} onOpenChange={(open) => (open ? null : closeChooser())}>
-        <DialogContent>
+        <DialogContent
+          container={container}
+          className={container ? "z-[96]" : undefined}
+          overlayClassName={container ? "z-[96]" : undefined}
+          onKeyDown={container ? keepKeysInside : undefined}
+          data-focus-trap={container ? "self" : undefined}
+        >
           <DialogHeader>
             <DialogTitle>Qual variante você deseja?</DialogTitle>
             <DialogDescription>
