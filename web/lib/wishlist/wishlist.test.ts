@@ -8,6 +8,19 @@ import {
   ANY_FINISH,
   SPECIES_CARDS_PAGE_SIZE,
   appendSpeciesCards,
+  ANY_LANGUAGE,
+  NO_WISHLIST_FILTERS,
+  clearedWishlistFilters,
+  needsFilteredWishlistRead,
+  WISHLIST_SEARCH_MAX,
+  activeWishlistFilterCount,
+  hasActiveWishlistFilters,
+  parseWishlistFilterOptions,
+  parseWishlistFilters,
+  wishlistFilterArgs,
+  wishlistFilterChips,
+  wishlistHref,
+  wishlistResultSummary,
   binderWishReadPlan,
   binderWishState,
   binderWishTarget,
@@ -791,4 +804,193 @@ test("W5: o Fichário só LÊ — a camada não chama nenhuma escrita do Fichár
   assert.match(body, /getMyWishedVariants\(/);
   assert.match(body, /getMyWishedPositionKeys\(/);
   assert.doesNotMatch(body, /\.rpc\(|\.from\(|insert|update|delete/i);
+});
+
+// ---------------------------------------------------------------------------
+// W6 — Filtros
+// ---------------------------------------------------------------------------
+
+const SET_A = "aaaaaaaa-0000-4000-8000-00000000000a";
+const SET_B = "bbbbbbbb-0000-4000-8000-00000000000b";
+const RAR_1 = "cccccccc-0000-4000-8000-00000000000c";
+
+test("W6: URL → filtros (Card Set e raridade por id canônico; idioma do desejo; posse)", () => {
+  const f = parseWishlistFilters({ q: "  Pikachu ", set: SET_A.toUpperCase(), raridade: RAR_1, idioma: "pt-BR", acervo: "tenho", pagina: "3" });
+  assert.deepEqual(f, { query: "Pikachu", cardSetId: SET_A, rarityId: RAR_1, language: "pt-BR", ownership: "OWNED", sort: "recentes" });
+  assert.equal(parseWishlistFilters({ idioma: "qualquer" }).language, ANY_LANGUAGE);
+  assert.equal(parseWishlistFilters({ acervo: "falta" }).ownership, "NOT_OWNED");
+});
+
+test("W6: valores inválidos na URL são ignorados (nunca viram outro filtro)", () => {
+  const f = parseWishlistFilters({ q: "   ", set: "ME2", raridade: "rara", idioma: "*", acervo: "talvez" });
+  assert.deepEqual(f, NO_WISHLIST_FILTERS);
+  assert.equal(hasActiveWishlistFilters(f), false);
+  // Código de Set nunca é aceito como identidade: só card_set_id.
+  assert.equal(parseWishlistFilters({ set: "sv3pt5" }).cardSetId, null);
+  assert.equal(parseWishlistFilters({ q: "x".repeat(300) }).query?.length, WISHLIST_SEARCH_MAX);
+});
+
+test("W6: filtros → URL e de volta (ida e volta estável; página 1 fora)", () => {
+  const f = { query: "125/094", cardSetId: SET_B, rarityId: RAR_1, language: ANY_LANGUAGE, ownership: "NOT_OWNED" as const, sort: "set" as const };
+  const href = wishlistHref(f, 2);
+  assert.match(href, /^\/colecoes\/lista-de-desejos\?/);
+  const params = Object.fromEntries(new URL(href, "http://x").searchParams);
+  assert.equal(params.idioma, "qualquer");
+  assert.equal(params.acervo, "falta");
+  assert.equal(params.pagina, "2");
+  assert.equal(params.ordem, "set");
+  assert.deepEqual(parseWishlistFilters(params), f);
+  assert.equal(wishlistHref(NO_WISHLIST_FILTERS), "/colecoes/lista-de-desejos");
+  assert.equal(wishlistHref(NO_WISHLIST_FILTERS, 1), "/colecoes/lista-de-desejos");
+});
+
+test("W6: argumentos da 5350 — '*' é qualquer idioma, nunca um idioma específico", () => {
+  assert.deepEqual(wishlistFilterArgs({ ...NO_WISHLIST_FILTERS, language: ANY_LANGUAGE }), {
+    p_search: null,
+    p_card_set_id: null,
+    p_rarity_id: null,
+    p_language: "*",
+    p_ownership: null,
+  });
+  assert.equal(wishlistFilterArgs({ ...NO_WISHLIST_FILTERS, language: "en" }).p_language, "en");
+});
+
+test("W6: combinação e contagem de filtros ativos", () => {
+  const f = { query: "char", cardSetId: SET_A, rarityId: null, language: "en", ownership: "OWNED" as const, sort: "set" as const };
+  assert.equal(activeWishlistFilterCount(f), 4);
+  assert.equal(hasActiveWishlistFilters(f), true);
+});
+
+test("W6: opções da 5350 — só presentes, ordenadas, idioma 'qualquer' preservado", () => {
+  const options = parseWishlistFilterOptions([
+    { kind: "CARD_SET", option_value: SET_B, label: "Escuridão Absoluta", detail: "me5", sort_key: 2, entry_count: 1 },
+    { kind: "CARD_SET", option_value: SET_A, label: "Caos Ascendente", detail: "me4", sort_key: 1, entry_count: 3 },
+    { kind: "RARITY", option_value: RAR_1, label: "Rara", detail: null, sort_key: 1, entry_count: 4 },
+    { kind: "LANGUAGE", option_value: "en", label: "English", detail: null, sort_key: 2, entry_count: 1 },
+    { kind: "LANGUAGE", option_value: "*", label: "Qualquer idioma", detail: null, sort_key: 1, entry_count: 3 },
+    { kind: "OWNERSHIP", option_value: "NOT_OWNED", label: "x", detail: null, sort_key: 2, entry_count: 3 },
+    { kind: "OWNERSHIP", option_value: "OWNED", label: "x", detail: null, sort_key: 1, entry_count: 1 },
+    { kind: "CARD_SET", option_value: "não-uuid", label: "?", detail: null, sort_key: 3, entry_count: 1 },
+    { kind: "EXPANSION", option_value: SET_A, label: "Mega Evolução", detail: null, sort_key: 1, entry_count: 4 },
+    { kind: "RARITY", option_value: RAR_1, label: "Zero", detail: null, sort_key: 2, entry_count: 0 },
+  ]);
+  assert.ok(options);
+  assert.deepEqual(options.cardSets.map((o) => [o.value, o.label, o.detail, o.count]), [
+    [SET_A, "Caos Ascendente", "me4", 3],
+    [SET_B, "Escuridão Absoluta", "me5", 1],
+  ]);
+  assert.deepEqual(options.rarities.map((o) => o.count), [4]);
+  assert.deepEqual(options.languages.map((o) => [o.value, o.label]), [
+    ["*", "Qualquer idioma"],
+    ["en", "Inglês"],
+  ]);
+  assert.deepEqual(options.ownership.map((o) => [o.value, o.label, o.count]), [
+    ["OWNED", "Já no acervo", 1],
+    ["NOT_OWNED", "Fora do Acervo", 3],
+  ]);
+  assert.equal(parseWishlistFilterOptions(null), null);
+  assert.equal(parseWishlistFilterOptions({}), null);
+});
+
+test("W6: chips — cada um remove só o próprio filtro; nomes amigáveis do Card Set", () => {
+  const options = parseWishlistFilterOptions([
+    { kind: "CARD_SET", option_value: SET_A, label: "Caos Ascendente", detail: "me4", sort_key: 1, entry_count: 3 },
+  ]);
+  const f = { query: "char", cardSetId: SET_A, rarityId: null, language: ANY_LANGUAGE, ownership: "OWNED" as const, sort: "set" as const };
+  const chips = wishlistFilterChips(f, options);
+  assert.deepEqual(chips.map((c) => c.label), ["Busca: “char”", "Set: Caos Ascendente", "Idioma: Qualquer idioma", "Já no acervo"]);
+  const setChip = chips.find((c) => c.key === "cardSetId");
+  assert.ok(setChip);
+  const rest = parseWishlistFilters(Object.fromEntries(new URL(setChip.href, "http://x").searchParams));
+  assert.deepEqual(rest, { ...f, cardSetId: null });
+  assert.deepEqual(wishlistFilterChips(NO_WISHLIST_FILTERS, options), []);
+});
+
+test("W6 SORT: ordenação na URL — 'set' ou padrão 'recentes'; valor inválido volta ao padrão", () => {
+  assert.equal(parseWishlistFilters({}).sort, "recentes");
+  assert.equal(parseWishlistFilters({ ordem: "SET" }).sort, "set");
+  assert.equal(parseWishlistFilters({ ordem: "preco" }).sort, "recentes");
+  assert.equal(wishlistHref({ ...NO_WISHLIST_FILTERS, sort: "recentes" }), "/colecoes/lista-de-desejos");
+  assert.equal(wishlistHref({ ...NO_WISHLIST_FILTERS, sort: "set" }), "/colecoes/lista-de-desejos?ordem=set");
+});
+
+test("W6 SORT: ordenação não é filtro — não conta, não vira chip, sobrevive a 'Limpar filtros'", () => {
+  const f = { ...NO_WISHLIST_FILTERS, sort: "set" as const };
+  assert.equal(hasActiveWishlistFilters(f), false);
+  assert.equal(activeWishlistFilterCount(f), 0);
+  assert.deepEqual(wishlistFilterChips(f, null), []);
+  assert.equal(needsFilteredWishlistRead(f), true);
+  assert.equal(needsFilteredWishlistRead(NO_WISHLIST_FILTERS), false);
+  const cleared = clearedWishlistFilters({ ...f, query: "char", ownership: "OWNED" });
+  assert.deepEqual(cleared, f);
+  assert.equal(wishlistHref(cleared), "/colecoes/lista-de-desejos?ordem=set");
+});
+
+test("W6 SORT: p_sort só vai para o banco quando a ordem não é a padrão", () => {
+  assert.equal("p_sort" in wishlistFilterArgs(NO_WISHLIST_FILTERS), false);
+  assert.equal(wishlistFilterArgs({ ...NO_WISHLIST_FILTERS, sort: "set" }).p_sort, "SET_NUMBER");
+});
+
+test("W6: contagem do resultado vem do total (conjunto inteiro), inclusive zero", () => {
+  assert.equal(wishlistResultSummary(0), "Nenhum desejo encontrado");
+  assert.equal(wishlistResultSummary(1), "1 desejo encontrado");
+  assert.equal(wishlistResultSummary(1234, (n) => n.toLocaleString("pt-BR")), "1.234 desejos encontrados");
+});
+
+test("W6: página filtrada da 5350 reaproveita o parser (total do conjunto filtrado, não da página)", () => {
+  const rows = Array.from({ length: 60 }, (_, i) => ({
+    entry_id: `${String(i).padStart(8, "0")}-0000-4000-8000-000000000000`,
+    card_variant_id: V1,
+    card_id: CARD,
+    card_name: "Charizard",
+    collector_number: "006",
+    collector_total: 102,
+    card_set_id: SET_A,
+    card_set_code: "base1",
+    card_set_name: "Base",
+    rarity_id: RAR_1,
+    rarity_name: "Rara Holo",
+    variant_label: "Holo",
+    variant_available: true,
+    language_code: null,
+    ownership: "NONE",
+    image_path_pt: null,
+    image_path_en: null,
+    wished_at: "2026-11-02T10:00:00Z",
+    total_count: 2350,
+  }));
+  const page = parseWishlistPage(rows);
+  assert.ok(page);
+  assert.equal(page.entries.length, 60);
+  assert.equal(page.totalCount, 2350);
+});
+
+test("W6 (estático): 5350 isola o usuário, filtra o conjunto antes de paginar e só lê", () => {
+  const sql = readFileSync(
+    new URL("../../../database/schema/5350_create_wishlist_filter_functions.sql", import.meta.url),
+    "utf8",
+  );
+  const body = sql.slice(sql.indexOf("create or replace function public.get_my_wishlist_filtered"));
+  assert.match(body, /security definer/);
+  assert.match(body, /set search_path = ''/);
+  assert.match(body, /w\.user_id = v_user/);
+  assert.match(sql, /v_user\s+uuid := auth\.uid\(\)/);
+  assert.doesNotMatch(sql, /p_user_id/);
+  // Filtro por Card Set pela identidade canônica, nunca por código nem Expansion.
+  assert.match(body, /c\.card_set_id = p_card_set_id/);
+  const code = sql.replace(/\/\*[\s\S]*?\*\//g, "").replace(/--[^\n]*/g, "");
+  assert.doesNotMatch(code, /expansion/i);
+  // Total do conjunto filtrado: a contagem é feita antes do limite.
+  const pageCte = body.slice(body.indexOf("page as ("), body.indexOf("front_asset as ("));
+  assert.match(pageCte, /count\(\*\) over \(\)/);
+  assert.ok(pageCte.indexOf("count(*) over ()") < pageCte.indexOf("limit p_limit offset p_offset"));
+  // "qualquer idioma" só casa language_id NULL.
+  assert.match(body, /v_lang = '\*' and w\.language_id is null/);
+  // Posse: mesma variante e idioma compatível (nunca só a carta).
+  assert.match(body, /pc\.card_variant_id = b\.card_variant_id\s+and \(b\.language_id is null or pc\.language_id = b\.language_id\)/);
+  // Só leitura e grants mínimos.
+  assert.doesNotMatch(code, /\b(insert into|update public|delete from)\b/i);
+  assert.match(sql, /revoke all on function public\.get_my_wishlist_filtered\([^)]*\) from anon/);
+  assert.match(sql, /revoke all on function public\.get_my_wishlist_filter_options\(\) from anon/);
+  assert.match(sql, /stable/);
 });

@@ -7,8 +7,13 @@ import { formatCollectorNumber } from "@/lib/colecoes/acervo";
 import { getVariantPrices, pricesToRecord } from "@/lib/pricing/variant-pricing-queries";
 import { createClient } from "@/lib/supabase/server";
 import { getCachedUser } from "@/lib/supabase/request-auth-cache";
-import { WISHLIST_PAGE_SIZE, parsePageParam } from "@/lib/wishlist/wishlist";
-import { getMyWishlistPage, getMyWishlistSummary } from "@/lib/wishlist/wishlist-queries";
+import { WISHLIST_PAGE_SIZE, needsFilteredWishlistRead, parsePageParam, parseWishlistFilters } from "@/lib/wishlist/wishlist";
+import {
+  getMyWishlistFilterOptions,
+  getMyWishlistFilteredPage,
+  getMyWishlistPage,
+  getMyWishlistSummary,
+} from "@/lib/wishlist/wishlist-queries";
 
 export const metadata: Metadata = { title: "Lista de desejos · Coleções" };
 
@@ -21,6 +26,14 @@ export const metadata: Metadata = { title: "Lista de desejos · Coleções" };
  * página, mais recentes primeiro), os indicadores e — depois da página — o preço NM por
  * variante (3983, a mesma etiqueta do V1-09). Imagens: mesma origem pública da Pesquisa
  * (bucket `card-front`, frente primária pt-BR ou en).
+ *
+ * W6 (filtros, 5350; ordenação, 5351): o estado vive na URL (q, set, raridade, idioma, acervo,
+ * ordem, pagina). Sem filtro e na ordem padrão ("Mais recentes"), a leitura é a mesma da W1
+ * (`get_my_wishlist`); com filtro ou "Set e número" (`ordem=set`), `get_my_wishlist_filtered`
+ * aplica os critérios ao conjunto inteiro do usuário ANTES de paginar — total e páginas são do
+ * resultado filtrado, nunca da página carregada. As opções (só Card Sets, raridades e idiomas
+ * presentes na lista) vêm de `get_my_wishlist_filter_options`; se indisponíveis, a barra some e a
+ * página continua como na W1.
  */
 export default async function WishlistPage({
   searchParams,
@@ -29,6 +42,8 @@ export default async function WishlistPage({
 }) {
   const params = await searchParams;
   const page = parsePageParam(params.pagina);
+  const filters = parseWishlistFilters(params);
+  const filtered = needsFilteredWishlistRead(filters);
 
   const {
     data: { user },
@@ -36,7 +51,11 @@ export default async function WishlistPage({
   if (!user) redirect("/login");
 
   const supabase = await createClient();
-  const [result, summary] = await Promise.all([getMyWishlistPage(supabase, page), getMyWishlistSummary(supabase)]);
+  const [result, summary, filterOptions] = await Promise.all([
+    filtered ? getMyWishlistFilteredPage(supabase, filters, page) : getMyWishlistPage(supabase, page),
+    getMyWishlistSummary(supabase),
+    getMyWishlistFilterOptions(supabase),
+  ]);
   const prices = result ? await getVariantPrices(supabase, result.entries.map((entry) => entry.cardVariantId)) : null;
   const priceNow = Date.now();
 
@@ -71,6 +90,8 @@ export default async function WishlistPage({
         priceNow={priceNow}
         page={page}
         totalPages={totalPages}
+        filters={filters}
+        filterOptions={filterOptions}
       />
     </AppShell>
   );

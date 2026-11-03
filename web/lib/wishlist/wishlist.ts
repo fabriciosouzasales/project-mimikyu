@@ -708,3 +708,209 @@ export function binderWishState(
 export function binderWishTargetCovered(target: BinderWishTarget, variantIds: ReadonlySet<string>, cardIds: ReadonlySet<string>): boolean {
   return target.kind === "variant" ? variantIds.has(target.variantId) : cardIds.has(target.cardId);
 }
+
+// ---------------------------------------------------------------------------
+// W6 — Filtros da Lista de desejos (5350)
+// ---------------------------------------------------------------------------
+
+export const WISHLIST_PATH = "/colecoes/lista-de-desejos";
+/** Teto da busca (5350 recusa acima disso). */
+export const WISHLIST_SEARCH_MAX = 100;
+/** Valor de idioma "qualquer idioma" no contrato (5350) — nunca um idioma específico. */
+export const ANY_LANGUAGE = "*";
+
+export type WishlistOwnershipFilter = "OWNED" | "NOT_OWNED";
+
+/**
+ * Ordenação (W6, 5351) — a mesma do Meu acervo: "Mais recentes" (padrão) ou "Set e número".
+ * Não é filtro: não conta em "Filtros · N", não vira chip e sobrevive a "Limpar filtros".
+ */
+export type WishlistSort = "recentes" | "set";
+
+/**
+ * Filtros combináveis (W6). Card Set pela identidade canônica (`card_set_id`), nunca
+ * pelo código nem pela Expansion; idioma é o DO DESEJO (`"*"` = "qualquer idioma").
+ */
+export type WishlistFilters = {
+  query: string | null;
+  cardSetId: string | null;
+  rarityId: string | null;
+  language: string | null;
+  ownership: WishlistOwnershipFilter | null;
+  sort: WishlistSort;
+};
+
+export const NO_WISHLIST_FILTERS: WishlistFilters = {
+  query: null,
+  cardSetId: null,
+  rarityId: null,
+  language: null,
+  ownership: null,
+  sort: "recentes",
+};
+
+/** Parâmetros da URL (pt-BR): q, set, raridade, idioma (qualquer|código), acervo (tenho|falta), ordem (set). */
+const OWNERSHIP_PARAM: Readonly<Record<string, WishlistOwnershipFilter>> = { tenho: "OWNED", falta: "NOT_OWNED" };
+const OWNERSHIP_PARAM_OF: Readonly<Record<WishlistOwnershipFilter, string>> = { OWNED: "tenho", NOT_OWNED: "falta" };
+
+function firstParam(value: string | string[] | undefined): string | null {
+  const raw = Array.isArray(value) ? value[0] : value;
+  return typeof raw === "string" ? raw : null;
+}
+
+/** URL → filtros válidos; valor inválido é ignorado (nunca vira erro nem outro filtro). */
+export function parseWishlistFilters(params: Record<string, string | string[] | undefined>): WishlistFilters {
+  const q = firstParam(params.q)?.trim() ?? "";
+  const idioma = firstParam(params.idioma)?.trim() ?? "";
+  const acervo = firstParam(params.acervo)?.trim().toLowerCase() ?? "";
+  const ordem = firstParam(params.ordem)?.trim().toLowerCase() ?? "";
+  return {
+    query: q ? q.slice(0, WISHLIST_SEARCH_MAX) : null,
+    cardSetId: normalizeId(firstParam(params.set)),
+    rarityId: normalizeId(firstParam(params.raridade)),
+    language: idioma === "qualquer" ? ANY_LANGUAGE : normalizeLanguageCode(idioma),
+    ownership: OWNERSHIP_PARAM[acervo] ?? null,
+    sort: ordem === "set" ? "set" : "recentes",
+  };
+}
+
+export function hasActiveWishlistFilters(filters: WishlistFilters): boolean {
+  return Boolean(filters.query || filters.cardSetId || filters.rarityId || filters.language || filters.ownership);
+}
+
+export function activeWishlistFilterCount(filters: WishlistFilters): number {
+  return [filters.query, filters.cardSetId, filters.rarityId, filters.language, filters.ownership].filter(Boolean).length;
+}
+
+/** Filtros (+ página) → URL. Página 1 e filtros vazios ficam fora (URL limpa). */
+export function wishlistHref(filters: WishlistFilters, page = 1): string {
+  const params = new URLSearchParams();
+  if (filters.query) params.set("q", filters.query);
+  if (filters.cardSetId) params.set("set", filters.cardSetId);
+  if (filters.rarityId) params.set("raridade", filters.rarityId);
+  if (filters.language) params.set("idioma", filters.language === ANY_LANGUAGE ? "qualquer" : filters.language);
+  if (filters.ownership) params.set("acervo", OWNERSHIP_PARAM_OF[filters.ownership]);
+  if (filters.sort === "set") params.set("ordem", "set");
+  if (page > 1) params.set("pagina", String(page));
+  const query = params.toString();
+  return query ? `${WISHLIST_PATH}?${query}` : WISHLIST_PATH;
+}
+
+/**
+ * Argumentos da 5350/5351 (o banco recebe só valores já validados). `p_sort` só vai quando a
+ * ordem não é a padrão: "Mais recentes" continua funcionando mesmo antes da 5351 no LIVE.
+ */
+export function wishlistFilterArgs(filters: WishlistFilters): {
+  p_search: string | null;
+  p_card_set_id: string | null;
+  p_rarity_id: string | null;
+  p_language: string | null;
+  p_ownership: WishlistOwnershipFilter | null;
+  p_sort?: "SET_NUMBER";
+} {
+  return {
+    p_search: filters.query,
+    p_card_set_id: filters.cardSetId,
+    p_rarity_id: filters.rarityId,
+    p_language: filters.language,
+    p_ownership: filters.ownership,
+    ...(filters.sort === "set" ? { p_sort: "SET_NUMBER" as const } : {}),
+  };
+}
+
+/** Precisa da leitura filtrada (5350/5351)? Filtro ativo ou ordem diferente da padrão. */
+export function needsFilteredWishlistRead(filters: WishlistFilters): boolean {
+  return hasActiveWishlistFilters(filters) || filters.sort !== "recentes";
+}
+
+/** Mesma URL sem nenhum filtro, mantendo a ordenação escolhida ("Limpar filtros"). */
+export function clearedWishlistFilters(filters: WishlistFilters): WishlistFilters {
+  return { ...NO_WISHLIST_FILTERS, sort: filters.sort };
+}
+
+export type WishlistFilterOption = { value: string; label: string; detail: string | null; count: number };
+
+/** Só opções presentes na lista do usuário (5350), cada uma com a contagem de desejos. */
+export type WishlistFilterOptions = {
+  cardSets: WishlistFilterOption[];
+  rarities: WishlistFilterOption[];
+  languages: WishlistFilterOption[];
+  ownership: WishlistFilterOption[];
+};
+
+/** Linhas de `get_my_wishlist_filter_options` → opções ordenadas. `null` = fora do contrato. */
+export function parseWishlistFilterOptions(data: unknown): WishlistFilterOptions | null {
+  if (!Array.isArray(data)) return null;
+  const buckets: Record<string, { sort: number; option: WishlistFilterOption }[]> = {
+    CARD_SET: [],
+    RARITY: [],
+    LANGUAGE: [],
+    OWNERSHIP: [],
+  };
+  for (const raw of data) {
+    const row = raw as Record<string, unknown> | null;
+    if (!row || typeof row.kind !== "string" || !(row.kind in buckets)) continue;
+    const count = Number(row.entry_count);
+    if (!Number.isFinite(count) || count < 1) continue;
+    let value: string | null = null;
+    if (row.kind === "CARD_SET" || row.kind === "RARITY") value = normalizeId(row.option_value);
+    else if (row.kind === "LANGUAGE") value = row.option_value === ANY_LANGUAGE ? ANY_LANGUAGE : normalizeLanguageCode(row.option_value);
+    else if (row.option_value === "OWNED" || row.option_value === "NOT_OWNED") value = row.option_value;
+    if (!value) continue;
+    const label =
+      row.kind === "LANGUAGE"
+        ? wishLanguageLabel(value === ANY_LANGUAGE ? null : value)
+        : row.kind === "OWNERSHIP"
+          ? ownershipFilterLabel(value as WishlistOwnershipFilter)
+          : text(row.label);
+    if (!label) continue;
+    const sort = Number(row.sort_key);
+    buckets[row.kind]?.push({
+      sort: Number.isFinite(sort) ? sort : Number.MAX_SAFE_INTEGER,
+      option: { value, label, detail: text(row.detail), count: Math.floor(count) },
+    });
+  }
+  const ordered = (list: { sort: number; option: WishlistFilterOption }[]) =>
+    list.sort((a, b) => a.sort - b.sort || a.option.label.localeCompare(b.option.label, "pt-BR")).map((item) => item.option);
+  return {
+    cardSets: ordered(buckets.CARD_SET ?? []),
+    rarities: ordered(buckets.RARITY ?? []),
+    languages: ordered(buckets.LANGUAGE ?? []),
+    ownership: ordered(buckets.OWNERSHIP ?? []),
+  };
+}
+
+export function ownershipFilterLabel(value: WishlistOwnershipFilter): string {
+  return value === "OWNED" ? "Já no acervo" : "Fora do Acervo";
+}
+
+export type WishlistFilterChip = { key: Exclude<keyof WishlistFilters, "sort">; label: string; href: string };
+
+/** Filtros ativos → chips (cada um remove só o próprio filtro e volta à página 1). */
+export function wishlistFilterChips(filters: WishlistFilters, options: WishlistFilterOptions | null): WishlistFilterChip[] {
+  const chips: WishlistFilterChip[] = [];
+  const without = (key: Exclude<keyof WishlistFilters, "sort">) => wishlistHref({ ...filters, [key]: null });
+  const nameOf = (list: WishlistFilterOption[] | undefined, value: string) => list?.find((option) => option.value === value)?.label;
+  if (filters.query) chips.push({ key: "query", label: `Busca: “${filters.query}”`, href: without("query") });
+  if (filters.cardSetId) {
+    chips.push({ key: "cardSetId", label: `Set: ${nameOf(options?.cardSets, filters.cardSetId) ?? "selecionado"}`, href: without("cardSetId") });
+  }
+  if (filters.rarityId) {
+    chips.push({ key: "rarityId", label: `Raridade: ${nameOf(options?.rarities, filters.rarityId) ?? "selecionada"}`, href: without("rarityId") });
+  }
+  if (filters.language) {
+    chips.push({
+      key: "language",
+      label: `Idioma: ${wishLanguageLabel(filters.language === ANY_LANGUAGE ? null : filters.language)}`,
+      href: without("language"),
+    });
+  }
+  if (filters.ownership) chips.push({ key: "ownership", label: ownershipFilterLabel(filters.ownership), href: without("ownership") });
+  return chips;
+}
+
+/** Contagem do resultado filtrado, sempre do conjunto inteiro (total da 5350), nunca da página. */
+export function wishlistResultSummary(total: number, format: (n: number) => string = String): string {
+  if (total === 0) return "Nenhum desejo encontrado";
+  return total === 1 ? "1 desejo encontrado" : `${format(total)} desejos encontrados`;
+}

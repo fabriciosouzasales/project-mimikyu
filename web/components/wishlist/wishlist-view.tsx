@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertCircle, Bookmark, Search, X } from "lucide-react";
+import { AlertCircle, Bookmark, Search, SearchX, X } from "lucide-react";
 import { addWishlistEntry, removeWishlistEntries } from "@/app/colecoes/lista-de-desejos/actions";
 import { AcervoPriceTag } from "@/components/colecoes/acervo/acervo-price";
 import { CARD_GRID_SIZES as GRID_SIZES, CardArt } from "@/components/colecoes/acervo/card-art";
@@ -16,8 +16,16 @@ import { formatCount } from "@/lib/colecoes/acervo";
 import { formatBrlWhole } from "@/lib/favorites/card-favorites";
 import type { VariantPrice } from "@/lib/pricing/variant-pricing";
 import {
+  type WishlistFilterOptions,
+  type WishlistFilters,
   type WishlistKpi,
   type WishlistSummary,
+  NO_WISHLIST_FILTERS,
+  clearedWishlistFilters,
+  hasActiveWishlistFilters,
+  needsFilteredWishlistRead,
+  wishlistHref,
+  wishlistResultSummary,
   ownershipLabel,
   visibleWishlistEntries,
   WISH_SUCCESS_NOTICE_MS,
@@ -30,6 +38,7 @@ import {
 } from "@/lib/wishlist/wishlist";
 import styles from "./wishlist.module.css";
 import favStyles from "@/components/favorites/card-favorite.module.css";
+import { WishlistFilterChips, WishlistToolbar } from "./wishlist-toolbar";
 
 /** Desejo pronto para a tela (imagem já resolvida no servidor). */
 export type WishlistEntryView = {
@@ -66,6 +75,8 @@ export function WishlistView({
   priceNow,
   page,
   totalPages,
+  filters = NO_WISHLIST_FILTERS,
+  filterOptions = null,
 }: {
   /** `null` = leitura indisponível. */
   entries: WishlistEntryView[] | null;
@@ -77,6 +88,10 @@ export function WishlistView({
   priceNow: number;
   page: number;
   totalPages: number;
+  /** W6: filtros da URL; `totalCount`/`totalPages` já são do resultado filtrado (5350). */
+  filters?: WishlistFilters;
+  /** W6: opções presentes na lista (5350); `null` = indisponíveis — a barra não aparece. */
+  filterOptions?: WishlistFilterOptions | null;
 }) {
   const router = useRouter();
   const [, startRefresh] = useTransition();
@@ -131,7 +146,13 @@ export function WishlistView({
     setError(null);
   }
   const visible = entries === null ? null : visibleWishlistEntries(entries, hidden, restored);
-  const hasEntries = entries !== null && totalCount > 0;
+  const filtered = hasActiveWishlistFilters(filters);
+  // "Set e número" sem filtro também usa a leitura da 5350/5351 (ordem do conjunto inteiro).
+  const filteredRead = needsFilteredWishlistRead(filters);
+  // W6: com filtro, `totalCount` é do resultado; o palco e o vazio "de verdade" seguem a lista inteira.
+  const listCount = filtered ? (summary?.entryCount ?? null) : totalCount;
+  const hasEntries = entries !== null && (filtered ? (listCount ?? 1) > 0 : totalCount > 0);
+  const showToolbar = filterOptions !== null && (filtered || (entries !== null && totalCount > 0));
 
   const nameOf = (entry: WishlistEntryView) => (entry.variantLabel ? `${entry.cardName} · ${entry.variantLabel}` : entry.cardName);
 
@@ -202,9 +223,9 @@ export function WishlistView({
       <header className={`${acervoStyles.hero} ${colecoesStyles.libraryHero}`}>
         <div className={acervoStyles.stageGlow} aria-hidden="true" />
         <HeroWishlist />
-        {hasEntries ? (
+        {hasEntries && listCount !== null ? (
           <span className={acervoStyles.numeral} aria-hidden="true">
-            {formatCount(totalCount)}
+            {formatCount(listCount)}
           </span>
         ) : null}
         <div className={acervoStyles.heroContent}>
@@ -214,29 +235,72 @@ export function WishlistView({
         {hasEntries ? (
           <div className={acervoStyles.heroRow}>
             <WishlistLedger
-              kpis={wishlistKpis({ summary, fallbackEntryCount: totalCount, format: formatCount, formatMoney: formatBrlWhole })}
+              kpis={wishlistKpis({ summary, fallbackEntryCount: listCount ?? totalCount, format: formatCount, formatMoney: formatBrlWhole })}
             />
           </div>
         ) : null}
       </header>
 
-      <div className={regionStyles.region}>
+      <div className={showToolbar ? `${regionStyles.region} ${acervoStyles.workspace}` : regionStyles.region}>
+        {showToolbar && filterOptions ? (
+          <>
+            <WishlistToolbar filters={filters} options={filterOptions} />
+            <WishlistFilterChips filters={filters} options={filterOptions} />
+            {filtered && entries !== null ? (
+              // Contagem do conjunto filtrado inteiro (total da 5350), nunca só da página.
+              <p className={acervoStyles.resultCount} aria-live="polite">
+                {wishlistResultSummary(totalCount, formatCount)}
+              </p>
+            ) : null}
+          </>
+        ) : null}
         {entries === null ? (
           <section className={acervoStyles.state} aria-labelledby="desejos-erro">
             <div className={`${acervoStyles.stateIcon} ${acervoStyles.stateIconDanger}`} aria-hidden="true">
               <AlertCircle className="h-6 w-6" />
             </div>
             <h2 id="desejos-erro" className={acervoStyles.stateTitle}>
-              Não foi possível carregar sua lista de desejos
+              {filtered
+                ? "Não foi possível aplicar os filtros agora"
+                : filteredRead
+                  ? "Não foi possível ordenar sua lista agora"
+                  : "Não foi possível carregar sua lista de desejos"}
             </h2>
             <p className={acervoStyles.stateText}>Seus desejos estão guardados. Recarregue a página para tentar de novo.</p>
             <div className={acervoStyles.stateActions}>
               <Button asChild variant="outline" className={acervoStyles.stateAction}>
-                <a href={page > 1 ? `/colecoes/lista-de-desejos?pagina=${page}` : "/colecoes/lista-de-desejos"}>Tentar novamente</a>
+                <a href={wishlistHref(filters, page)}>Tentar novamente</a>
+              </Button>
+              {filteredRead ? (
+                <Button asChild variant="ghost" className={acervoStyles.stateAction}>
+                  <Link href={wishlistHref(NO_WISHLIST_FILTERS)}>Ver a lista completa</Link>
+                </Button>
+              ) : null}
+            </div>
+          </section>
+        ) : visible === null ? null : filtered && visible.length === 0 && page === 1 && totalCount <= hidden.size ? (
+          // W6: nenhum desejo atende aos filtros — estado próprio, nunca "lista vazia".
+          <section className={acervoStyles.state} aria-labelledby="desejos-sem-resultado">
+            <div className={acervoStyles.stateIcon} aria-hidden="true">
+              <SearchX className="h-6 w-6" />
+            </div>
+            <h2 id="desejos-sem-resultado" className={acervoStyles.stateTitle}>
+              Nenhum desejo encontrado
+            </h2>
+            <p className={acervoStyles.stateText}>
+              {filters.query
+                ? `Nenhum desejo da sua lista corresponde a “${filters.query}” com esses filtros.`
+                : "Nenhum desejo da sua lista corresponde a esses filtros."}
+            </p>
+            <div className={acervoStyles.stateActions}>
+              <Button asChild variant="outline" className={acervoStyles.stateAction}>
+                <Link href={wishlistHref(clearedWishlistFilters(filters))} scroll={false}>
+                  Limpar filtros
+                </Link>
               </Button>
             </div>
           </section>
-        ) : visible === null ? null : visible.length === 0 && page === 1 && totalCount <= hidden.size ? (
+        ) : visible.length === 0 && page === 1 && totalCount <= hidden.size ? (
           <section className={acervoStyles.state} aria-labelledby="desejos-vazio">
             <div className={`${acervoStyles.stateIcon} ${styles.stateIconWish}`} aria-hidden="true">
               <Bookmark className="h-6 w-6" />
@@ -265,7 +329,7 @@ export function WishlistView({
             <p className={acervoStyles.stateText}>Sua lista mudou desde a última visita.</p>
             <div className={acervoStyles.stateActions}>
               <Button asChild variant="outline" className={acervoStyles.stateAction}>
-                <Link href="/colecoes/lista-de-desejos">Voltar ao início</Link>
+                <Link href={wishlistHref(filters)}>Voltar ao início</Link>
               </Button>
             </div>
           </section>
@@ -326,7 +390,7 @@ export function WishlistView({
               <nav className={acervoStyles.pagination} aria-label="Páginas da lista de desejos">
                 {page > 1 ? (
                   <Button asChild variant="outline" size="sm">
-                    <Link href={`/colecoes/lista-de-desejos?pagina=${page - 1}`}>Anterior</Link>
+                    <Link href={wishlistHref(filters, page - 1)}>Anterior</Link>
                   </Button>
                 ) : null}
                 <span>
@@ -334,7 +398,7 @@ export function WishlistView({
                 </span>
                 {page < totalPages ? (
                   <Button asChild variant="outline" size="sm">
-                    <Link href={`/colecoes/lista-de-desejos?pagina=${page + 1}`}>Próxima</Link>
+                    <Link href={wishlistHref(filters, page + 1)}>Próxima</Link>
                   </Button>
                 ) : null}
               </nav>

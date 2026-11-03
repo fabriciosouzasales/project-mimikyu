@@ -1,11 +1,15 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  type WishlistFilterOptions,
+  type WishlistFilters,
   type WishlistPage,
   type WishlistSummary,
   WISHLIST_PAGE_SIZE,
   chunkIds,
+  parseWishlistFilterOptions,
   parseWishlistPage,
   parseWishlistSummary,
+  wishlistFilterArgs,
   toWishedByCardMap,
   toWishedPositionKeys,
   toWishedVariantSet,
@@ -97,6 +101,35 @@ export async function getMyWishlistPage(supabase: SupabaseClient, page: number):
   });
   const parsed = error ? null : parseWishlistPage(data);
   if (!parsed) logFailure("get_my_wishlist", startedAt, error);
+  return parsed;
+}
+
+/**
+ * W6 (5350): página com filtros aplicados ao conjunto INTEIRO do usuário antes de paginar;
+ * `totalCount` = total filtrado. `null` = leitura falhou (ou 5350 ainda ausente no LIVE).
+ */
+export async function getMyWishlistFilteredPage(
+  supabase: SupabaseClient,
+  filters: WishlistFilters,
+  page: number,
+): Promise<WishlistPage | null> {
+  const startedAt = Date.now();
+  const { data, error } = await supabase.rpc("get_my_wishlist_filtered", {
+    p_limit: WISHLIST_PAGE_SIZE,
+    p_offset: (page - 1) * WISHLIST_PAGE_SIZE,
+    ...wishlistFilterArgs(filters),
+  });
+  const parsed = error ? null : parseWishlistPage(data);
+  if (!parsed) logFailure("get_my_wishlist_filtered", startedAt, error);
+  return parsed;
+}
+
+/** W6 (5350): opções presentes na lista do usuário. `null` = indisponível (a barra some). */
+export async function getMyWishlistFilterOptions(supabase: SupabaseClient): Promise<WishlistFilterOptions | null> {
+  const startedAt = Date.now();
+  const { data, error } = await supabase.rpc("get_my_wishlist_filter_options");
+  const parsed = error ? null : parseWishlistFilterOptions(data);
+  if (!parsed) logFailure("get_my_wishlist_filter_options", startedAt, error);
   return parsed;
 }
 
