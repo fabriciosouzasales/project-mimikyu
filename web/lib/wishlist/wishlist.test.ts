@@ -422,8 +422,9 @@ test("aviso: hover/foco pausam (Desfazer continua disponível) e retomam com o t
 test("aviso (estático): X acessível, erro sem fechamento automático, Desfazer preservado", () => {
   const view = readFileSync(new URL("../../components/wishlist/wishlist-view.tsx", import.meta.url), "utf8");
   assert.match(view, /aria-label="Fechar aviso"/);
-  assert.match(view, /if \(!lastRemoved \|\| error\) return;/);
-  assert.match(view, /createDismissTimer\(\(\) => setLastRemoved\(null\), WISH_SUCCESS_NOTICE_MS\)/);
+  // W8: o mesmo prazo vale para o aviso do lote; erro continua sem fechamento automático.
+  assert.match(view, /if \(\(!lastRemoved && !bulkNotice\) \|\| error\) return;/);
+  assert.match(view, /createDismissTimer\(\(\) => \{\s*setLastRemoved\(null\);\s*setBulkNotice\(null\);\s*\}, WISH_SUCCESS_NOTICE_MS\)/);
   assert.match(view, /onMouseEnter=\{\(\) => holdNotice\("hover", true\)\}/);
   assert.match(view, /onFocus=\{\(\) => holdNotice\("focus", true\)\}/);
   assert.match(view, /Desfazer/);
@@ -440,7 +441,7 @@ test("aviso (estático): X fora do bloco que quebra linha, sempre à direita", (
 
 test("aviso (estático): hover/foco relidos do DOM a cada aviso e zerados ao fechar (prazo nunca fica preso)", () => {
   const view = readFileSync(new URL("../../components/wishlist/wishlist-view.tsx", import.meta.url), "utf8");
-  const effect = view.slice(view.indexOf("if (!lastRemoved || error) return;"), view.indexOf("}, [lastRemoved, error]);"));
+  const effect = view.slice(view.indexOf("if ((!lastRemoved && !bulkNotice) || error) return;"), view.indexOf("}, [lastRemoved, bulkNotice, error]);"));
   assert.match(effect, /hoverRef\.current = node\?\.matches\(":hover"\)/);
   assert.match(effect, /focusRef\.current = node \? node\.contains\(document\.activeElement\)/);
   const cleanup = effect.slice(effect.indexOf("return () => {"));

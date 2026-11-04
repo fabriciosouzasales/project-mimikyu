@@ -35,6 +35,7 @@ import {
   summarizeBulkConfirmation,
 } from "@/lib/wishlist/wishlist-bulk";
 import { getMyCollection, getMyCollectionPositions } from "@/lib/colecoes/colecoes-queries";
+import { type WishRemoveSummary, parseWishRemoveIds, summarizeWishRemove } from "@/lib/wishlist/wishlist-selection";
 import { finishBadge, parseMasterSetPositions } from "@/lib/colecoes/master-set";
 import { createClient } from "@/lib/supabase/server";
 
@@ -132,6 +133,31 @@ export async function removeWishlistEntries(entryIds: string[]): Promise<RemoveW
     return { ok: false, reason: wishFailureReason(error?.code) };
   }
   return { ok: true, removed };
+}
+
+export type RemoveSelectedWishesResult = { ok: true; summary: WishRemoveSummary } | { ok: false; reason: WishFailureReason };
+
+/**
+ * W8: remove os desejos SELECIONADOS na Lista de desejos — por id exato do registro
+ * (variante + idioma), nunca por carta ou variante: outros idiomas da mesma variante ficam.
+ * Uma chamada só (5346 `remove_my_wishlist_entries`, até 500; aqui até 100): o banco remove
+ * apenas linhas do usuário da sessão e ignora ids alheios ou inexistentes sem revelar nada.
+ * Pedido malformado (vazio, id inválido, acima do teto) não remove nada. Repetir é seguro:
+ * o que já saiu volta como "já não estava na lista". Só toca a Lista de desejos.
+ */
+export async function removeSelectedWishes(entryIds: string[]): Promise<RemoveSelectedWishesResult> {
+  const ids = parseWishRemoveIds(entryIds);
+  if (!ids) return { ok: false, reason: "invalid" };
+
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("remove_my_wishlist_entries", { p_entry_ids: ids });
+  const summary = error ? null : summarizeWishRemove(ids.length, data);
+  if (!summary) {
+    logWrite("remove_my_wishlist_entries", startedAt, error?.code);
+    return { ok: false, reason: wishFailureReason(error?.code) };
+  }
+  return { ok: true, summary };
 }
 
 /** Carta → variantes desejadas, para uma grade montada no cliente (Pesquisa). `null` = indisponível. */

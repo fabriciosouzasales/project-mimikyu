@@ -3,14 +3,16 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertCircle, Bookmark, Search, SearchX, X } from "lucide-react";
-import { addWishlistEntry, removeWishlistEntries } from "@/app/colecoes/lista-de-desejos/actions";
+import { AlertCircle, Bookmark, Check, CheckSquare, PackageCheck, Search, SearchX, Trash2, X } from "lucide-react";
+import { addWishlistEntry, removeSelectedWishes, removeWishlistEntries } from "@/app/colecoes/lista-de-desejos/actions";
 import { AcervoPriceTag } from "@/components/colecoes/acervo/acervo-price";
 import { CARD_GRID_SIZES as GRID_SIZES, CardArt } from "@/components/colecoes/acervo/card-art";
 import acervoStyles from "@/components/colecoes/acervo/acervo.module.css";
+import selectionStyles from "@/components/colecoes/acervo/acervo-selection.module.css";
 import colecoesStyles from "@/components/colecoes/colecoes/colecoes.module.css";
 import regionStyles from "@/components/colecoes/colecoes/library-modes.module.css";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { InlineFeedback } from "@/components/ui/feedback";
 import { formatCount } from "@/lib/colecoes/acervo";
 import { formatBrlWhole } from "@/lib/favorites/card-favorites";
@@ -36,6 +38,17 @@ import {
   wishToggleLabel,
   wishlistKpis,
 } from "@/lib/wishlist/wishlist";
+import {
+  type WishSelection,
+  WISHLIST_REMOVE_LIMIT,
+  allVisibleSelected,
+  pruneWishSelection,
+  satisfiedSuggestionCount,
+  selectWishPage,
+  toggleWishSelection,
+  wishRemoveConfirmation,
+  wishRemoveHeadline,
+} from "@/lib/wishlist/wishlist-selection";
 import styles from "./wishlist.module.css";
 import favStyles from "@/components/favorites/card-favorite.module.css";
 import { WishlistFilterChips, WishlistToolbar } from "./wishlist-toolbar";
@@ -66,6 +79,13 @@ export type WishlistEntryView = {
  * exclusão, a carta sai da grade e a página é relida; "Desfazer" inclui de novo a mesma
  * variante e idioma e a carta volta na hora.
  * Nada é removido automaticamente; a lista nunca é exposta a outras pessoas.
+ *
+ * W8: "Selecionar" abre o modo seleção SÓ nesta página — cada carta ganha uma caixa de
+ * marcação (por `entryId`: variante + idioma exatos), a barra no rodapé mostra a contagem e
+ * as ações; "Remover" pede confirmação com a quantidade exata e remove tudo numa chamada
+ * (5346). A seleção vale para a página exibida e recomeça ao trocar de página, filtro ou
+ * ordem. Quando o acervo já atende desejos (mesma variante, idioma compatível — C-213), uma
+ * faixa discreta sugere revisá-los; a remoção continua sendo sempre uma escolha explícita.
  */
 export function WishlistView({
   entries,
@@ -106,6 +126,24 @@ export function WishlistView({
   const [lastRemoved, setLastRemoved] = useState<WishlistEntryView | null>(null);
   const [announcement, setAnnouncement] = useState("");
   const [error, setError] = useState<string | null>(null);
+  // W8 — modo seleção (só nesta página), confirmação e resultado do lote.
+  const scope = wishlistHref(filters, page);
+  const [selecting, setSelecting] = useState(false);
+  const [selection, setSelection] = useState<{ scope: string; ids: WishSelection }>(() => ({ scope, ids: new Set() }));
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkNotice, setBulkNotice] = useState<string | null>(null);
+  const [suggestionDismissed, setSuggestionDismissed] = useState(false);
+  const barRef = useRef<HTMLDivElement>(null);
+  // Página, filtro ou ordem diferentes → seleção recomeça (nunca carrega ids de outra página).
+  if (selection.scope !== scope) {
+    setSelection({ scope, ids: new Set() });
+    setSelecting(false);
+    setConfirmOpen(false);
+  }
+  useEffect(() => {
+    if (selecting) barRef.current?.focus();
+  }, [selecting]);
   // TOAST UX CORRECTION-07: o aviso de sucesso ("saiu da lista" + Desfazer) fecha sozinho
   // após ~8 s, com pausa em hover/foco; uma nova remoção reinicia o prazo (um aviso só);
   // fechar, Desfazer confirmado ou desmontar cancelam o temporizador. Erro não fecha sozinho.
@@ -114,14 +152,17 @@ export function WishlistView({
   const focusRef = useRef(false);
   const noticeRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (!lastRemoved || error) return;
+    if ((!lastRemoved && !bulkNotice) || error) return;
     // O estado de hover/foco vem do DOM real no momento em que o aviso aparece — nunca de um
     // aviso anterior que sumiu com o ponteiro/foco dentro (sem mouseleave/blur), o que
     // deixava o prazo pausado para sempre.
     const node = noticeRef.current;
     hoverRef.current = node?.matches(":hover") ?? false;
     focusRef.current = node ? node.contains(document.activeElement) : false;
-    const timer = createDismissTimer(() => setLastRemoved(null), WISH_SUCCESS_NOTICE_MS);
+    const timer = createDismissTimer(() => {
+      setLastRemoved(null);
+      setBulkNotice(null);
+    }, WISH_SUCCESS_NOTICE_MS);
     dismissRef.current = timer;
     timer.start();
     if (hoverRef.current || focusRef.current) timer.pause();
@@ -131,7 +172,7 @@ export function WishlistView({
       hoverRef.current = false;
       focusRef.current = false;
     };
-  }, [lastRemoved, error]);
+  }, [lastRemoved, bulkNotice, error]);
 
   function holdNotice(kind: "hover" | "focus", on: boolean) {
     if (kind === "hover") hoverRef.current = on;
@@ -143,6 +184,7 @@ export function WishlistView({
   function closeNotice() {
     dismissRef.current?.cancel();
     setLastRemoved(null);
+    setBulkNotice(null);
     setError(null);
   }
   const visible = entries === null ? null : visibleWishlistEntries(entries, hidden, restored);
@@ -153,6 +195,14 @@ export function WishlistView({
   const listCount = filtered ? (summary?.entryCount ?? null) : totalCount;
   const hasEntries = entries !== null && (filtered ? (listCount ?? 1) > 0 : totalCount > 0);
   const showToolbar = filterOptions !== null && (filtered || (entries !== null && totalCount > 0));
+
+  // W8 — ids visíveis agora; a seleção efetiva é sempre recortada por eles.
+  const visibleIds = visible?.map((entry) => entry.entryId) ?? [];
+  const selected = pruneWishSelection(selection.ids, visibleIds);
+  const selectedCount = selected.size;
+  const allPage = allVisibleSelected(selected, visibleIds);
+  const viewingOwned = filters.ownership === "OWNED";
+  const suggestion = suggestionDismissed ? 0 : satisfiedSuggestionCount(filterOptions?.ownership.find((option) => option.value === "OWNED")?.count, viewingOwned);
 
   const nameOf = (entry: WishlistEntryView) => (entry.variantLabel ? `${entry.cardName} · ${entry.variantLabel}` : entry.cardName);
 
@@ -215,6 +265,61 @@ export function WishlistView({
       refresh();
     } else {
       setError(wishErrorMessage(nameOf(entry), reason));
+    }
+  }
+
+  function setIds(ids: Set<string>) {
+    setSelection({ scope, ids });
+  }
+
+  function startSelecting() {
+    setLastRemoved(null);
+    setBulkNotice(null);
+    setError(null);
+    setIds(new Set());
+    setSelecting(true);
+  }
+
+  function stopSelecting() {
+    setSelecting(false);
+    setConfirmOpen(false);
+    setIds(new Set());
+  }
+
+  async function removeSelected() {
+    const ids = [...selected];
+    if (ids.length === 0 || bulkBusy) return;
+    setBulkBusy(true);
+    setError(null);
+    let failure: Parameters<typeof wishErrorMessage>[1] | null = "failed";
+    let headline: string | null = null;
+    try {
+      const result = await removeSelectedWishes(ids);
+      if (result.ok) {
+        failure = null;
+        headline = wishRemoveHeadline(result.summary);
+      } else failure = result.reason;
+    } catch {
+      failure = "failed";
+    }
+    setBulkBusy(false);
+    setConfirmOpen(false);
+    if (failure === null && headline) {
+      // Pedidos que já não existiam também saem da grade: a releitura confirma o estado real.
+      setHidden((prev) => new Set([...prev, ...ids]));
+      setIds(new Set());
+      setSelecting(false);
+      setLastRemoved(null);
+      setBulkNotice(headline);
+      setAnnouncement(headline);
+      refresh();
+    } else {
+      // Nada é dado como removido: a seleção fica intacta para tentar de novo.
+      setError(
+        failure === "invalid"
+          ? `Não foi possível remover: selecione de 1 a ${WISHLIST_REMOVE_LIMIT} desejos desta página.`
+          : wishErrorMessage(ids.length === 1 ? "o desejo selecionado" : `os ${ids.length} desejos selecionados`, failure ?? "failed"),
+      );
     }
   }
 
@@ -335,9 +440,59 @@ export function WishlistView({
           </section>
         ) : (
           <>
-            <ul className={acervoStyles.grid} aria-label="Sua lista de desejos">
+            {!selecting && (suggestion > 0 || viewingOwned) ? (
+              // W8 — sugestão pós-aquisição: discreta, no fluxo da página (nunca pop-up) e sem
+              // remover nada. Fora do filtro, leva aos desejos já atendidos; dentro, convida a selecionar.
+              <aside className={styles.suggestion} aria-label="Desejos já no seu acervo">
+                <PackageCheck className={styles.suggestionIcon} aria-hidden="true" />
+                <p className={styles.suggestionText}>
+                  {viewingOwned ? (
+                    <>
+                      <strong>Estes desejos já estão no seu acervo</strong> — mesma variante, idioma compatível. Tire da lista
+                      só os que você não quer mais.
+                    </>
+                  ) : (
+                    <>
+                      <strong>
+                        {suggestion === 1 ? "1 desejo já está no seu acervo" : `${formatCount(suggestion)} desejos já estão no seu acervo`}
+                      </strong>{" "}
+                      — mesma variante, idioma compatível. Quer revisar?
+                    </>
+                  )}
+                </p>
+                <div className={styles.suggestionActions}>
+                  {viewingOwned ? (
+                    <Button type="button" variant="outline" size="sm" onClick={startSelecting}>
+                      Selecionar para remover
+                    </Button>
+                  ) : (
+                    <>
+                      <Button asChild variant="outline" size="sm">
+                        <Link href={wishlistHref({ ...clearedWishlistFilters(filters), ownership: "OWNED" })} scroll={false}>
+                          Revisar
+                        </Link>
+                      </Button>
+                      <Button type="button" variant="ghost" size="sm" onClick={() => setSuggestionDismissed(true)}>
+                        Agora não
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </aside>
+            ) : null}
+            {!selecting ? (
+              <div className={styles.selectRow}>
+                <Button variant="outline" size="sm" className={selectionStyles.toggle} onClick={startSelecting}>
+                  <CheckSquare className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+                  Selecionar
+                </Button>
+              </div>
+            ) : null}
+            <ul className={acervoStyles.grid} aria-label="Sua lista de desejos" data-selecting={selecting || undefined}>
               {visible.map((entry) => {
                 const owned = ownershipLabel(entry.ownership);
+                const isSelected = selected.has(entry.entryId);
+                const checkboxId = `desejo-sel-${entry.entryId}`;
                 return (
                   // CARD GRID UX STANDARDIZATION-01: mesma anatomia do Meu acervo e das coleções
                   // (arte 8:11 com preço na base, nome, Set · número e selos); o marcador da
@@ -346,6 +501,7 @@ export function WishlistView({
                     key={entry.entryId}
                     className={`${acervoStyles.tileSlot} ${styles.wishHost}`}
                     data-unavailable={!entry.variantAvailable || undefined}
+                    data-selected={(selecting && isSelected) || undefined}
                   >
                     <div className={acervoStyles.artWrap}>
                       <div className={acervoStyles.art}>
@@ -353,6 +509,23 @@ export function WishlistView({
                         <AcervoPriceTag price={prices?.[entry.cardVariantId] ?? null} now={priceNow} />
                       </div>
                     </div>
+                    {selecting ? (
+                      // W8 — caixa de marcação nativa (teclado: Tab + Espaço), cobrindo a carta inteira
+                      // para o toque; o nome acessível diz carta, variante e idioma do registro.
+                      <label htmlFor={checkboxId} className={styles.selectHit}>
+                        <input
+                          id={checkboxId}
+                          type="checkbox"
+                          className={styles.selectInput}
+                          checked={isSelected}
+                          onChange={() => setIds(toggleWishSelection(selected, entry.entryId, visibleIds))}
+                          aria-label={`Selecionar ${nameOf(entry)} · ${wishLanguageLabel(entry.languageCode)}`}
+                        />
+                        <span className={`${selectionStyles.mark} ${styles.selectMark}`} aria-hidden="true">
+                          {isSelected ? <Check className="h-3.5 w-3.5" strokeWidth={3} /> : null}
+                        </span>
+                      </label>
+                    ) : (
                     <button
                       type="button"
                       className={`${styles.wish} ${styles.wishCorner}`}
@@ -365,6 +538,7 @@ export function WishlistView({
                     >
                       <Bookmark className={styles.wishIcon} strokeWidth={2} aria-hidden="true" />
                     </button>
+                    )}
                     <div className={acervoStyles.meta}>
                       <div className={acervoStyles.name}>{entry.cardName}</div>
                       <div className={acervoStyles.sub}>
@@ -385,6 +559,48 @@ export function WishlistView({
                 );
               })}
             </ul>
+
+            {selecting ? (
+              <div ref={barRef} tabIndex={-1} role="region" aria-label="Seleção de desejos" className={selectionStyles.bar}>
+                <div className={selectionStyles.barMain}>
+                  <p className={selectionStyles.count} aria-live="polite" aria-atomic="true">
+                    {selectedCount === 0
+                      ? "Marque os desejos desta página"
+                      : selectedCount === 1
+                        ? "1 desejo selecionado"
+                        : `${formatCount(selectedCount)} desejos selecionados`}
+                  </p>
+                  <div className={selectionStyles.actions}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setIds(allPage ? new Set() : selectWishPage(visibleIds))}
+                    >
+                      {allPage ? "Desmarcar esta página" : "Selecionar esta página"}
+                    </Button>
+                    {selectedCount > 0 ? (
+                      <Button variant="ghost" size="sm" onClick={() => setIds(new Set())}>
+                        Limpar
+                      </Button>
+                    ) : null}
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className={`${styles.dangerAction} aria-disabled:pointer-events-none aria-disabled:opacity-50`}
+                      aria-disabled={selectedCount === 0 || undefined}
+                      onClick={() => selectedCount > 0 && setConfirmOpen(true)}
+                    >
+                      <Trash2 className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+                      Remover{selectedCount > 0 ? ` (${formatCount(selectedCount)})` : ""}
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={stopSelecting} aria-label="Sair da seleção">
+                      <X className="h-3.5 w-3.5 sm:mr-1.5" aria-hidden="true" />
+                      <span className="max-sm:sr-only">Sair</span>
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
 
             {totalPages > 1 ? (
               <nav className={acervoStyles.pagination} aria-label="Páginas da lista de desejos">
@@ -407,10 +623,34 @@ export function WishlistView({
         )}
       </div>
 
+      <Dialog open={confirmOpen} onOpenChange={(open) => !bulkBusy && setConfirmOpen(open)}>
+        <DialogContent
+          hideClose={bulkBusy}
+          onEscapeKeyDown={(event) => bulkBusy && event.preventDefault()}
+          onInteractOutside={(event) => bulkBusy && event.preventDefault()}
+        >
+          <DialogHeader>
+            <DialogTitle className={styles.confirmTitle}>{wishRemoveConfirmation(selectedCount)}</DialogTitle>
+            <DialogDescription className={styles.confirmText}>
+              Saem só os desejos marcados, cada um com a sua variante e idioma — outros idiomas da mesma carta continuam na
+              lista. Seu acervo, suas coleções e o fichário não mudam.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-4">
+            <Button type="button" variant="outline" size="sm" disabled={bulkBusy} onClick={() => setConfirmOpen(false)}>
+              Cancelar
+            </Button>
+            <Button type="button" variant="destructive" size="sm" className={styles.dangerAction} disabled={bulkBusy} aria-busy={bulkBusy || undefined} onClick={() => void removeSelected()}>
+              {bulkBusy ? "Removendo…" : selectedCount === 1 ? "Remover desejo" : `Remover ${formatCount(selectedCount)} desejos`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <p className="sr-only" aria-live="polite">
         {announcement}
       </p>
-      {lastRemoved || error ? (
+      {lastRemoved || bulkNotice || error ? (
         <div className="pointer-events-none sticky bottom-4 z-20 mt-6 flex justify-center">
           <div
             ref={noticeRef}
@@ -427,6 +667,13 @@ export function WishlistView({
               <InlineFeedback tone="error">
                 <span className={styles.notice}>
                   <span className={styles.undo}>{error}</span>
+                  <NoticeClose onClose={closeNotice} />
+                </span>
+              </InlineFeedback>
+            ) : bulkNotice ? (
+              <InlineFeedback tone="success">
+                <span className={styles.notice}>
+                  <span className={styles.undo}>{bulkNotice}</span>
                   <NoticeClose onClose={closeNotice} />
                 </span>
               </InlineFeedback>
