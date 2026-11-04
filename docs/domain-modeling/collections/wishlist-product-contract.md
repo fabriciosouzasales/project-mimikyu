@@ -4,8 +4,8 @@
 |---|---|
 | **Documento** | Contrato funcional de produto da Lista de desejos (Wishlist) — V1-11 |
 | **Arquivo** | `docs/domain-modeling/collections/wishlist-product-contract.md` |
-| **Versão** | 1.3 |
-| **Status** | **APROVADO (W0)** — decisões D1–D9 do proprietário (2026-10-31, `V1-11 W0 — PRODUCT CONTRACT CONSOLIDATION-02`), sobre o diagnóstico `V1-11 WISHLIST PRODUCT & CONTRACT DISCOVERY-01`. **W1 ENCERRADA (2026-11-02):** 5345–5347 no LIVE e em `database/schema/` (harness 5873: 17/17 checagens PASS), frontend homologado, publicação pendente; L1 resolvida pelas leituras de estado em lote (por variante e por carta). Contrato inalterado. |
+| **Versão** | 1.4 |
+| **Status** | **APROVADO (W0)** — decisões D1–D9 do proprietário (2026-10-31, `V1-11 W0 — PRODUCT CONTRACT CONSOLIDATION-02`), sobre o diagnóstico `V1-11 WISHLIST PRODUCT & CONTRACT DISCOVERY-01`. **W1 ENCERRADA (2026-11-02):** 5345–5347 no LIVE e em `database/schema/` (harness 5873: 17/17 checagens PASS), frontend homologado, publicação pendente; L1 resolvida pelas leituras de estado em lote (por variante e por carta). Contrato inalterado. **V1-11 CONCLUÍDA (2026-11-04, `FINAL PRODUCT CLOSEOUT-01`):** W1–W8 publicadas e homologadas; o filtro "falta em alguma coleção" foi **retirado do escopo** por decisão explícita de produto (§8, L8) — não é funcionalidade implementada. |
 | **Autoridade** | Em domínio prevalecem `concept-decisions.md` **C-91–C-102** (inalteradas) e **C-210–C-219** (novas, W0) e `logical-model.md` **LDM-79–LDM-90** (inalteradas) e **LDM-204–LDM-208**. Este documento é a leitura funcional consolidada; em caso de divergência, os C-*/LDM-* vencem. Nomenclatura: North Star **N27**. |
 | **Fora de escopo** | SQL, migrations, telas, Conexão Inteligente (CI-N1/CI-N2), marketplace, pagamentos, quantidade, prioridade, preço-alvo, alertas, condição e graduação. |
 | **Documentos relacionados** | `concept-decisions.md`, `logical-model.md`, `north-star-2026-10-16.md`, `architecture/ubiquitous-language.md`, `docs/ROADMAP.md` (V1-11), `docs/05d-colecoes-e-usuarios.md`, `docs/05f-pricing.md` (V1-09), `COLLECTION-FUNCTIONAL-COVERAGE-AUDIT-01.md` (WF-02/WF-03) |
@@ -83,7 +83,7 @@ Inclusão de **faltantes em lote** (Set, Master Set): apresenta prévia separand
 
 ### 4.3 Contexto Collection (C-211)
 
-Incluir a partir de uma coleção, de um fichário ou de uma posição **não cria vínculo** entre o desejo e essa estrutura. O desejo pertence só ao usuário; excluir, arquivar ou desmontar a coleção/fichário não altera a lista. Indicadores como "falta em alguma coleção" são **calculados** na leitura, nunca gravados.
+Incluir a partir de uma coleção, de um fichário ou de uma posição **não cria vínculo** entre o desejo e essa estrutura. O desejo pertence só ao usuário; excluir, arquivar ou desmontar a coleção/fichário não altera a lista. Eventuais indicadores derivados de coleção (por exemplo, "falta em alguma coleção") são **calculados** na leitura, nunca gravados. *(2026-11-04: o filtro correspondente foi retirado do escopo da V1-11 — §8, L8; o princípio permanece.)*
 
 ## 5. Fichário — os quatro cenários (C-215)
 
@@ -133,7 +133,8 @@ Estado derivado, nunca gravado, em quatro níveis: tem esta variante neste idiom
 - Nome na interface: **Lista de desejos** (N27). Termo técnico, código e documentação: Wishlist.
 - Ícone **bookmark**, distinto do coração de Favoritos; dourado reservado ao estado ativo. Os dois controles podem coexistir no mesmo card sem se confundir (C-97).
 - Página dedicada no padrão premium aprovado (hero, painel de indicadores do V1-10 com o valor em linha inteira no mobile, grade com a carta como protagonista, selos discretos de variante, idioma e posse, preço na etiqueta inferior esquerda do V1-09).
-- Filtros e ordenações sem ranking: recentes, Set/número, preço; filtros por Set, posse, idioma e "falta em alguma coleção". Seleção múltipla para remover.
+- Filtros e ordenações sem ranking: recentes, Set/número, preço; filtros por Set, posse e idioma. Seleção múltipla para remover.
+- **Decisão de escopo (2026-11-04, `FINAL PRODUCT CLOSEOUT-01`):** o filtro "falta em alguma coleção", previsto na v1.0, foi **retirado** do escopo obrigatório da V1-11 — o fluxo coleção → Lista de desejos já é atendido nas próprias coleções (W2, W3, W4, W7); a visão inversa traz benefício incremental baixo frente à complexidade, a correspondência desejo × posição faltante não está contratada (carta no Set padrão, carta + acabamento no Master Set, espécie na Pokédex, idioma, exemplar possuído não alocado) e a leitura cruzada entre todas as coleções teria custo relevante. Preserva C-94, C-95 e C-211. Não é funcionalidade implementada; ver L8.
 - Feedback imediato (otimista, com desfazer), estados vazio/erro/sem preço/variante desativada, mobile e desktop, teclado, `aria-pressed` com nome da carta e variante, `prefers-reduced-motion` (NS-12).
 
 ## 9. Privacidade e Conexão Inteligente (C-217, C-218)
@@ -155,6 +156,7 @@ Estado derivado, nunca gravado, em quatro níveis: tem esta variante neste idiom
 | L5 | Bolso com referência de espécie (C-199) sem exemplar só identifica a espécie | Igual a L3 | Igual a L3 |
 | L6 | **Regra decidida (C-219, §5-A).** Lacuna técnica remanescente: o fichário compartilhado e a vitrine pública (`5315`) não expõem ids de carta/variante, por desenho | Inclusão a partir do fichário compartilhado só por seleção explícita | W1 investiga uma seleção explícita a partir dos rótulos já visíveis, **sem** alterar o mascaramento nem ampliar permissões |
 | L7 | CI-N1 sem definição funcional; disponibilidade (C-53), consentimento e localização sem modelo nem versão | Etapa 4 | Fora do V1-11 |
+| L8 | **Candidato futuro (fora da V1-11):** relação contextual entre desejos e lacunas de coleções (o antigo filtro "falta em alguma coleção") | Nenhum no escopo aprovado — retirado por decisão de produto (2026-11-04) | Sem compromisso de implementação; depende de novo contrato funcional (regra de correspondência por tipo de coleção), avaliação de experiência e justificativa de performance |
 
 ## Revision History
 
@@ -164,3 +166,4 @@ Estado derivado, nunca gravado, em quatro níveis: tem esta variante neste idiom
 | 1.1 | **Ajustes da auditoria (2026-10-31, `V1-11 W0 DOCUMENTATION AUDIT CLOSEOUT-03`).** L6 decidida (C-219, LDM-208; §5-A com a compatibilidade conferida contra `5313`, `5320`, `5315`/`5316`/`5318`); §4.1/§4.2 explicitam que posição só com espécie, referência incompleta ou carta ambígua não autoriza inclusão automática e que nenhuma posição faltante vira desejo automaticamente; §7 explicita contagem por variante + idioma, cobertura sobre variantes distintas com cotação válida e natureza da referência NM; L2/L6 reescritas. Pricing inalterado. |
 | 1.2 | **Status atualizado pela W1 (2026-11-01, `V1-11 W1 IMPLEMENTATION-01`).** Só o campo Status: SQL 5345–5347 + 5873 propostos, não executados; L1 atendida (estado em lote). Nenhuma regra alterada. |
 | 1.3 | **W1 encerrada (2026-11-02, `FINAL CLOSEOUT & CONTROLLED COMMIT-06`).** Só o campo Status: SQL no LIVE e canônico, frontend homologado, publicação pendente. Nenhuma regra alterada. |
+| 1.4 | **V1-11 concluída — filtro retirado do escopo (2026-11-04, `FINAL PRODUCT CLOSEOUT-01`).** §8: "falta em alguma coleção" sai da lista de filtros, registrado como decisão de escopo (não implementado); §4.3: princípio de indicadores calculados mantido; §10: L8 (candidato futuro, sem compromisso). Status: V1-11 concluída. C-94, C-95, C-211 inalteradas. |
