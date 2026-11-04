@@ -16,8 +16,26 @@ import {
   parseSpeciesCardsPage,
   parseVariantOptions,
   wishFailureReason,
+  wishFinishKey,
+  wishedCardIds,
 } from "@/lib/wishlist/wishlist";
 import { getMyWishedByCard, getMyWishedPositionKeys, getMyWishedVariants } from "@/lib/wishlist/wishlist-queries";
+import {
+  BULK_WISH_LIMIT,
+  type BulkConfirmationSummary,
+  type BulkItem,
+  type BulkPosition,
+  type BulkScope,
+  type BulkSelectionRequest,
+  buildBulkItems,
+  parseBulkSelectionRequests,
+  parseCatalogVariantsByCard,
+  resolveBulkConfirmation,
+  summarizeBulkAdd,
+  summarizeBulkConfirmation,
+} from "@/lib/wishlist/wishlist-bulk";
+import { getMyCollection, getMyCollectionPositions } from "@/lib/colecoes/colecoes-queries";
+import { finishBadge, parseMasterSetPositions } from "@/lib/colecoes/master-set";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -201,6 +219,150 @@ export async function readPositionWishOptions(cardId: string, finishKey: string)
   const wished = await getMyWishedVariants(supabase, options.map((option) => option.variantId));
   if (!wished) return null;
   return { options, wished: [...wished] };
+}
+
+// ---------------------------------------------------------------------------
+// W7 — faltantes em lote (Set padrão e Master Set)
+// ---------------------------------------------------------------------------
+
+export type MissingWishPreview =
+  | { ok: true; scope: BulkScope; total: number; items: BulkItem[] }
+  | { ok: false; reason: WishFailureReason };
+
+/**
+ * W7: prévia dos faltantes de uma coleção do usuário (Set padrão ou Master Set) para a
+ * inclusão em lote. Só LÊ, sempre em lote (nunca uma chamada por carta):
+ *  1. posições que faltam (5169 ou 5189/5198, filtro MISSING, até 500);
+ *  2. variantes ativas candidatas de todas as cartas (5352, uma chamada);
+ *  3. o que já está na lista (5346 por carta no Set; 5348 por carta + acabamento no Master Set).
+ * Classifica cada posição em direta / escolha / já na lista / sem variante. Nada é gravado
+ * e nada liga desejo a coleção (C-211). Coleção alheia = "invalid" (o banco não distingue).
+ * `unavailable` = alguma leitura falhou ou a 5352 ainda não existe no LIVE.
+ */
+export async function previewMissingWishes(collectionId: string): Promise<MissingWishPreview> {
+  const id = normalizeId(collectionId);
+  if (!id) return { ok: false, reason: "invalid" };
+  const supabase = await createClient();
+  return loadMissingWishItems(supabase, id);
+}
+
+/**
+ * Núcleo da prévia, usado também pela confirmação (FIX-03): a coleção precisa ser do
+ * usuário da sessão (`get_my_collection` só devolve as próprias); as posições faltantes, as
+ * variantes candidatas e o estado da Lista são sempre lidos AGORA, no servidor.
+ */
+async function loadMissingWishItems(supabase: Awaited<ReturnType<typeof createClient>>, id: string): Promise<MissingWishPreview> {
+  const startedAt = Date.now();
+  const collection = await getMyCollection(supabase, id);
+  if (collection === null) return { ok: false, reason: "unavailable" };
+  if (collection === undefined) return { ok: false, reason: "invalid" };
+
+  let scope: BulkScope;
+  let total: number;
+  let positions: BulkPosition[];
+  if (collection.completionPolicy === "MASTER_SET") {
+    const { data, error } = await supabase.rpc("get_my_master_set_positions", {
+      p_collection_id: id,
+      p_filter: "MISSING",
+      p_limit: BULK_WISH_LIMIT,
+      p_offset: 0,
+    });
+    if (error || !Array.isArray(data)) {
+      console.error(JSON.stringify({ scope: "wishlist.read", fn: "get_my_master_set_positions", ms: Date.now() - startedAt, code: error?.code ?? "BAD_SHAPE" }));
+      return { ok: false, reason: "unavailable" };
+    }
+    const page = parseMasterSetPositions(data);
+    scope = "master";
+    total = page.total;
+    positions = page.items
+      .filter((position) => !position.isSatisfied)
+      .map((position) => ({
+        key: position.key,
+        cardId: position.cardId,
+        cardName: position.cardName,
+        collectorNumber: position.collectorNumber,
+        collectorTotal: position.collectorTotal,
+        imagePath: position.imagePath,
+        finishKey: wishFinishKey(position.variantTypeId) ?? ANY_FINISH,
+        finishLabel: finishBadge(position),
+        isSecret: position.isSecret,
+      }));
+  } else if (collection.completionPolicy === "STANDARD_SET" && collection.cardSetCode) {
+    const page = await getMyCollectionPositions(supabase, id, "faltam");
+    if (!page) return { ok: false, reason: "unavailable" };
+    scope = "set";
+    total = page.total;
+    positions = page.items
+      .filter((position) => !position.isSatisfied)
+      .map((position) => ({
+        key: position.cardId.toLowerCase(),
+        cardId: position.cardId.toLowerCase(),
+        cardName: position.cardName,
+        collectorNumber: position.collectorNumber,
+        collectorTotal: position.collectorTotal,
+        imagePath: position.imagePath,
+        finishKey: null,
+        finishLabel: null,
+        isSecret: false,
+      }));
+  } else {
+    return { ok: false, reason: "invalid" };
+  }
+
+  if (positions.length === 0) return { ok: true, scope, total: 0, items: [] };
+
+  const cardIds = [...new Set(positions.map((position) => position.cardId))];
+  const [variantsRead, wishedCards, wishedPositions] = await Promise.all([
+    supabase.rpc("get_catalog_card_variants_for_cards", { p_card_ids: cardIds }),
+    scope === "set" ? getMyWishedByCard(supabase, cardIds) : Promise.resolve(null),
+    scope === "master" ? getMyWishedPositionKeys(supabase, cardIds) : Promise.resolve(null),
+  ]);
+  const variantsByCard = variantsRead.error ? null : parseCatalogVariantsByCard(variantsRead.data);
+  if (!variantsByCard) {
+    console.error(JSON.stringify({ scope: "wishlist.read", fn: "get_catalog_card_variants_for_cards", ms: Date.now() - startedAt, code: variantsRead.error?.code ?? "BAD_SHAPE" }));
+    return { ok: false, reason: wishFailureReason(variantsRead.error?.code) };
+  }
+  if (scope === "set" ? wishedCards === null : wishedPositions === null) return { ok: false, reason: "unavailable" };
+
+  return { ok: true, scope, total, items: buildBulkItems(positions, variantsByCard, { cards: wishedCardIds(wishedCards), positions: wishedPositions }) };
+}
+
+export type AddMissingWishesResult = { ok: true; summary: BulkConfirmationSummary } | { ok: false; reason: WishFailureReason };
+
+/**
+ * W7 (FIX-03): confirma o lote. O navegador envia só a coleção e, por posição, a variante
+ * escolhida; a elegibilidade é refeita aqui, sem confiar no navegador:
+ *  1. a coleção precisa ser do usuário da sessão;
+ *  2. as posições faltantes, as candidatas e o estado da Lista são recalculados (mesmas
+ *     leituras em lote da prévia);
+ *  3. só entram posições que ainda faltam, sem desejo, com a variante entre as candidatas da
+ *     posição (no Master Set, só do acabamento da posição).
+ * Posição preenchida desde a prévia → ignorada; desejo incluído em outra aba → "já existia";
+ * variante incompatível ou pedido repetido → recusado. Uma gravação (5352), idempotente,
+ * sempre "qualquer idioma"; só toca a Lista de desejos. Nada recusado conta como incluído.
+ */
+export async function addMissingWishes(input: { collectionId: string; selections: BulkSelectionRequest[] }): Promise<AddMissingWishesResult> {
+  const id = normalizeId(input?.collectionId);
+  const requests = parseBulkSelectionRequests(input?.selections);
+  if (!id || !requests) return { ok: false, reason: "invalid" };
+
+  const supabase = await createClient();
+  const fresh = await loadMissingWishItems(supabase, id);
+  if (!fresh.ok) return fresh;
+
+  const plan = resolveBulkConfirmation(fresh.items, requests);
+  if (plan.variantIds.length === 0) return { ok: true, summary: summarizeBulkConfirmation(plan, null) };
+
+  const startedAt = Date.now();
+  const { data, error } = await supabase.rpc("add_my_wishlist_entries", { p_card_variant_ids: plan.variantIds });
+  const added = error ? null : summarizeBulkAdd(plan.variantIds, data);
+  if (!added) {
+    logWrite("add_my_wishlist_entries", startedAt, error?.code);
+    return { ok: false, reason: wishFailureReason(error?.code) };
+  }
+  const summary = summarizeBulkConfirmation(plan, added);
+  if (!summary.complete) logWrite("add_my_wishlist_entries", startedAt, added.missing > 0 ? "PARTIAL_MISSING" : summary.rejected > 0 ? "REJECTED_SELECTION" : "PARTIAL_UNAVAILABLE");
+  return { ok: true, summary };
 }
 
 export type SpeciesWishCards = SpeciesWishCardsPage & { wished: string[] };

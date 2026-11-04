@@ -41,6 +41,7 @@ import { priceAccessibleText } from "@/lib/pricing/variant-pricing";
 import type { PositionPrice, PositionPrices } from "@/lib/pricing/position-pricing-queries";
 import { WishButton, wishHostClass } from "@/components/wishlist/wish-button";
 import { WishlistController } from "@/components/wishlist/wishlist-controller";
+import { MissingWishesLauncher } from "@/components/wishlist/missing-wishes-launcher";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 
@@ -285,6 +286,10 @@ export function CollectionView({
             ) : null}
             {isMaster && master.linkable !== null ? (
               <MasterSetLinkLauncher collectionId={collection.id} linkable={active ? master.linkable : 0} />
+            ) : null}
+            {/* V1-11 W7: desejar faltantes em lote — só com o estado da Lista lido (titular). */}
+            {(isMaster ? (master.wishedPositions ?? null) !== null : wishedCards !== null) ? (
+              <MissingWishesLauncher collectionId={collection.id} missing={missing} />
             ) : null}
             {canManage && setCode ? (
               <CollectionAddLauncher
