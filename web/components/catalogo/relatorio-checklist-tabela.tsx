@@ -104,7 +104,7 @@ export function RelatorioChecklistFolhas<T>({
               </tbody>
             </table>
             {legenda ? <div className="px-6 print:px-0">{legenda}</div> : null}
-            <div className="mt-auto grid grid-cols-[1fr_auto_1fr] items-center gap-4 px-6 pb-6 pt-4 text-[8px] text-neutral-400 print:px-0 print:pb-0">
+            <div data-checklist-rodape="" className="mt-auto grid grid-cols-[1fr_auto_1fr] items-center gap-4 px-6 pb-6 pt-4 text-[8px] text-neutral-400 print:px-0 print:pb-0">
               <span aria-hidden="true" />
               <span>Gerado por MMKYU Collector em {data}</span>
               <span className="text-right tabular-nums">

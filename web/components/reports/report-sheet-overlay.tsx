@@ -4,6 +4,7 @@ import { type ReactNode, useCallback, useEffect, useId, useRef, useState } from 
 import { AlertCircle, Maximize2, Minimize2, X } from "lucide-react";
 import { BinderOverlayShell } from "@/components/colecoes/fichario/binder-overlay-shell";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PrintFooter } from "./print-footer";
 import { ReportPrintButton } from "./report-print-button";
 import styles from "./report-overlay.module.css";
 
@@ -91,7 +92,7 @@ function ReportSheet({ eyebrow, title, context, errorNote, load: loadReport, tit
     entry.status === "loading" ? "Preparando o relatório…" : entry.status === "error" ? "O relatório não pôde ser preparado." : incomplete;
 
   return (
-    <div className={styles.frame} data-report-overlay="">
+    <div className={styles.frame} data-report-overlay="" data-print-footer-scope="">
       <div ref={sheetRef} className={styles.sheet} data-fullscreen={fullscreen || undefined}>
         <header className={`${styles.header} print:hidden`}>
           <div className={styles.heading}>
@@ -122,6 +123,7 @@ function ReportSheet({ eyebrow, title, context, errorNote, load: loadReport, tit
         </header>
 
         <div className={styles.body}>
+          <PrintFooter />
           <p className="sr-only" role="status" aria-live="polite">
             {entry.status === "loading" ? "Preparando o relatório…" : entry.status === "ready" ? "Relatório pronto." : ""}
           </p>

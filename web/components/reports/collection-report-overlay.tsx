@@ -9,6 +9,7 @@ import type { PositionFilter } from "@/lib/colecoes/colecoes";
 import type { ChecklistReportData } from "@/lib/reports/checklist-queries";
 import { checklistKindLabel } from "@/lib/reports/collection-checklist";
 import { CHECKLIST_TITLE, ChecklistReportBody, checklistIdentity, checklistPrintReason } from "./collection-checklist-report";
+import { PrintFooter } from "./print-footer";
 import { ReportPrintButton } from "./report-print-button";
 import styles from "./report-overlay.module.css";
 
@@ -122,7 +123,7 @@ function ReportSheet({ collectionId, titleId, close }: { collectionId: string; t
   const printReason = data ? checklistPrintReason(data.load) : entry.status === "loading" ? "Preparando o checklist…" : "O checklist não pôde ser preparado.";
 
   return (
-    <div className={styles.frame} data-report-overlay="">
+    <div className={styles.frame} data-report-overlay="" data-print-footer-scope="">
       <div ref={sheetRef} className={styles.sheet} data-fullscreen={fullscreen || undefined}>
         <header className={`${styles.header} print:hidden`}>
           <div className={styles.heading}>
@@ -158,6 +159,7 @@ function ReportSheet({ collectionId, titleId, close }: { collectionId: string; t
         </header>
 
         <div className={styles.body}>
+          <PrintFooter />
           <p className="sr-only" role="status" aria-live="polite">
             {pending ? "Preparando o checklist…" : data ? "Checklist pronto." : ""}
           </p>

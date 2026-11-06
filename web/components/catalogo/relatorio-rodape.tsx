@@ -20,7 +20,7 @@
  */
 export function RelatorioRodape() {
   return (
-    <p className="px-6 pb-6 pt-4 text-center text-[8px] text-neutral-400 print:fixed print:inset-x-0 print:bottom-0 print:bg-white print:px-0 print:pb-2">
+    <p data-relatorio-rodape="" className="px-6 pb-6 pt-4 text-center text-[8px] text-neutral-400 print:fixed print:inset-x-0 print:bottom-0 print:bg-white print:px-0 print:pb-2">
       Gerado por MMKYU Collector em {new Date().toLocaleDateString("pt-BR")}
     </p>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import { Printer } from "lucide-react";
+import { stampPrintFooter } from "./print-footer";
 import styles from "./report.module.css";
 
 /**
@@ -21,6 +22,8 @@ export function ReportPrintButton({ ready, reason }: { ready: boolean; reason: s
         aria-describedby={!ready && reason ? "report-print-reason" : undefined}
         onClick={() => {
           if (!ready) return;
+          // Data/hora efetiva da impressão no rodapé institucional (o `beforeprint` regrava o mesmo texto).
+          stampPrintFooter();
           if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined).finally(() => window.print());
           else window.print();
         }}

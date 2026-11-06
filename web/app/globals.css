@@ -608,3 +608,98 @@
     display: block !important;
   }
 }
+
+/*
+ * Rodapé institucional de impressão dos relatórios contextuais (V1-14, INSTITUTIONAL PRINT FOOTER
+ * STANDARD-01; contrato D7 §2). Em toda página: data/hora da impressão (esquerda) · "Gerado por
+ * MMKYU Collector" (centro) · "Página X de Y" (direita), com a paginação REAL do navegador.
+ *
+ * Mecanismo — CSS Paged Media: página nomeada `mmkyu-relatorio` com caixas de margem
+ * (`@bottom-left/center/right`, Chrome/Edge 131+); `counter(page)`/`counter(pages)` são calculados
+ * pelo motor de impressão (nunca estimados). O rodapé vive na MARGEM inferior da folha (14mm), fora
+ * da área do conteúdo: não sobrepõe linhas nem gera página extra. A data/hora vem da regra dinâmica
+ * `<style id="mmkyu-print-stamp">` (`components/reports/print-footer.tsx`: ao abrir, no Imprimir e
+ * no `beforeprint`), que sobrepõe o `@bottom-left` vazio daqui.
+ *
+ * Escopo — só dentro de `[data-print-footer-scope]` (sobreposições do Acervo, de Minhas coleções e
+ * da coleção; rota direta do Checklist). A Central do Catálogo e o Pricing não mudam.
+ *
+ * Dois modos, decididos no navegador (`<html data-print-footer="paged">` só com suporte confirmado):
+ *   - paginado: as folhas usam a página nomeada; saem o rodapé fixo (`RelatorioRodape`), a reserva
+ *     de 12mm e, no Checklist, o rodapé no fluxo e a altura mínima da folha (a distribuição das
+ *     cartas por folha não muda — `checklistPaginasA4`);
+ *   - alternativo (sem a marca): reserva de 12mm e rodapé fixo com data/hora + "Gerado por MMKYU
+ *     Collector" (sem paginação); o Checklist mantém o rodapé homologado no fluxo ("Página X de Y").
+ * Nunca os dois rodapés ao mesmo tempo, nunca nenhum.
+ */
+@page mmkyu-relatorio {
+  size: A4;
+  margin: 10mm 10mm 14mm 10mm;
+
+  @bottom-left {
+    content: "";
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 8px;
+    color: #a3a3a3;
+    text-align: left;
+    vertical-align: middle;
+  }
+
+  @bottom-center {
+    content: "Gerado por MMKYU Collector";
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 8px;
+    color: #a3a3a3;
+    text-align: center;
+    vertical-align: middle;
+  }
+
+  @bottom-right {
+    content: "Página " counter(page) " de " counter(pages);
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 8px;
+    color: #a3a3a3;
+    text-align: right;
+    vertical-align: middle;
+  }
+}
+
+@media print {
+  /* Escopo: o rodapé fixo genérico dá lugar ao institucional (paginado ou alternativo). */
+  [data-print-footer-scope] [data-relatorio-rodape] {
+    display: none !important;
+  }
+
+  /* Modo paginado (Chrome/Edge 131+ confirmado). */
+  html[data-print-footer="paged"] [data-print-footer-scope] .relatorio-folha {
+    page: mmkyu-relatorio;
+    padding-bottom: 0 !important;
+  }
+
+  html[data-print-footer="paged"] [data-print-footer-scope] [data-checklist-rodape] {
+    display: none !important;
+  }
+
+  html[data-print-footer="paged"] [data-print-footer-scope] [data-checklist-folha] {
+    min-height: 0 !important;
+  }
+
+  /* Modo alternativo: data/hora + identificação, fixo no pé de cada folha (reserva de 12mm acima). */
+  html:not([data-print-footer="paged"]) [data-print-footer-scope] [data-print-footer-fallback] {
+    display: grid !important;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 1rem;
+    position: fixed !important;
+    inset: auto 0 0 0 !important;
+    padding: 0 0 0.5rem !important;
+    background: #fff !important;
+    font-size: 8px;
+    color: #a3a3a3;
+  }
+
+  /* O Checklist já traz o rodapé homologado no fluxo de cada folha: sem duplicar. */
+  html:not([data-print-footer="paged"]) [data-print-footer-scope]:has([data-checklist-folha]) [data-print-footer-fallback] {
+    display: none !important;
+  }
+}

@@ -18,6 +18,7 @@ import {
   checklistHref,
   checklistKindLabel,
 } from "@/lib/reports/collection-checklist";
+import { PrintFooter } from "./print-footer";
 import { ReportPrintButton } from "./report-print-button";
 import styles from "./report.module.css";
 
@@ -74,7 +75,8 @@ export function CollectionChecklistReport({
 }) {
   const ready = load.status === "ready" && load.complete;
   return (
-    <div className={styles.root}>
+    <div className={styles.root} data-print-footer-scope="">
+      <PrintFooter />
       <div className="print:hidden">
         <div className={styles.topBar}>
           <Link href={collectionHref(collection.id)} className={styles.backLink}>
