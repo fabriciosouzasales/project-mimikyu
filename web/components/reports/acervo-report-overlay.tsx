@@ -1,10 +1,11 @@
 "use client";
 
 import { Library } from "lucide-react";
-import { readSetInventoryReport, readSetSummaryReport } from "@/app/colecoes/acervo/relatorios/actions";
+import { readAcervoValueReport, readSetInventoryReport, readSetSummaryReport } from "@/app/colecoes/acervo/relatorios/actions";
 import { type AcervoReportId, acervoReport } from "@/lib/reports/acervo-reports";
 import { setInventoryIncompleteText } from "@/lib/reports/acervo-set-inventory";
 import { setSummaryIncompleteText } from "@/lib/reports/acervo-set-summary";
+import { AcervoValueSheet } from "./acervo-value-report";
 import { AcervoSetInventorySheet } from "./acervo-set-inventory-report";
 import { AcervoSetSummarySheet } from "./acervo-set-summary-report";
 import { type ReportSheetEntry, ReportSheetOverlay } from "./report-sheet-overlay";
@@ -18,6 +19,17 @@ function loadReport(report: AcervoReportId): Promise<ReportSheetEntry> {
             status: "ready",
             incomplete: setInventoryIncompleteText(r.data.report.incompleteReason),
             sheet: <AcervoSetInventorySheet report={r.data.report} issuedAt={r.data.issuedAt} />,
+          }
+        : { status: "error" },
+    );
+  }
+  if (report === "value") {
+    return readAcervoValueReport().then((r) =>
+      r.status === "ready"
+        ? {
+            status: "ready",
+            incomplete: setInventoryIncompleteText(r.data.report.incompleteReason),
+            sheet: <AcervoValueSheet report={r.data.report} issuedAt={r.data.issuedAt} />,
           }
         : { status: "error" },
     );
@@ -36,7 +48,8 @@ function loadReport(report: AcervoReportId): Promise<ReportSheetEntry> {
 /**
  * V1-14 R1-B — relatório do Meu acervo em SOBREPOSIÇÃO: 01 "Inventário resumido por Card Set"
  * (`readSetSummaryReport`: 5160/5159) e 02 "Inventário detalhado por Card Set"
- * (`readSetInventoryReport`: 5160/5159/3983) — só o titular, somente leitura. Casca, cabeçalho
+ * (`readSetInventoryReport`: 5160/5159/3989) e 03 "Valor estimado total" (R1-C, `readAcervoValueReport`:
+ * mesma leitura do 02, projetada por Card Set) — só o titular, somente leitura. Casca, cabeçalho
  * funcional e impressão: `ReportSheetOverlay`.
  */
 export function AcervoReportOverlay({ report, onClose }: { report: AcervoReportId; onClose: () => void }) {

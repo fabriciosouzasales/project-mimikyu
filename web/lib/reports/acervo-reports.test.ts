@@ -32,25 +32,28 @@ test("catálogo: nove relatórios independentes, na ordem aprovada; os dois inve
     ],
   );
   assert.equal(new Set(ACERVO_REPORT_CATALOG.map((e) => e.id)).size, 9);
-  assert.deepEqual(ACERVO_REPORT_CATALOG.filter((e) => e.implemented).map((e) => e.id), ["inventory-summary", "inventory-sets"]);
+  assert.deepEqual(ACERVO_REPORT_CATALOG.filter((e) => e.implemented).map((e) => e.id), ["inventory-summary", "inventory-sets", "value"]);
   assert.ok(ACERVO_REPORT_CATALOG.every((e) => !/coleção/i.test(e.title))); // análise por coleção mora em Minhas coleções
 });
 
-test("menu do acervo: os dois inventários por Card Set abrem; os demais numa única linha indisponível", () => {
+test("menu do acervo: inventários por Card Set e Valor estimado total abrem; os demais numa única linha indisponível", () => {
   const items = acervoReportMenuItems({ totalCopies: 3 });
   assert.deepEqual(
     items.map((i) => [i.id, i.label, i.icon]),
     [
       ["inventory-summary", "Inventário resumido por Card Set", "inventory"],
       ["inventory-sets", "Inventário detalhado por Card Set", "inventory-sets"],
-      ["upcoming", "7 relatórios em preparação", "upcoming"],
+      ["value", "Valor estimado total", "value"],
+      ["upcoming", "6 relatórios em preparação", "upcoming"],
     ],
   );
   assert.equal(items[0]?.disabledReason, null);
   assert.equal(items[1]?.disabledReason, null);
-  assert.ok(items[2]?.disabledReason);
+  assert.equal(items[2]?.disabledReason, null);
+  assert.ok(items[3]?.disabledReason);
+  assert.doesNotMatch(items[3]?.disabledReason ?? "", /Valor/);
   const empty = acervoReportMenuItems({ totalCopies: 0 }); // acervo vazio
-  assert.ok(empty[0]?.disabledReason && empty[1]?.disabledReason);
+  assert.ok(empty[0]?.disabledReason && empty[1]?.disabledReason && empty[2]?.disabledReason);
 });
 
 const g = (set: string, copies: number) => ({ cardSetCode: set, cardSetName: `Set ${set}`, copies });

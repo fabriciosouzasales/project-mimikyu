@@ -1,8 +1,10 @@
 "use server";
 
 import {
+  type AcervoValueReportLoad,
   type SetInventoryReportLoad,
   type SetSummaryReportLoad,
+  getAcervoValueReport,
   getSetInventoryReport,
   getSetSummaryReport,
 } from "@/lib/reports/acervo-set-inventory-queries";
@@ -43,6 +45,25 @@ export async function readSetInventoryReport(): Promise<SetInventoryReportLoad> 
     return await getSetInventoryReport(supabase);
   } catch (error) {
     console.error("[reports] readSetInventoryReport falhou", { message: error instanceof Error ? error.message : "unknown" });
+    return { status: "error" };
+  }
+}
+
+/**
+ * V1-14 R1-C — dados do relatório 03, "Valor estimado total": a mesma leitura do 02 (5160, 5159,
+ * 3989 — dono por `auth.uid()`), projetada por Card Set. Nenhum identificador do cliente, somente
+ * leitura, sem SQL nova.
+ */
+export async function readAcervoValueReport(): Promise<AcervoValueReportLoad> {
+  const {
+    data: { user },
+  } = await getCachedUser();
+  if (!user) return { status: "error" };
+  const supabase = await createClient();
+  try {
+    return await getAcervoValueReport(supabase);
+  } catch (error) {
+    console.error("[reports] readAcervoValueReport falhou", { message: error instanceof Error ? error.message : "unknown" });
     return { status: "error" };
   }
 }

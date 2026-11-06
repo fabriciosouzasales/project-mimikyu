@@ -1,5 +1,5 @@
 /**
- * V1-14 R1-B — Relatórios do Meu acervo: catálogo aprovado (9 relatórios independentes, cada um
+ * V1-14 R1-B/R1-C — Relatórios do Meu acervo: catálogo aprovado (9 relatórios independentes, cada um
  * com finalidade, tela e folha próprias) e utilitários compartilhados pelas folhas de relatório
  * do acervo e de Minhas coleções. Sem banco, sem rede.
  *
@@ -43,7 +43,12 @@ export const ACERVO_REPORT_CATALOG: readonly AcervoReportEntry[] = [
     purpose: "Todo o acervo físico por Card Set, com quantidades e referência NM.",
     implemented: true,
   },
-  { id: "value", title: "Valor estimado total", purpose: "Soma da referência NM por exemplar, com cobertura.", implemented: false },
+  {
+    id: "value",
+    title: "Valor estimado total",
+    purpose: "Valor estimado dos exemplares cotados (referência NM), por Card Set, com cobertura.",
+    implemented: true,
+  },
   { id: "favorites", title: "Minhas favoritas", purpose: "Cartas favoritas e valor de referência.", implemented: false },
   { id: "wishlist", title: "Minha Lista de Desejos", purpose: "Desejos e valor de referência.", implemented: false },
   { id: "top", title: "Top 10 cartas mais valiosas", purpose: "Exemplares de maior referência NM.", implemented: false },
@@ -56,7 +61,7 @@ export function acervoReport(id: AcervoReportId): AcervoReportEntry {
   return ACERVO_REPORT_CATALOG.find((entry) => entry.id === id)!;
 }
 
-const MENU_ICON: Partial<Record<AcervoReportId, ReportMenuIcon>> = { "inventory-sets": "inventory-sets" };
+const MENU_ICON: Partial<Record<AcervoReportId, ReportMenuIcon>> = { "inventory-sets": "inventory-sets", value: "value" };
 
 /**
  * Menu "Do acervo": os relatórios implementados abrem; os aprovados ainda não implementados
@@ -80,7 +85,7 @@ export function acervoReportMenuItems(input: { totalCopies: number }): ReportMen
       icon: "upcoming",
       href: null,
       metric: null,
-      disabledReason: "Valor, favoritas, desejos, Top 10, repetidas, distribuição e cobertura.",
+      disabledReason: "Favoritas, desejos, Top 10, repetidas, distribuição e cobertura.",
     });
   }
   return items;

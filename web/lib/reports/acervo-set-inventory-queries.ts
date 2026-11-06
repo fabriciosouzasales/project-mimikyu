@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { chunkVariantIds, parseVariantPrices } from "../pricing/variant-pricing.ts";
 import type { InventorySummaryInput } from "./acervo-reports.ts";
 import { type SetSummaryReport, buildSetSummaryReport } from "./acervo-set-summary.ts";
+import { type AcervoValueReport, buildAcervoValueReport } from "./acervo-value.ts";
 import { type SetInventoryItemInput, type SetInventoryPriceInput, type SetInventoryReport, buildSetInventoryReport } from "./acervo-set-inventory.ts";
 import { issuedAtLabel } from "./collection-checklist.ts";
 
@@ -12,7 +13,7 @@ export const SET_INVENTORY_MAX_ITEMS = 5000;
 /** Leituras simultâneas das páginas da 5159 (leves). */
 const PAGE_PARALLEL = 6;
 /**
- * Leituras simultâneas da 3983 (preços, até 100 variantes cada). Duas, não seis: chamadas
+ * Leituras simultâneas da 3989 (preços, até 100 variantes cada). Duas, não seis: chamadas
  * paralelas disputam a mesma CPU do banco e cada uma pode estourar o statement_timeout de 8 s
  * do papel authenticated (57014) — diagnóstico R1-B INVENTORY PERFORMANCE DIAGNOSIS-01.
  */
@@ -22,6 +23,8 @@ export type SetInventoryReportData = { report: SetInventoryReport; issuedAt: str
 export type SetInventoryReportLoad = { status: "ready"; data: SetInventoryReportData } | { status: "error" };
 export type SetSummaryReportData = { report: SetSummaryReport; issuedAt: string };
 export type SetSummaryReportLoad = { status: "ready"; data: SetSummaryReportData } | { status: "error" };
+export type AcervoValueReportData = { report: AcervoValueReport; issuedAt: string };
+export type AcervoValueReportLoad = { status: "ready"; data: AcervoValueReportData } | { status: "error" };
 
 type Rpc = Pick<SupabaseClient, "rpc">;
 
@@ -132,29 +135,27 @@ async function readInventoryItems(supabase: Rpc): Promise<ItemsRead> {
   };
 }
 
-/**
- * V1-14 R1-B — relatório 02, "Inventário detalhado por Card Set": leitura comum + 3983
- * (referência NM por variante, blocos de 100). Falha em qualquer leitura ou resposta fora do
- * contrato → erro (nunca relatório parcial apresentado como inteiro).
- */
-export async function getSetInventoryReport(supabase: Rpc, now: Date = new Date()): Promise<SetInventoryReportLoad> {
-  const startedAt = Date.now();
-  const fail = (stage: string, code?: string) => {
-    console.error("[reports] inventário detalhado por Card Set falhou", { stage, code: code ?? "BAD_SHAPE", ms: Date.now() - startedAt });
-    return { status: "error" } as const;
-  };
+type InventoryRead = { status: "ok"; report: SetInventoryReport; total: number } | { status: "error"; stage: string; code?: string };
 
+/**
+ * Leitura e cálculo do inventário por Card Set com preços: leitura comum + 3989
+ * (`get_card_variants_pricing_summary`, referência NM por variante, blocos de 100, no máximo
+ * `PRICE_PARALLEL` chamadas simultâneas). Compartilhada pelo relatório 02 (detalhado) e pelo 03
+ * (Valor estimado total) — uma única regra monetária (`buildSetInventoryReport`, centavos).
+ * Falha em qualquer leitura ou resposta fora do contrato → erro (nunca resultado parcial).
+ */
+async function readPricedInventory(supabase: Rpc): Promise<InventoryRead> {
   const read = await readInventoryItems(supabase);
-  if (read.status === "error") return fail(read.stage, read.code);
+  if (read.status === "error") return read;
   const { items } = read;
 
   const prices = new Map<string, SetInventoryPriceInput>();
   const chunks = chunkVariantIds(items.map((item) => item.cardVariantId));
   const priceReads = await inBatches(chunks.map((chunk) => () => supabase.rpc("get_card_variants_pricing_summary", { p_card_variant_ids: chunk })), PRICE_PARALLEL);
   for (const priceRead of priceReads) {
-    if (priceRead.error) return fail("prices", priceRead.error.code);
+    if (priceRead.error) return { status: "error", stage: "prices", code: priceRead.error.code };
     const parsed = parseVariantPrices(priceRead.data);
-    if (!parsed) return fail("prices");
+    if (!parsed) return { status: "error", stage: "prices" };
     for (const [id, price] of parsed) {
       if (price.hasPricing && price.brlAmount !== null && price.brlAmount > 0) {
         prices.set(id, { brl: price.brlAmount, basis: price.basis, observedAt: price.observedAt });
@@ -163,7 +164,35 @@ export async function getSetInventoryReport(supabase: Rpc, now: Date = new Date(
   }
 
   const report = buildSetInventoryReport({ summary: read.summary, items, prices, itemsComplete: read.complete });
+  return { status: "ok", report, total: read.total };
+}
+
+/** V1-14 R1-B — relatório 02, "Inventário detalhado por Card Set". */
+export async function getSetInventoryReport(supabase: Rpc, now: Date = new Date()): Promise<SetInventoryReportLoad> {
+  const startedAt = Date.now();
+  const read = await readPricedInventory(supabase);
+  if (read.status === "error") {
+    console.error("[reports] inventário detalhado por Card Set falhou", { stage: read.stage, code: read.code ?? "BAD_SHAPE", ms: Date.now() - startedAt });
+    return { status: "error" };
+  }
+  const { report } = read;
   if (!report.complete) console.warn("[reports] inventário detalhado por Card Set incompleto", { reason: report.incompleteReason, total: read.total });
+  return { status: "ready", data: { report, issuedAt: issuedAtLabel(now) } };
+}
+
+/**
+ * V1-14 R1-C — relatório 03, "Valor estimado total": a mesma leitura e regra monetária do 02,
+ * projetada por Card Set (`buildAcervoValueReport`). Sem SQL nova; só o titular.
+ */
+export async function getAcervoValueReport(supabase: Rpc, now: Date = new Date()): Promise<AcervoValueReportLoad> {
+  const startedAt = Date.now();
+  const read = await readPricedInventory(supabase);
+  if (read.status === "error") {
+    console.error("[reports] valor estimado total falhou", { stage: read.stage, code: read.code ?? "BAD_SHAPE", ms: Date.now() - startedAt });
+    return { status: "error" };
+  }
+  const report = buildAcervoValueReport(read.report);
+  if (!report.complete) console.warn("[reports] valor estimado total incompleto", { reason: report.incompleteReason, total: read.total });
   return { status: "ready", data: { report, issuedAt: issuedAtLabel(now) } };
 }
 
