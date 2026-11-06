@@ -1,0 +1,108 @@
+/**
+ * V1-14 R1-B — Relatórios do Meu acervo: catálogo aprovado (9 relatórios independentes, cada um
+ * com finalidade, tela e folha próprias) e utilitários compartilhados pelas folhas de relatório
+ * do acervo e de Minhas coleções. Sem banco, sem rede.
+ *
+ * Desde `CONTEXTUAL REPORT REALIGNMENT-05` o Meu acervo organiza seus inventários por Card Set do
+ * catálogo: 01 "Inventário resumido por Card Set" (`acervo-set-summary.ts`) e 02 "Inventário
+ * detalhado por Card Set" (`acervo-set-inventory.ts`). A análise por coleção do usuário,
+ * "Distribuição do Acervo por coleção", pertence a Minhas coleções (`library-reports.ts`,
+ * `collection-distribution.ts`).
+ */
+import type { ReportMenuIcon, ReportMenuItem } from "./collection-checklist.ts";
+
+export type AcervoReportId =
+  | "inventory-summary"
+  | "inventory-sets"
+  | "value"
+  | "favorites"
+  | "wishlist"
+  | "top"
+  | "duplicates"
+  | "distribution"
+  | "coverage";
+
+export type AcervoReportEntry = {
+  id: AcervoReportId;
+  title: string;
+  purpose: string;
+  implemented: boolean;
+};
+
+/** Catálogo aprovado (ordem do contrato D7 §4b). Só `implemented` abre; o resto é "em preparação". */
+export const ACERVO_REPORT_CATALOG: readonly AcervoReportEntry[] = [
+  {
+    id: "inventory-summary",
+    title: "Inventário resumido por Card Set",
+    purpose: "Exemplares, cartas diferentes e repetidas de cada Card Set do acervo.",
+    implemented: true,
+  },
+  {
+    id: "inventory-sets",
+    title: "Inventário detalhado por Card Set",
+    purpose: "Todo o acervo físico por Card Set, com quantidades e referência NM.",
+    implemented: true,
+  },
+  { id: "value", title: "Valor estimado total", purpose: "Soma da referência NM por exemplar, com cobertura.", implemented: false },
+  { id: "favorites", title: "Minhas favoritas", purpose: "Cartas favoritas e valor de referência.", implemented: false },
+  { id: "wishlist", title: "Minha Lista de Desejos", purpose: "Desejos e valor de referência.", implemented: false },
+  { id: "top", title: "Top 10 cartas mais valiosas", purpose: "Exemplares de maior referência NM.", implemented: false },
+  { id: "duplicates", title: "Cartas repetidas", purpose: "Exemplares além do primeiro de cada carta.", implemented: false },
+  { id: "distribution", title: "Distribuição por Set, raridade e idioma", purpose: "Como o acervo se divide.", implemented: false },
+  { id: "coverage", title: "Cobertura de preços", purpose: "Exemplares com e sem cotação.", implemented: false },
+];
+
+export function acervoReport(id: AcervoReportId): AcervoReportEntry {
+  return ACERVO_REPORT_CATALOG.find((entry) => entry.id === id)!;
+}
+
+const MENU_ICON: Partial<Record<AcervoReportId, ReportMenuIcon>> = { "inventory-sets": "inventory-sets" };
+
+/**
+ * Menu "Do acervo": os relatórios implementados abrem; os aprovados ainda não implementados
+ * aparecem numa única linha indisponível (nunca como se existissem), para o menu seguir compacto.
+ */
+export function acervoReportMenuItems(input: { totalCopies: number }): ReportMenuItem[] {
+  const ready = ACERVO_REPORT_CATALOG.filter((entry) => entry.implemented);
+  const upcoming = ACERVO_REPORT_CATALOG.filter((entry) => !entry.implemented);
+  const items: ReportMenuItem[] = ready.map((entry) => ({
+    id: entry.id,
+    label: entry.title,
+    icon: MENU_ICON[entry.id] ?? "inventory",
+    href: null,
+    metric: null,
+    disabledReason: input.totalCopies > 0 ? null : "Adicione cartas ao acervo para gerar o relatório.",
+  }));
+  if (upcoming.length > 0) {
+    items.push({
+      id: "upcoming",
+      label: `${upcoming.length} relatórios em preparação`,
+      icon: "upcoming",
+      href: null,
+      metric: null,
+      disabledReason: "Valor, favoritas, desejos, Top 10, repetidas, distribuição e cobertura.",
+    });
+  }
+  return items;
+}
+
+/** Resumo canônico do acervo (5160): diferentes = Card Variant + idioma; repetidas = cópias além da primeira. */
+export type InventorySummaryInput = { totalCopies: number; distinctItems: number; distinctSets: number; duplicateCopies: number };
+
+const NUMBER = new Intl.NumberFormat("pt-BR");
+
+export function formatCount(n: number): string {
+  return NUMBER.format(n);
+}
+
+export function plural(n: number, one: string, many: string): string {
+  return `${formatCount(n)} ${n === 1 ? one : many}`;
+}
+
+/** Participação no acervo, truncada (nunca arredonda para 100% sem ser o total); "<1%" se mínima. */
+export function shareText(part: number, total: number): string {
+  if (total <= 0) return "—";
+  if (part === total) return "100%";
+  const floor = Math.floor((part / total) * 100);
+  return part > 0 && floor === 0 ? "<1%" : `${floor}%`;
+}

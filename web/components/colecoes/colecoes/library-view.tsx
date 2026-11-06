@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AlertTriangle, Archive, ArrowLeft, Layers, ShieldCheck, TrendingUp } from "lucide-react";
 import { libraryItemHref, sharedOwnerText } from "@/lib/colecoes/shared-library";
+import { LibraryReportsAction } from "@/components/reports/library-reports-action";
 import { Button } from "@/components/ui/button";
 import { formatCount } from "@/lib/colecoes/acervo";
 import {
@@ -159,6 +160,13 @@ export function LibraryView({
           <span className={acervoStyles.numeral} aria-hidden="true">
             {formatCount(page.total)}
           </span>
+        ) : null}
+        {/* V1-14 R1-B: "Relatórios" de Minhas coleções no canto superior direito do cabeçalho, como
+            no Meu acervo e na coleção (cápsula de vidro, relatório em sobreposição). */}
+        {page !== null ? (
+          <div className={acervoStyles.heroBar}>
+            <LibraryReportsAction />
+          </div>
         ) : null}
         <div className={acervoStyles.heroContent}>
           <h1 className={acervoStyles.title}>Minhas coleções</h1>

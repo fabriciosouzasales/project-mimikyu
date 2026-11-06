@@ -94,6 +94,19 @@
   color: hsl(var(--foreground) / 0.085);
 }
 
+/* Barra do topo do hero (V1-14 R1-B): ações do módulo à direita, no mesmo lugar e
+   alinhamento da barra da página da coleção (collection-manage .heroBar). O menu de
+   Relatórios abre em portal — nunca é cortado pelo overflow do hero. */
+.heroBar {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
 .heroContent {
   position: relative;
   max-width: 44rem;

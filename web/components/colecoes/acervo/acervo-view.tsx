@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AlertTriangle, Box, Globe, Layers, MapPinOff, PackageOpen, SearchX, X } from "lucide-react";
+import { AcervoReportsAction } from "@/components/reports/acervo-reports-action";
 import { Button } from "@/components/ui/button";
 import {
   type AcervoState,
@@ -150,6 +151,13 @@ export function AcervoView({
           <span className={styles.numeral} aria-hidden="true">
             {formatCount(summary.totalCopies)}
           </span>
+        ) : null}
+        {/* V1-14 R1-B: "Relatórios" no canto superior direito do cabeçalho, como na página da
+            coleção (barra do topo do hero); cápsula de vidro da R1-A, relatório em sobreposição. */}
+        {summary && !isEmptyAcervo ? (
+          <div className={styles.heroBar}>
+            <AcervoReportsAction totalCopies={summary.totalCopies} />
+          </div>
         ) : null}
         <div className={styles.heroContent}>
           <h1 className={styles.title}>Meu acervo</h1>

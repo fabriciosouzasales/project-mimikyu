@@ -1,0 +1,509 @@
+/*
+================================================================
+Projeto.....: Project Mimikyu
+Query.......: 5880 - Harness: equivalência e desempenho da 3989
+              (get_card_variants_pricing_summary otimizada) contra a 3983
+Versão......: 1.0
+Status......: PROPOSTO — NÃO EXECUTADO (R1-B PRICING PERFORMANCE CORRECTION-01)
+Autor.......: Fabrício Sales / Claude
+Data........: 2026-11-06
+
+Protocolo (o mesmo da 5876–5879): funções em pg_temp, UMA chamada
+(select * from pg_temp.tr_5880_validate()). Executar SÓ depois da 3989.
+  - Referência imutável: pg_temp.ref_3983_get_card_variants_pricing_summary é a
+    definição ANTERIOR, copiada byte a byte da 3983 (0.1 confere o md5 do corpo,
+    de9088a98c8e09a8b65180286a50547e). Mesmos atributos (SECURITY DEFINER, STABLE,
+    search_path vazio). Só existe nesta sessão.
+  - Fixtures de Pricing (observações sintéticas, um produto desativado) ficam dentro
+    do bloco com sentinela TR000: tudo é desfeito antes das demais checagens.
+  - A comparação no conjunto real roda com a transação em SOMENTE LEITURA
+    (transaction_read_only = on): qualquer escrita das funções abortaria (25006).
+  - 10.1 confere, depois de tudo, que as tabelas de Pricing, catálogo e acervo
+    estão exatamente como antes (contagens e somas de controle).
+Comparação: linha a linha, TODAS as 11 colunas, EXCEPT ALL nos dois sentidos.
+
+Checagens (GATE = todas PASS, 20):
+  0.1  referência = corpo exato da 3983 (md5)
+  0.2  função pública = corpo exato da 3989 (md5) — senão a 3989 não foi aplicada
+  0.3  contrato idêntico: argumentos, colunas/tipos de retorno, plpgsql,
+       SECURITY DEFINER, STABLE, search_path vazio
+  7.1  ACL: EXECUTE só authenticated (anon e PUBLIC sem acesso)
+  7.2  anon → 42501; authenticated sem identidade → 28000
+  7.3  validação de entrada idêntica à referência (NULL, vazio, 2-D, 101 ids)
+  2.1  variante com vários produtos e observações (fixture): idêntica, VARIANT
+  2.2  empate de observed_at → created_at DESC decide (produto diferente)
+  2.3  empate de observed_at e created_at → id DESC decide
+  6.1  observações inelegíveis mais novas (condição LP; tipo LOW) ignoradas
+  6.2  produto inativo ignorado (o preço passa ao outro produto)
+  5.1  conversão USD → BRL pela PTAX da data (≤) da observação
+  5.2  observação em BRL: valor sem conversão
+  4.1  moeda sem câmbio (EUR) → fallback por carta, idêntico à referência
+  3.1  preço ausente, id inexistente e id repetido: idênticos
+  1.1  conjunto real (variantes do acervo de todos os usuários + variantes com
+       vários produtos, com produto inativo e sem produto): 0 divergências
+  8.1  equivalência monetária: Σ brl_amount, Σ source_amount e contagem por
+       price_basis idênticas
+  9.1  desempenho: pior lote de 100 da 3989 < 8.000 ms (statement_timeout)
+       e total da 3989 ≤ 110% do total da referência (tolerância a ruído; informa os dois)
+  7.4  isolamento: resultado não depende do usuário (identidades A e B iguais)
+  10.1 nenhuma alteração de dados (somas de controle antes = depois) e
+       chamadas em transação somente leitura sem erro
+Erro inesperado: X.1 FAIL. Fixture impossível: TR_FIXTURE (X.1).
+================================================================
+*/
+
+-- Referência imutável: definição ANTERIOR (3983), byte a byte.
+create or replace function pg_temp.ref_3983_get_card_variants_pricing_summary(p_card_variant_ids uuid[])
+returns table (
+  card_variant_id uuid,
+  card_id uuid,
+  has_pricing boolean,
+  brl_amount numeric,
+  source_amount numeric,
+  source_currency text,
+  fx_status text,
+  printing_label text,
+  price_basis text,
+  price_origin text,
+  observed_at timestamptz
+)
+language plpgsql
+stable security definer
+set search_path to ''
+as $function$
+DECLARE
+  v_raw_count integer;
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'VARIANT_PRICING_SUMMARY_REQUIRES_AUTHENTICATION' USING ERRCODE = '28000';
+  END IF;
+  IF p_card_variant_ids IS NULL THEN
+    RAISE EXCEPTION 'VARIANT_PRICING_SUMMARY_EMPTY_INPUT' USING ERRCODE = '22023';
+  END IF;
+  v_raw_count := cardinality(p_card_variant_ids);
+  IF v_raw_count = 0 THEN
+    RAISE EXCEPTION 'VARIANT_PRICING_SUMMARY_EMPTY_INPUT' USING ERRCODE = '22023';
+  END IF;
+  IF array_ndims(p_card_variant_ids) <> 1 THEN
+    RAISE EXCEPTION 'VARIANT_PRICING_SUMMARY_INVALID_PAYLOAD_SHAPE' USING ERRCODE = '22023';
+  END IF;
+  IF v_raw_count > 100 THEN
+    RAISE EXCEPTION 'VARIANT_PRICING_SUMMARY_TOO_MANY_IDS' USING ERRCODE = '22023';
+  END IF;
+
+  RETURN QUERY
+  WITH v AS (
+    SELECT cv.id AS card_variant_id, cv.card_id, c.price, c.currency_code, c.source_printing_label, c.observed_at,
+           (c.price IS NOT NULL AND (c.currency_code = 'BRL' OR fx.rate IS NOT NULL)) AS usable,
+           CASE WHEN c.currency_code = 'BRL' THEN c.price
+                WHEN fx.rate IS NOT NULL THEN round(c.price * fx.rate, 2) END AS brl
+      FROM (SELECT DISTINCT x FROM unnest(p_card_variant_ids) AS x) i
+      JOIN public.card_variant cv ON cv.id = i.x
+      LEFT JOIN LATERAL (
+        SELECT po.price, po.currency_code, po.observed_at, pp.source_printing_label
+          FROM public.pricing_product pp
+          JOIN public.pricing_card_mapping pcm
+            ON pcm.id = pp.pricing_card_mapping_id AND pcm.match_status = 'CONFIRMED' AND pcm.card_id = cv.card_id
+          JOIN public.pricing_source ps ON ps.id = pcm.pricing_source_id AND ps.is_active
+          JOIN public.pricing_source_card_identity psci
+            ON psci.id = pp.pricing_source_card_identity_id
+           AND psci.identity_role = 'PRIMARY' AND psci.match_status = 'CONFIRMED'
+          JOIN public.pricing_observation po ON po.pricing_product_id = pp.id AND po.price_type = 'MARKET'
+          JOIN public.card_condition cc ON cc.id = po.condition_id AND cc.code = 'NM'
+         WHERE pp.card_variant_id = cv.id AND pp.is_active
+         ORDER BY po.observed_at DESC, po.created_at DESC, po.id DESC
+         LIMIT 1
+      ) c ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT r.rate FROM public.pricing_fx_rate r
+         WHERE c.currency_code = 'USD' AND r.from_currency = 'USD' AND r.to_currency = 'BRL'
+           AND r.rate_source_code = 'BCB_PTAX'
+           AND r.rate_date <= (c.observed_at AT TIME ZONE 'UTC')::date
+         ORDER BY r.rate_date DESC LIMIT 1
+      ) fx ON TRUE
+  ),
+  fb_ids AS (
+    SELECT array_agg(DISTINCT v.card_id) AS ids FROM v WHERE NOT v.usable
+  ),
+  fb AS (
+    SELECT s.* FROM (SELECT ids FROM fb_ids WHERE ids IS NOT NULL) f
+    CROSS JOIN LATERAL public.get_cards_pricing_summary(f.ids) s
+  )
+  SELECT
+    v.card_variant_id,
+    v.card_id,
+    CASE WHEN v.usable THEN TRUE ELSE COALESCE(fb.has_pricing, FALSE) END,
+    CASE WHEN v.usable THEN v.brl ELSE fb.brl_amount END,
+    CASE WHEN v.usable THEN v.price END,
+    CASE WHEN v.usable THEN v.currency_code END,
+    CASE WHEN v.usable THEN 'CONVERTED'
+         WHEN fb.fx_status IS NOT NULL THEN fb.fx_status
+         WHEN v.price IS NOT NULL THEN 'FX_RATE_UNAVAILABLE' END,
+    CASE WHEN v.usable THEN v.source_printing_label ELSE fb.printing_label END,
+    CASE WHEN v.usable THEN 'VARIANT' WHEN fb.has_pricing THEN 'CARD_FALLBACK' END,
+    CASE WHEN v.usable THEN 'AUTOMATIC' ELSE fb.price_origin END,
+    CASE WHEN v.usable THEN v.observed_at END
+  FROM v
+  LEFT JOIN fb ON fb.card_id = v.card_id;
+END;
+$function$;
+
+-- Diferença linha a linha (todas as colunas, multiconjunto) entre referência e 3989.
+create or replace function pg_temp.h5880_diff(p_ids uuid[])
+returns integer
+language sql
+volatile
+as $$
+  select count(*)::integer from (
+    (select * from pg_temp.ref_3983_get_card_variants_pricing_summary(p_ids)
+     except all
+     select * from public.get_card_variants_pricing_summary(p_ids))
+    union all
+    (select * from public.get_card_variants_pricing_summary(p_ids)
+     except all
+     select * from pg_temp.ref_3983_get_card_variants_pricing_summary(p_ids))
+  ) d
+$$;
+
+-- Somas de controle (Pricing, catálogo de variantes e acervo).
+create or replace function pg_temp.h5880_fingerprint()
+returns text
+language sql
+stable
+as $$
+  select concat_ws('|',
+    (select count(*)::text || ':' || coalesce(sum(price)::text, '') || ':' || coalesce(max(created_at)::text, '') from public.pricing_observation),
+    (select count(*)::text || ':' || count(*) filter (where is_active)::text || ':' || coalesce(sum(hashtext(id::text || is_active::text || coalesce(card_variant_id::text, '')))::text, '') from public.pricing_product),
+    (select count(*)::text || ':' || coalesce(sum(rate)::text, '') from public.pricing_fx_rate),
+    (select count(*)::text || ':' || coalesce(sum(hashtext(id::text || match_status))::text, '') from public.pricing_card_mapping),
+    (select count(*)::text from public.pricing_source_card_identity),
+    (select count(*)::text from public.card_variant),
+    (select count(*)::text from public.card_condition),
+    (select count(*)::text from public.physical_card))
+$$;
+
+create or replace function pg_temp.tr_5880_validate()
+returns table (seq integer, check_id text, status text, detail text)
+language plpgsql
+volatile
+as $fn$
+#variable_conflict use_column
+declare
+  v_ref     oid := to_regprocedure('pg_temp.ref_3983_get_card_variants_pricing_summary(uuid[])');
+  v_new     oid := to_regprocedure('public.get_card_variants_pricing_summary(uuid[])');
+  p_user_a  uuid := gen_random_uuid();
+  p_user_b  uuid := gen_random_uuid();
+  v_fp0     text;
+  v_nm      uuid;
+  v_lp      uuid;
+  v_vm      uuid;
+  v_prods   uuid[];
+  v_p1      uuid;
+  v_p2      uuid;
+  v_vmiss   uuid;
+  v_t       timestamptz;
+  v_c       timestamptz := now();
+  v_rate    numeric;
+  v_ids     uuid[];
+  v_univ    uuid[];
+  v_batch   uuid[];
+  v_d       integer;
+  v_s       text[];
+  v_a       text;
+  v_b       text;
+  v_ok      boolean;
+  r_new     record;
+  r_ref     record;
+  v_t0      timestamptz;
+  v_ms_ref  numeric := 0;
+  v_ms_new  numeric := 0;
+  v_ms      numeric;
+  v_max_new numeric := 0;
+  v_diff    integer := 0;
+  v_i       integer;
+  v_n       integer;
+  res       jsonb := '[]'::jsonb;
+  r         jsonb;
+  n         integer := 0;
+  passes    integer := 0;
+begin
+  v_fp0 := pg_temp.h5880_fingerprint();
+
+  -- 0.1 / 0.2 / 0.3 — identidade das definições e contrato
+  res := res || jsonb_build_object('id','0.1','ok',
+    (select md5(prosrc) from pg_catalog.pg_proc where oid = v_ref) = 'de9088a98c8e09a8b65180286a50547e',
+    'detail','referência pg_temp = corpo exato da 3983 (md5)');
+  res := res || jsonb_build_object('id','0.2','ok',
+    (select md5(prosrc) from pg_catalog.pg_proc where oid = v_new) = 'e253fcc5613bbef1181c6564b56f5b8a',
+    'detail','função pública = corpo exato da 3989 (senão a 3989 não foi aplicada)');
+  select (a.proargtypes = b.proargtypes and a.proallargtypes = b.proallargtypes and a.proargnames = b.proargnames
+          and a.proargmodes = b.proargmodes and a.prorettype = b.prorettype and a.proretset and b.proretset
+          and a.prolang = b.prolang and a.prosecdef and b.prosecdef and a.provolatile = 's' and b.provolatile = 's'
+          and a.proconfig = b.proconfig and b.proconfig = array['search_path=""'])
+    into v_ok
+    from pg_catalog.pg_proc a, pg_catalog.pg_proc b where a.oid = v_ref and b.oid = v_new;
+  res := res || jsonb_build_object('id','0.3','ok', coalesce(v_ok, false),
+    'detail','argumentos, colunas e tipos de retorno, linguagem, SECURITY DEFINER, STABLE e search_path idênticos');
+
+  -- 7.1 / 7.2 / 7.3 — segurança e validação
+  res := res || jsonb_build_object('id','7.1','ok',
+    has_function_privilege('authenticated', v_new, 'EXECUTE')
+      and not has_function_privilege('anon', v_new, 'EXECUTE')
+      and not exists (select 1 from pg_catalog.pg_proc p, aclexplode(p.proacl) x where p.oid = v_new and x.grantee = 0),
+    'detail','EXECUTE só authenticated; anon e PUBLIC sem acesso');
+
+  v_s := '{}';
+  perform set_config('request.jwt.claims', '', true);
+  execute 'set local role anon';
+  begin perform * from public.get_card_variants_pricing_summary(array[gen_random_uuid()]); v_s := v_s || 'executou'::text;
+  exception when others then v_s := v_s || sqlstate::text; end;
+  execute 'reset role';
+  execute 'set local role authenticated';
+  begin perform * from public.get_card_variants_pricing_summary(array[gen_random_uuid()]); v_s := v_s || 'executou'::text;
+  exception when others then v_s := v_s || sqlstate::text; end;
+  execute 'reset role';
+  res := res || jsonb_build_object('id','7.2','ok', v_s = array['42501','28000'],
+    'detail', format('anon → %s (esperado 42501); sem identidade → %s (esperado 28000)', v_s[1], v_s[2]));
+
+  perform set_config('request.jwt.claims', json_build_object('sub', p_user_a, 'role','authenticated')::text, true);
+  v_ok := true; v_s := '{}';
+  for v_i in 1..4 loop
+    v_ids := case v_i
+      when 1 then null::uuid[]
+      when 2 then '{}'::uuid[]
+      when 3 then array[array[gen_random_uuid()]]::uuid[]
+      else array(select gen_random_uuid() from generate_series(1, 101)) end;
+    begin perform * from pg_temp.ref_3983_get_card_variants_pricing_summary(v_ids); v_a := 'executou';
+    exception when others then v_a := sqlstate || ' ' || sqlerrm; end;
+    begin perform * from public.get_card_variants_pricing_summary(v_ids); v_b := 'executou';
+    exception when others then v_b := sqlstate || ' ' || sqlerrm; end;
+    v_ok := v_ok and v_a = v_b and v_b like '22023 %';
+    v_s := v_s || v_b;
+  end loop;
+  res := res || jsonb_build_object('id','7.3','ok', v_ok, 'detail', 'NULL, vazio, 2-D, 101 ids: ' || array_to_string(v_s, ' | '));
+
+  select cc.id into v_nm from public.card_condition cc where cc.code = 'NM';
+  select cc.id into v_lp from public.card_condition cc where cc.code = 'LP';
+
+  -- Fixtures (desfeitas pela sentinela TR000)
+  begin
+    -- Variante com ≥ 2 produtos elegíveis com observação MARKET/NM.
+    select e.card_variant_id, e.prods into v_vm, v_prods
+      from (
+        select pp.card_variant_id, array_agg(pp.id order by pp.id) as prods
+          from public.pricing_product pp
+          join public.card_variant cv on cv.id = pp.card_variant_id
+          join public.pricing_card_mapping pcm
+            on pcm.id = pp.pricing_card_mapping_id and pcm.match_status = 'CONFIRMED' and pcm.card_id = cv.card_id
+          join public.pricing_source ps on ps.id = pcm.pricing_source_id and ps.is_active
+          join public.pricing_source_card_identity psci
+            on psci.id = pp.pricing_source_card_identity_id and psci.identity_role = 'PRIMARY' and psci.match_status = 'CONFIRMED'
+         where pp.is_active
+           and exists (select 1 from public.pricing_observation po
+                        where po.pricing_product_id = pp.id and po.condition_id = v_nm and po.price_type = 'MARKET')
+         group by pp.card_variant_id
+        having count(*) >= 2
+         order by pp.card_variant_id
+         limit 1) e;
+    select cv.id into v_vmiss
+      from public.card_variant cv
+     where not exists (select 1 from public.pricing_product pp where pp.card_variant_id = cv.id)
+       and not exists (select 1 from public.pricing_card_mapping pcm where pcm.card_id = cv.card_id)
+     order by cv.id limit 1;
+    if v_vm is null or v_vmiss is null or v_nm is null or v_lp is null then
+      raise exception 'TR_FIXTURE: sem variante com 2 produtos elegíveis, variante sem preço ou condições NM/LP';
+    end if;
+    v_p1 := v_prods[1];
+    v_p2 := v_prods[2];
+    -- Base: depois de todas as observações dos produtos da variante.
+    select max(po.observed_at) + interval '1 day' into v_t
+      from public.pricing_observation po
+      join public.pricing_product pp on pp.id = po.pricing_product_id
+     where pp.card_variant_id = v_vm;
+    v_ids := array[v_vm];
+
+    -- 2.1 vários produtos/observações (estado real da variante)
+    v_d := pg_temp.h5880_diff(v_ids);
+    select * into r_new from public.get_card_variants_pricing_summary(v_ids);
+    res := res || jsonb_build_object('id','2.1','ok', v_d = 0 and r_new.price_basis = 'VARIANT',
+      'detail', format('variante com %s produtos elegíveis; divergências %s; base %s', cardinality(v_prods), v_d, r_new.price_basis));
+
+    -- 2.2 empate de observed_at: created_at mais novo vence (P2)
+    insert into public.pricing_observation (pricing_product_id, condition_id, price_type, price, currency_code, market_label, observed_at, created_at)
+    values (v_p1, v_nm, 'MARKET', 101.11, 'USD', 'H5880-22a', v_t, v_c),
+           (v_p2, v_nm, 'MARKET', 202.22, 'USD', 'H5880-22b', v_t, v_c + interval '1 second');
+    v_d := pg_temp.h5880_diff(v_ids);
+    select * into r_new from public.get_card_variants_pricing_summary(v_ids);
+    res := res || jsonb_build_object('id','2.2','ok', v_d = 0 and r_new.source_amount = 202.22,
+      'detail', format('mesmo observed_at, created_at desempata; escolhido %s (esperado 202.22); divergências %s', r_new.source_amount, v_d));
+
+    -- 2.3 empate de observed_at e created_at: id maior vence
+    insert into public.pricing_observation (id, pricing_product_id, condition_id, price_type, price, currency_code, market_label, observed_at, created_at)
+    values ('00000000-0000-4000-8000-000000005801', v_p1, v_nm, 'MARKET', 404.44, 'USD', 'H5880-23a', v_t + interval '1 hour', v_c),
+           ('00000000-0000-4000-8000-000000005800', v_p2, v_nm, 'MARKET', 303.33, 'USD', 'H5880-23b', v_t + interval '1 hour', v_c);
+    v_d := pg_temp.h5880_diff(v_ids);
+    select * into r_new from public.get_card_variants_pricing_summary(v_ids);
+    res := res || jsonb_build_object('id','2.3','ok', v_d = 0 and r_new.source_amount = 404.44,
+      'detail', format('mesmo observed_at e created_at, id desempata; escolhido %s (esperado 404.44); divergências %s', r_new.source_amount, v_d));
+
+    -- 6.1 observações mais novas, porém inelegíveis (LP; LOW)
+    insert into public.pricing_observation (pricing_product_id, condition_id, price_type, price, currency_code, market_label, observed_at, created_at)
+    values (v_p1, v_lp, 'MARKET', 999.99, 'USD', 'H5880-61a', v_t + interval '2 hours', v_c),
+           (v_p2, v_nm, 'LOW',    998.98, 'USD', 'H5880-61b', v_t + interval '2 hours', v_c);
+    v_d := pg_temp.h5880_diff(v_ids);
+    select * into r_new from public.get_card_variants_pricing_summary(v_ids);
+    res := res || jsonb_build_object('id','6.1','ok', v_d = 0 and r_new.source_amount = 404.44,
+      'detail', format('LP e LOW mais novas ignoradas; escolhido %s (esperado 404.44); divergências %s', r_new.source_amount, v_d));
+
+    -- 6.2 produto inativo: o vencedor (P1) sai; vence a melhor observação de P2
+    update public.pricing_product set is_active = false where id = v_p1;
+    v_d := pg_temp.h5880_diff(v_ids);
+    select * into r_new from public.get_card_variants_pricing_summary(v_ids);
+    res := res || jsonb_build_object('id','6.2','ok', v_d = 0 and r_new.source_amount = 303.33,
+      'detail', format('P1 inativo; escolhido %s (esperado 303.33, P2); divergências %s', r_new.source_amount, v_d));
+
+    -- 5.1 USD → BRL pela PTAX da data (≤) da observação vencedora
+    select fx.rate into v_rate from public.pricing_fx_rate fx
+     where fx.from_currency = 'USD' and fx.to_currency = 'BRL' and fx.rate_source_code = 'BCB_PTAX'
+       and fx.rate_date <= ((v_t + interval '1 hour') at time zone 'UTC')::date
+     order by fx.rate_date desc limit 1;
+    res := res || jsonb_build_object('id','5.1','ok',
+      v_d = 0 and v_rate is not null and r_new.brl_amount = round(303.33 * v_rate, 2)
+        and r_new.fx_status = 'CONVERTED' and r_new.source_currency = 'USD',
+      'detail', format('303.33 USD × PTAX %s = %s (função: %s, %s)', v_rate, round(303.33 * v_rate, 2), r_new.brl_amount, r_new.fx_status));
+
+    -- 5.2 observação em BRL, mais nova, no produto ativo
+    insert into public.pricing_observation (pricing_product_id, condition_id, price_type, price, currency_code, market_label, observed_at, created_at)
+    values (v_p2, v_nm, 'MARKET', 55.55, 'BRL', 'H5880-52', v_t + interval '3 hours', v_c);
+    v_d := pg_temp.h5880_diff(v_ids);
+    select * into r_new from public.get_card_variants_pricing_summary(v_ids);
+    res := res || jsonb_build_object('id','5.2','ok', v_d = 0 and r_new.brl_amount = 55.55 and r_new.source_currency = 'BRL',
+      'detail', format('BRL sem conversão: %s %s; divergências %s', r_new.brl_amount, r_new.source_currency, v_d));
+
+    -- 4.1 moeda sem câmbio → fallback por carta
+    insert into public.pricing_observation (pricing_product_id, condition_id, price_type, price, currency_code, market_label, observed_at, created_at)
+    values (v_p2, v_nm, 'MARKET', 10.00, 'EUR', 'H5880-41', v_t + interval '4 hours', v_c);
+    v_d := pg_temp.h5880_diff(v_ids);
+    select * into r_new from public.get_card_variants_pricing_summary(v_ids);
+    select * into r_ref from pg_temp.ref_3983_get_card_variants_pricing_summary(v_ids);
+    res := res || jsonb_build_object('id','4.1','ok', v_d = 0 and r_new.price_basis is distinct from 'VARIANT'
+        and r_new.price_basis is not distinct from r_ref.price_basis,
+      'detail', format('EUR sem PTAX → base %s, fx %s (referência: %s, %s); divergências %s',
+        coalesce(r_new.price_basis, 'nenhuma'), r_new.fx_status, coalesce(r_ref.price_basis, 'nenhuma'), r_ref.fx_status, v_d));
+
+    -- 3.1 preço ausente, id inexistente e id repetido
+    v_ids := array[v_vmiss, gen_random_uuid(), v_vm, v_vm];
+    v_d := pg_temp.h5880_diff(v_ids);
+    select count(*) into v_n from public.get_card_variants_pricing_summary(v_ids);
+    select * into r_new from public.get_card_variants_pricing_summary(array[v_vmiss]);
+    res := res || jsonb_build_object('id','3.1','ok', v_d = 0 and v_n = 2 and not r_new.has_pricing and r_new.price_basis is null,
+      'detail', format('sem preço: has_pricing %s, base %s; 4 ids (1 inexistente, 1 repetido) → %s linhas (esperado 2); divergências %s',
+        r_new.has_pricing, coalesce(r_new.price_basis, 'nula'), v_n, v_d));
+
+    raise exception 'TR000' using errcode = 'P0001';
+  exception when others then
+    if sqlerrm <> 'TR000' then
+      res := res || jsonb_build_object('id','X.1','ok', false, 'detail','erro inesperado nas fixtures: '||sqlstate||' '||sqlerrm);
+    end if;
+  end;
+
+  -- Daqui em diante: SOMENTE LEITURA (qualquer escrita aborta com 25006).
+  begin
+    perform set_config('transaction_read_only', 'on', true);
+
+    -- Conjunto real: variantes de todos os acervos + vários produtos + produto inativo + sem produto.
+    v_univ := array(
+      select x from (
+        select pc.card_variant_id as x from public.physical_card pc
+        union
+        (select pp.card_variant_id from public.pricing_product pp
+          where pp.card_variant_id is not null and pp.is_active
+          group by pp.card_variant_id having count(*) >= 2
+          order by pp.card_variant_id limit 1500)
+        union
+        (select pp.card_variant_id from public.pricing_product pp
+          where pp.card_variant_id is not null and not pp.is_active
+          order by pp.card_variant_id limit 300)
+        union
+        (select cv.id from public.card_variant cv
+          where not exists (select 1 from public.pricing_product pp where pp.card_variant_id = cv.id)
+          order by cv.id limit 300)
+      ) u where x is not null order by x);
+    v_n := coalesce(cardinality(v_univ), 0);
+
+    for v_i in 0 .. greatest(ceil(v_n / 100.0)::integer - 1, -1) loop
+      v_batch := v_univ[v_i * 100 + 1 : v_i * 100 + 100];
+      if v_i % 2 = 0 then
+        v_t0 := clock_timestamp(); perform * from public.get_card_variants_pricing_summary(v_batch);
+        v_ms := extract(epoch from clock_timestamp() - v_t0) * 1000; v_ms_new := v_ms_new + v_ms; v_max_new := greatest(v_max_new, v_ms);
+        v_t0 := clock_timestamp(); perform * from pg_temp.ref_3983_get_card_variants_pricing_summary(v_batch);
+        v_ms_ref := v_ms_ref + extract(epoch from clock_timestamp() - v_t0) * 1000;
+      else
+        v_t0 := clock_timestamp(); perform * from pg_temp.ref_3983_get_card_variants_pricing_summary(v_batch);
+        v_ms_ref := v_ms_ref + extract(epoch from clock_timestamp() - v_t0) * 1000;
+        v_t0 := clock_timestamp(); perform * from public.get_card_variants_pricing_summary(v_batch);
+        v_ms := extract(epoch from clock_timestamp() - v_t0) * 1000; v_ms_new := v_ms_new + v_ms; v_max_new := greatest(v_max_new, v_ms);
+      end if;
+      v_diff := v_diff + pg_temp.h5880_diff(v_batch);
+    end loop;
+    res := res || jsonb_build_object('id','1.1','ok', v_n > 0 and v_diff = 0,
+      'detail', format('%s variantes reais em %s lotes de 100; divergências (11 colunas) %s', v_n, ceil(v_n / 100.0), v_diff));
+
+    -- 8.1 equivalência monetária agregada
+    select string_agg(t, ' ; ') into v_a from (
+      select concat_ws('/', coalesce(sum(brl_amount)::text,'-'), coalesce(sum(source_amount)::text,'-'),
+               count(*) filter (where price_basis = 'VARIANT'), count(*) filter (where price_basis = 'CARD_FALLBACK'),
+               count(*) filter (where not has_pricing)) as t
+        from generate_series(0, greatest(ceil(v_n / 100.0)::integer - 1, 0)) g
+        cross join lateral pg_temp.ref_3983_get_card_variants_pricing_summary(v_univ[g * 100 + 1 : g * 100 + 100]) s) z;
+    select string_agg(t, ' ; ') into v_b from (
+      select concat_ws('/', coalesce(sum(brl_amount)::text,'-'), coalesce(sum(source_amount)::text,'-'),
+               count(*) filter (where price_basis = 'VARIANT'), count(*) filter (where price_basis = 'CARD_FALLBACK'),
+               count(*) filter (where not has_pricing)) as t
+        from generate_series(0, greatest(ceil(v_n / 100.0)::integer - 1, 0)) g
+        cross join lateral public.get_card_variants_pricing_summary(v_univ[g * 100 + 1 : g * 100 + 100]) s) z;
+    res := res || jsonb_build_object('id','8.1','ok', v_a = v_b,
+      'detail', format('Σ BRL / Σ origem / VARIANT / CARD_FALLBACK / sem preço — referência %s; 3989 %s', v_a, v_b));
+
+    -- 9.1 desempenho
+    res := res || jsonb_build_object('id','9.1','ok', v_max_new < 8000 and v_ms_new <= v_ms_ref * 1.10,
+      'detail', format('3989: total %s ms, pior lote %s ms (limite 8.000); referência: total %s ms (limite: 3989 ≤ 110%%)',
+        round(v_ms_new), round(v_max_new), round(v_ms_ref)));
+
+    -- 7.4 isolamento: mesma resposta para identidades diferentes
+    v_batch := v_univ[1:300];
+    perform set_config('request.jwt.claims', json_build_object('sub', p_user_a, 'role','authenticated')::text, true);
+    select md5(coalesce(string_agg(t::text, ',' order by t::text), '')) into v_a from public.get_card_variants_pricing_summary(v_batch[1:100]) t;
+    perform set_config('request.jwt.claims', json_build_object('sub', p_user_b, 'role','authenticated')::text, true);
+    select md5(coalesce(string_agg(t::text, ',' order by t::text), '')) into v_b from public.get_card_variants_pricing_summary(v_batch[1:100]) t;
+    res := res || jsonb_build_object('id','7.4','ok', v_a = v_b,
+      'detail','leitura de catálogo de preços: resultado idêntico para os usuários A e B (nada depende do titular)');
+
+    v_ok := true;
+  exception when others then
+    v_ok := false;
+    res := res || jsonb_build_object('id','X.1','ok', false, 'detail','erro na fase somente leitura: '||sqlstate||' '||sqlerrm);
+  end;
+
+  execute 'reset role';
+  perform set_config('request.jwt.claims', '', true);
+  res := res || jsonb_build_object('id','10.1','ok',
+    v_ok and pg_temp.h5880_fingerprint() = v_fp0 and current_user = session_user,
+    'detail','somas de controle de Pricing, variantes e acervo iguais antes e depois; fase real em transação somente leitura sem erro');
+
+  for r in select * from jsonb_array_elements(res) loop
+    n := n + 1;
+    if coalesce((r->>'ok')::boolean, false) then passes := passes + 1; end if;
+    seq := n; check_id := r->>'id';
+    status := case when coalesce((r->>'ok')::boolean, false) then 'PASS' else 'FAIL' end;
+    detail := r->>'detail';
+    return next;
+  end loop;
+  seq := 99; check_id := 'GATE';
+  status := case when passes = n and n = 20 then 'PASS' else 'FAIL' end;
+  detail := format('%s/%s PASS (esperado 20)', passes, n);
+  return next;
+end;
+$fn$;
+
+select * from pg_temp.tr_5880_validate();

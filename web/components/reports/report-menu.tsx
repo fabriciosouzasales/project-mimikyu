@@ -13,8 +13,9 @@ import {
   useRef,
   useState,
 } from "react";
-import { BarChart3, Bookmark, ClipboardCheck, Heart, ListX, type LucideIcon } from "lucide-react";
+import { BarChart3, Bookmark, ClipboardCheck, Clock3, Heart, Layers, Library, LibraryBig, ListX, type LucideIcon } from "lucide-react";
 import type { ReportMenuIcon, ReportMenuItem } from "@/lib/reports/collection-checklist";
+import { MENU_PANEL_WIDTH, placeReportMenu } from "@/lib/reports/menu-placement";
 import styles from "./report-menu.module.css";
 
 const ICONS: Record<ReportMenuIcon, LucideIcon> = {
@@ -23,9 +24,12 @@ const ICONS: Record<ReportMenuIcon, LucideIcon> = {
   value: BarChart3,
   wish: Bookmark,
   favorite: Heart,
+  inventory: Library,
+  "inventory-sets": Layers,
+  collections: LibraryBig,
+  upcoming: Clock3,
 };
 
-const PANEL_WIDTH = 288; // 18rem — o mesmo valor do CSS.
 
 /**
  * Menu de Relatórios (V1-14 R1-A UX REDIRECTION-02) — menu contextual compacto que nasce da
@@ -101,11 +105,19 @@ export function ReportMenu({
     const trigger = triggerRef.current;
     if (!trigger) return;
     const rect = trigger.getBoundingClientRect();
-    // Logo abaixo da cápsula (o gatilho mora dentro dela).
+    // Logo abaixo da cápsula (o gatilho mora dentro dela). Largura útil sem a barra de rolagem
+    // (`clientWidth`): o painel nunca fica sob ela; gatilho no canto direito → painel alinhado à
+    // borda direita da cápsula (regra em lib/reports/menu-placement.ts).
     const capsule = trigger.parentElement?.getBoundingClientRect() ?? rect;
-    const maxLeft = Math.max(8, window.innerWidth - PANEL_WIDTH - 8);
-    const left = Math.min(Math.max(8, Math.round(rect.left - 6)), maxLeft);
-    setAnchor({ top: Math.round(capsule.bottom + 8), left, notch: Math.round(rect.left + rect.width / 2 - left) });
+    const { top, left, notch } = placeReportMenu({
+      triggerLeft: rect.left,
+      triggerWidth: rect.width,
+      capsuleRight: capsule.right,
+      capsuleBottom: capsule.bottom,
+      viewportWidth: document.documentElement.clientWidth,
+      panelWidth: Math.min(MENU_PANEL_WIDTH, window.innerWidth - 16), // = min(18rem, 100vw − 1rem) do CSS
+    });
+    setAnchor({ top, left, notch });
   }, [triggerRef]);
 
   useLayoutEffect(() => {
