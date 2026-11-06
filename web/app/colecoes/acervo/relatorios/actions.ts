@@ -9,6 +9,7 @@ import {
   getSetSummaryReport,
 } from "@/lib/reports/acervo-set-inventory-queries";
 import { type FavoritesReportLoad, getFavoritesReport } from "@/lib/reports/favorites-report-queries";
+import { type WishlistReportLoad, getWishlistReport } from "@/lib/reports/wishlist-report-queries";
 import { createClient } from "@/lib/supabase/server";
 import { getCachedUser } from "@/lib/supabase/request-auth-cache";
 
@@ -87,6 +88,28 @@ export async function readFavoritesReport(): Promise<FavoritesReportLoad> {
     return await getFavoritesReport(supabase, new Date(), imageUrl);
   } catch (error) {
     console.error("[reports] readFavoritesReport falhou", { message: error instanceof Error ? error.message : "unknown" });
+    return { status: "error" };
+  }
+}
+
+/**
+ * V1-14 R1-E — "Minha Lista de Desejos" (5º do Meu acervo): desejos (5350/5351, lista inteira, ordem
+ * "Set e número") + referência NM por variante distinta (3989, Pricing Resilience). Só o titular
+ * (as RPCs resolvem o dono por `auth.uid()`), nenhum identificador do cliente, somente leitura,
+ * sem SQL nova.
+ */
+export async function readWishlistReport(): Promise<WishlistReportLoad> {
+  const {
+    data: { user },
+  } = await getCachedUser();
+  if (!user) return { status: "error" };
+  const supabase = await createClient();
+  try {
+    // Miniaturas: mesma origem pública da página Lista de desejos (bucket `card-front`, síncrono).
+    const imageUrl = (path: string) => supabase.storage.from("card-front").getPublicUrl(path).data.publicUrl ?? null;
+    return await getWishlistReport(supabase, new Date(), imageUrl);
+  } catch (error) {
+    console.error("[reports] readWishlistReport falhou", { message: error instanceof Error ? error.message : "unknown" });
     return { status: "error" };
   }
 }

@@ -16,7 +16,7 @@ import { MENU_PANEL_WIDTH, MENU_VIEWPORT_GUTTER, placeReportMenu } from "./menu-
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 const id = (n: number) => `00000000-0000-4000-8000-${n.toString(16).padStart(12, "0")}`;
 
-test("catálogo: nove relatórios independentes, na ordem aprovada; quatro implementados (inventários, valor e favoritas)", () => {
+test("catálogo: nove relatórios independentes, na ordem aprovada; cinco implementados (inventários, valor, favoritas e desejos)", () => {
   assert.deepEqual(
     ACERVO_REPORT_CATALOG.map((e) => e.title),
     [
@@ -32,11 +32,11 @@ test("catálogo: nove relatórios independentes, na ordem aprovada; quatro imple
     ],
   );
   assert.equal(new Set(ACERVO_REPORT_CATALOG.map((e) => e.id)).size, 9);
-  assert.deepEqual(ACERVO_REPORT_CATALOG.filter((e) => e.implemented).map((e) => e.id), ["inventory-summary", "inventory-sets", "value", "favorites"]);
+  assert.deepEqual(ACERVO_REPORT_CATALOG.filter((e) => e.implemented).map((e) => e.id), ["inventory-summary", "inventory-sets", "value", "favorites", "wishlist"]);
   assert.ok(ACERVO_REPORT_CATALOG.every((e) => !/coleção/i.test(e.title))); // análise por coleção mora em Minhas coleções
 });
 
-test("menu do acervo: inventários por Card Set, Valor estimado total e Minhas favoritas abrem; os demais numa única linha indisponível", () => {
+test("menu do acervo: inventários por Card Set, Valor estimado total, Minhas favoritas e Minha Lista de Desejos abrem; os demais numa única linha indisponível", () => {
   const items = acervoReportMenuItems({ totalCopies: 3 });
   assert.deepEqual(
     items.map((i) => [i.id, i.label, i.icon]),
@@ -45,18 +45,21 @@ test("menu do acervo: inventários por Card Set, Valor estimado total e Minhas f
       ["inventory-sets", "Inventário detalhado por Card Set", "inventory-sets"],
       ["value", "Valor estimado total", "value"],
       ["favorites", "Minhas favoritas", "favorite"],
-      ["upcoming", "5 relatórios em preparação", "upcoming"],
+      ["wishlist", "Minha Lista de Desejos", "wish"],
+      ["upcoming", "4 relatórios em preparação", "upcoming"],
     ],
   );
   assert.equal(items[0]?.disabledReason, null);
   assert.equal(items[1]?.disabledReason, null);
   assert.equal(items[2]?.disabledReason, null);
   assert.equal(items[3]?.disabledReason, null);
-  assert.ok(items[4]?.disabledReason);
-  assert.doesNotMatch(items[4]?.disabledReason ?? "", /Valor|Favoritas/);
+  assert.equal(items[4]?.disabledReason, null);
+  assert.ok(items[5]?.disabledReason);
+  assert.doesNotMatch(items[5]?.disabledReason ?? "", /Valor|Favoritas|Desejos/);
   const empty = acervoReportMenuItems({ totalCopies: 0 }); // acervo vazio
   assert.ok(empty[0]?.disabledReason && empty[1]?.disabledReason && empty[2]?.disabledReason);
   assert.equal(empty[3]?.disabledReason, null); // favoritas independem de posse
+  assert.equal(empty[4]?.disabledReason, null); // desejos também
 });
 
 const g = (set: string, copies: number) => ({ cardSetCode: set, cardSetName: `Set ${set}`, copies });

@@ -1,5 +1,5 @@
 /**
- * V1-14 R1-B/R1-C/R1-D — Relatórios do Meu acervo: catálogo aprovado (9 relatórios independentes, cada um
+ * V1-14 R1-B/R1-C/R1-D/R1-E — Relatórios do Meu acervo: catálogo aprovado (9 relatórios independentes, cada um
  * com finalidade, tela e folha próprias) e utilitários compartilhados pelas folhas de relatório
  * do acervo e de Minhas coleções. Sem banco, sem rede.
  *
@@ -8,8 +8,9 @@
  * detalhado por Card Set" (`acervo-set-inventory.ts`). A análise por coleção do usuário,
  * "Distribuição do Acervo por coleção", pertence a Minhas coleções (`library-reports.ts`,
  * `collection-distribution.ts`). "Minhas favoritas" (R1-D, `favorites-report.ts`) é o 4º
- * relatório deste menu (localização definitiva: `REPORT LOCATION CORRECTION-01`); favorito não
- * depende de posse, por isso ele abre mesmo com o acervo vazio.
+ * relatório deste menu (localização definitiva: `REPORT LOCATION CORRECTION-01`); "Minha Lista de
+ * Desejos" (R1-E, `wishlist-report.ts`) é o 5º. Favorito e desejo não dependem de posse, por isso
+ * os dois abrem mesmo com o acervo vazio.
  */
 import type { ReportMenuIcon, ReportMenuItem } from "./collection-checklist.ts";
 
@@ -57,7 +58,12 @@ export const ACERVO_REPORT_CATALOG: readonly AcervoReportEntry[] = [
     purpose: "Suas cartas favoritas por Card Set, com referência NM e posse no acervo.",
     implemented: true,
   },
-  { id: "wishlist", title: "Minha Lista de Desejos", purpose: "Desejos e valor de referência.", implemented: false },
+  {
+    id: "wishlist",
+    title: "Minha Lista de Desejos",
+    purpose: "Seus desejos por Card Set, com referência NM e situação no acervo.",
+    implemented: true,
+  },
   { id: "top", title: "Top 10 cartas mais valiosas", purpose: "Exemplares de maior referência NM.", implemented: false },
   { id: "duplicates", title: "Cartas repetidas", purpose: "Exemplares além do primeiro de cada carta.", implemented: false },
   { id: "distribution", title: "Distribuição por Set, raridade e idioma", purpose: "Como o acervo se divide.", implemented: false },
@@ -68,7 +74,7 @@ export function acervoReport(id: AcervoReportId): AcervoReportEntry {
   return ACERVO_REPORT_CATALOG.find((entry) => entry.id === id)!;
 }
 
-const MENU_ICON: Partial<Record<AcervoReportId, ReportMenuIcon>> = { "inventory-sets": "inventory-sets", value: "value", favorites: "favorite" };
+const MENU_ICON: Partial<Record<AcervoReportId, ReportMenuIcon>> = { "inventory-sets": "inventory-sets", value: "value", favorites: "favorite", wishlist: "wish" };
 
 /**
  * Menu "Do acervo": os relatórios implementados abrem; os aprovados ainda não implementados
@@ -83,8 +89,8 @@ export function acervoReportMenuItems(input: { totalCopies: number }): ReportMen
     icon: MENU_ICON[entry.id] ?? "inventory",
     href: null,
     metric: null,
-    // Favorito é preferência por carta, independente de posse: abre mesmo com o acervo vazio.
-    disabledReason: entry.id === "favorites" || input.totalCopies > 0 ? null : "Adicione cartas ao acervo para gerar o relatório.",
+    // Favorito e desejo independem de posse: abrem mesmo com o acervo vazio.
+    disabledReason: entry.id === "favorites" || entry.id === "wishlist" || input.totalCopies > 0 ? null : "Adicione cartas ao acervo para gerar o relatório.",
   }));
   if (upcoming.length > 0) {
     items.push({
@@ -93,7 +99,7 @@ export function acervoReportMenuItems(input: { totalCopies: number }): ReportMen
       icon: "upcoming",
       href: null,
       metric: null,
-      disabledReason: "Desejos, Top 10, repetidas, distribuição e cobertura.",
+      disabledReason: "Top 10, repetidas, distribuição e cobertura.",
     });
   }
   return items;
