@@ -1,0 +1,235 @@
+/*
+ * Relatório em sobreposição à coleção (V1-14 R1-A UX REDIRECTION-02). Dentro da casca do Fichário
+ * (`binder-overlay.module.css`: véu, entrada/saída): uma folha ampla com cabeçalho próprio fixo e
+ * corpo rolável. A página da coleção continua atrás, intacta.
+ */
+
+.frame {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  padding: clamp(0.75rem, 2.5vw, 2rem);
+}
+
+.sheet {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 78rem;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 1.25rem;
+  background: hsl(var(--background));
+  border: 1px solid hsl(var(--border));
+  box-shadow:
+    0 1px 2px hsl(30 10% 10% / 0.08),
+    0 32px 80px -32px hsl(30 10% 10% / 0.55);
+}
+
+:global(.dark) .sheet {
+  border-color: hsl(0 0% 100% / 0.08);
+  box-shadow:
+    0 1px 2px hsl(0 0% 0% / 0.5),
+    0 32px 80px -32px hsl(0 0% 0% / 0.9);
+}
+
+.sheet[data-fullscreen],
+.sheet:fullscreen {
+  max-width: none;
+  border-radius: 0;
+  border: 0;
+}
+
+/* ---- cabeçalho próprio ---- */
+.header {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem clamp(1rem, 2.5vw, 1.75rem);
+  border-bottom: 1px solid hsl(var(--border));
+  background: hsl(var(--surface));
+}
+
+.heading {
+  min-width: 0;
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: hsl(var(--primary-ink));
+}
+
+:global(.dark) .eyebrow {
+  color: hsl(var(--primary));
+}
+
+.eyebrow svg {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.title {
+  margin-top: 0.125rem;
+  font-family: var(--font-heading, inherit);
+  font-size: 1.375rem;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+.context {
+  margin-top: 0.125rem;
+  min-height: 1.25rem;
+  font-size: 0.8125rem;
+  color: hsl(var(--muted-foreground));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.iconButton,
+.closeButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 999px;
+  color: hsl(var(--muted-foreground));
+  transition:
+    color 140ms ease,
+    background-color 140ms ease;
+}
+
+.iconButton svg,
+.closeButton svg {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+.iconButton:hover,
+.closeButton:hover {
+  color: hsl(var(--foreground));
+  background: hsl(var(--surface-muted));
+}
+
+.iconButton[aria-pressed="true"] {
+  color: hsl(var(--foreground));
+}
+
+.iconButton:focus-visible,
+.closeButton:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+/* ---- corpo rolável ---- */
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: clamp(1rem, 2.5vw, 1.75rem);
+  /* A lista do relatório usa a largura toda da folha. */
+  scrollbar-gutter: stable;
+}
+
+.state {
+  display: grid;
+  justify-items: center;
+  gap: 0.5rem;
+  max-width: 28rem;
+  margin: 3rem auto;
+  text-align: center;
+}
+
+.state svg {
+  width: 1.5rem;
+  height: 1.5rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.state h3 {
+  font-size: 1.0625rem;
+  font-weight: 700;
+}
+
+.state p {
+  font-size: 0.875rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.stateAction {
+  margin-top: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  border: 1px solid hsl(var(--border));
+}
+
+.stateAction:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+/* ---- celular: folha inteira ---- */
+@media (max-width: 640px) {
+  .frame {
+    padding: 0;
+  }
+
+  .sheet {
+    border-radius: 0;
+    border: 0;
+  }
+
+  .header {
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.75rem 0.75rem 0.75rem 1rem;
+  }
+
+  .title {
+    font-size: 1.125rem;
+  }
+
+  .actions {
+    gap: 0.25rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .iconButton,
+  .closeButton {
+    transition: none;
+  }
+}
+
+/*
+ * Impressão: o cabeçalho funcional da sobreposição nunca imprime. `print:hidden` (Tailwind) não
+ * basta aqui — `.header { display: flex }` deste módulo vem depois na cascata e venceria a
+ * utilidade; por isso a regra própria. Na folha impressa só existe o cabeçalho institucional.
+ */
+@media print {
+  .header {
+    display: none !important;
+  }
+}

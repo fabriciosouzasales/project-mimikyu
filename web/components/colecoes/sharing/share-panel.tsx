@@ -50,13 +50,24 @@ import styles from "./share.module.css";
  * nada aqui decide permissão. Sem as funções no banco, o painel explica que o
  * compartilhamento ainda não está disponível — a página da coleção não muda.
  */
-export function CollectionShareButton({ collectionId, collectionName }: { collectionId: string; collectionName: string }) {
+export function CollectionShareButton({
+  collectionId,
+  collectionName,
+  className,
+  labelClassName,
+}: {
+  collectionId: string;
+  collectionName: string;
+  /** Apresentação do gatilho (ex.: ação da cápsula do cabeçalho); o painel não muda. */
+  className?: string;
+  labelClassName?: string;
+}) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <button type="button" className={manageStyles.settingsButton} onClick={() => setOpen(true)} aria-haspopup="dialog">
+      <button type="button" className={className ?? manageStyles.settingsButton} onClick={() => setOpen(true)} aria-haspopup="dialog">
         <Share2 className="h-4 w-4" aria-hidden="true" />
-        Compartilhar
+        <span className={labelClassName}>Compartilhar</span>
       </button>
       {open ? <SharePanel collectionId={collectionId} collectionName={collectionName} onClose={() => setOpen(false)} /> : null}
     </>

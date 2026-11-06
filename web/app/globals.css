@@ -541,4 +541,70 @@
     break-inside: avoid;
     page-break-inside: avoid;
   }
+
+  /*
+   * Checklist paginado (V1-14 R1-A): cada folha é uma página física com rodapé próprio NO FLUXO
+   * ("Página X de Y") — sem rodapé fixo, a reserva de 12mm acima não se aplica.
+   */
+  .relatorio-folha[data-checklist-folha] {
+    padding-bottom: 0;
+  }
+}
+
+/*
+ * Relatório em SOBREPOSIÇÃO à coleção (V1-14 R1-A UX REDIRECTION-02). O relatório abre sobre a
+ * página da coleção (casca do Fichário: host `[data-binder-overlay]` no <body>, véu `fixed`,
+ * diálogo `absolute`, corpo com rolagem própria). Na tela isso é o certo; na impressão, um
+ * ancestral `fixed` se repetiria em toda folha e a rolagem cortaria a lista. Só quando existe um
+ * `[data-report-overlay]` aberto, e só na impressão:
+ *   1. a página de origem (todo filho do <body> que não é o host da sobreposição) não imprime;
+ *   2. a cadeia véu → diálogo → folha → corpo volta ao fluxo normal, sem rolagem, sem fundo,
+ *      sem animação — sai apenas a `RelatorioFolha` do relatório (as regras acima continuam
+ *      valendo para ela: reserva do rodapé, linha nunca dividida).
+ * Escopado por `:has()` ao relatório aberto: o Fichário em sobreposição não muda.
+ */
+@media print {
+  html:has([data-report-overlay]),
+  body:has([data-report-overlay]) {
+    height: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+
+  body:has([data-report-overlay]) > :not([data-binder-overlay]) {
+    display: none !important;
+  }
+
+  [data-binder-overlay]:has([data-report-overlay]) *:has([data-report-overlay]),
+  [data-report-overlay],
+  [data-report-overlay] > *,
+  [data-report-overlay] > * > * {
+    position: static !important;
+    inset: auto !important;
+    width: auto !important;
+    max-width: none !important;
+    height: auto !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: none !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    animation: none !important;
+    transform: none !important;
+  }
+
+  /*
+   * PRINT HORIZONTAL ALIGNMENT-08: a moldura da sobreposição é `display:flex` centralizada; com
+   * `width:auto`, a folha (item flex) encolhia até a largura do PRÓPRIO conteúdo — larga no
+   * Master Set (linhas com sigla), estreita e centralizada no Set padrão. Na impressão a cadeia
+   * vira bloco comum: a folha ocupa sempre a área útil inteira do A4, igual para os dois tipos.
+   */
+  [data-binder-overlay]:has([data-report-overlay]) *:has([data-report-overlay]),
+  [data-report-overlay],
+  [data-report-overlay] > * {
+    display: block !important;
+  }
 }

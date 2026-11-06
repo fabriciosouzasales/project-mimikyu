@@ -3,6 +3,7 @@ import { AppShell } from "@/components/app-shell/app-shell";
 import { requireCatalogoAdmin } from "@/components/catalogo/catalogo-guard";
 import { RaritySymbol } from "@/components/catalogo/rarity-symbol";
 import { RelatorioCabecalho } from "@/components/catalogo/relatorio-cabecalho";
+import { ChecklistCaixaVazia, ChecklistLinhaBase, RelatorioChecklistFolhas } from "@/components/catalogo/relatorio-checklist-tabela";
 import { RelatorioColecaoSeletor } from "@/components/catalogo/relatorio-colecao-seletor";
 import { RelatorioFolha } from "@/components/catalogo/relatorio-folha";
 import { RelatorioPrintButton } from "@/components/catalogo/relatorio-print-button";
@@ -75,24 +76,20 @@ import { getCardSetByCode, getCardSetsForCartas, getCartasCompletas } from "@/li
  * próprio título ("Lista de Verificação — ME4 · Caos Ascendente"), truncando
  * cedo demais em Coleções com nome longo.
  */
-const MIN_COLUNAS_A4 = 2;
-const MAX_COLUNAS_A4 = 4;
-const ROWS_POR_COLUNA_A4 = 46;
-
+// Colunas (2–4, 46 linhas por coluna), ordem coluna-major e `<thead>` repetido vivem em
+// `RelatorioChecklistTabela` — padrão único reaplicado no Checklist de completude das Coleções.
 const TITULO = "Lista de Verificação de Cartas";
 const SUBTITULO = "Use as caixas abaixo para sua conferência das Cartas desta Coleção.";
 
 function ChecklistLinha({ carta, index }: { carta: CartaCompletaRow; index: number }) {
   return (
-    <div
-      className="flex items-center gap-1.5 rounded-sm px-1 py-[3px] text-[10px] leading-tight"
-      style={{ backgroundColor: index % 2 === 0 ? "#FFFFFF" : "#F7F5ED" }}
-    >
-      <span className="h-3 w-3 shrink-0 border border-neutral-900" aria-hidden="true" />
-      <span className="w-6 shrink-0 tabular-nums text-neutral-500">{carta.collectorNumber}</span>
-      <span className="min-w-0 flex-1 truncate text-neutral-900">{carta.name}</span>
-      <RaritySymbol symbolCode={carta.raritySymbolCode} />
-    </div>
+    <ChecklistLinhaBase
+      index={index}
+      caixa={<ChecklistCaixaVazia />}
+      numero={carta.collectorNumber}
+      nome={carta.name}
+      final={<RaritySymbol symbolCode={carta.raritySymbolCode} />}
+    />
   );
 }
 
@@ -114,9 +111,6 @@ export default async function RelatorioChecklistPage({
   const raridadesUnicas = Array.from(
     new Map(cartas.map((carta) => [carta.rarityCode, carta])).values(),
   ).sort((a, b) => a.rarityDisplayOrder - b.rarityDisplayOrder);
-
-  const colunas = Math.min(MAX_COLUNAS_A4, Math.max(MIN_COLUNAS_A4, Math.ceil(cartas.length / ROWS_POR_COLUNA_A4)));
-  const linhasPorColuna = cartas.length > 0 ? Math.ceil(cartas.length / colunas) : 0;
 
   return (
     <AppShell title="Catálogo editorial" icon={BookOpen}>
@@ -141,70 +135,45 @@ export default async function RelatorioChecklistPage({
             </CardContent>
           </Card>
         ) : (
-          <RelatorioFolha>
-            {cartas.length === 0 ? (
-              <>
+          cartas.length === 0 ? (
+            <RelatorioFolha>
+              <RelatorioCabecalho
+                titulo={TITULO}
+                subtitulo={SUBTITULO}
+                identificacaoColecao={`${cardSet.code} · ${cardSet.name}`}
+                colecaoLogoUrl={cardSet.logoUrl}
+              />
+              <div className="px-6 print:px-0">
+                <EmptyState title="Nenhuma Carta cadastrada nesta Coleção" />
+              </div>
+              <RelatorioRodape />
+            </RelatorioFolha>
+          ) : (
+            <RelatorioChecklistFolhas
+              itens={cartas}
+              cabecalho={
                 <RelatorioCabecalho
                   titulo={TITULO}
                   subtitulo={SUBTITULO}
                   identificacaoColecao={`${cardSet.code} · ${cardSet.name}`}
                   colecaoLogoUrl={cardSet.logoUrl}
                 />
-                <div className="px-6 print:px-0">
-                  <EmptyState title="Nenhuma Carta cadastrada nesta Coleção" />
-                </div>
-              </>
-            ) : (
-              // `<thead>` repete nativamente em toda página impressa quando a
-              // tabela fragmenta em mais de uma folha — por isso o cabeçalho
-              // vive dentro de um `<th>` que ocupa todas as colunas, em vez
-              // de um bloco solto acima.
-              <table
-                className="w-full px-6 print:px-0"
-                style={{ tableLayout: "fixed", borderCollapse: "separate", borderSpacing: "8px 0" }}
-              >
-                <thead>
-                  <tr>
-                    <th colSpan={colunas} className="p-0 text-left font-normal">
-                      <RelatorioCabecalho
-                        titulo={TITULO}
-                        subtitulo={SUBTITULO}
-                        identificacaoColecao={`${cardSet.code} · ${cardSet.name}`}
-                        colecaoLogoUrl={cardSet.logoUrl}
-                      />
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {Array.from({ length: linhasPorColuna }).map((_, linha) => (
-                    <tr key={linha} style={{ breakInside: "avoid" }}>
-                      {Array.from({ length: colunas }).map((_, coluna) => {
-                        const index = coluna * linhasPorColuna + linha;
-                        const carta = cartas[index];
-                        return (
-                          <td key={coluna} className="p-0 align-top">
-                            {carta && <ChecklistLinha carta={carta} index={index} />}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-
-            {raridadesUnicas.length > 0 && (
-              <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-neutral-200 px-6 py-3 text-[9px] text-neutral-500 print:px-0">
-                {raridadesUnicas.map((rarity) => (
-                  <span key={rarity.rarityCode} className="inline-flex items-center gap-1">
-                    <RaritySymbol symbolCode={rarity.raritySymbolCode} /> {rarity.rarityName}
-                  </span>
-                ))}
-              </div>
-            )}
-
-            <RelatorioRodape />
-          </RelatorioFolha>
+              }
+              legenda={
+                raridadesUnicas.length > 0 ? (
+                  // Legenda em toda folha, logo após as linhas.
+                  <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-neutral-200 py-3 text-[9px] text-neutral-500">
+                    {raridadesUnicas.map((rarity) => (
+                      <span key={rarity.rarityCode} className="inline-flex items-center gap-1">
+                        <RaritySymbol symbolCode={rarity.raritySymbolCode} /> {rarity.rarityName}
+                      </span>
+                    ))}
+                  </div>
+                ) : null
+              }
+              renderLinha={(carta, index) => <ChecklistLinha carta={carta} index={index} />}
+            />
+          )
         )}
       </PageContainer>
     </AppShell>

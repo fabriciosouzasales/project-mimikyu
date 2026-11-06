@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { CollectionShareButton } from "@/components/colecoes/sharing/share-panel";
+import { ActionCapsule } from "@/components/ui/action-capsule";
+import capsuleStyles from "@/components/ui/action-capsule.module.css";
 import { BinderCoverLink, BinderEntry } from "@/components/colecoes/fichario/binder-entry";
 import { type BinderHeader, binderEntryVisible } from "@/lib/colecoes/binder";
 import { AlertTriangle, ArrowLeft, Info, Trophy } from "lucide-react";
@@ -144,20 +146,29 @@ export function PokedexCollectionView({
           {canManage ? (
             <div className={manageStyles.heroBarActions}>
               <ReactivatedStatus collectionId={collection.id} />
-              <CollectionShareButton collectionId={collection.id} collectionName={collection.name} />
-              <CollectionSettingsButton
-                collectionId={collection.id}
-                collectionName={collection.name}
-                kind="pokedex"
-                identity={{
-                  name: collection.name,
-                  finish: collection.finish,
-                  finishEditable: collection.finishEditable,
-                  coverCode: codeEditable ? collection.coverCode : undefined,
-                  hasCoverImage: coverUpload ? collection.coverLogoPath !== null : undefined,
-                  userId: coverUpload ? userId : null,
-                }}
-              />
+              <ActionCapsule label="Ações da coleção">
+                <CollectionShareButton
+                  collectionId={collection.id}
+                  collectionName={collection.name}
+                  className={capsuleStyles.item}
+                  labelClassName={capsuleStyles.label}
+                />
+                <CollectionSettingsButton
+                  className={capsuleStyles.item}
+                  labelClassName={capsuleStyles.label}
+                  collectionId={collection.id}
+                  collectionName={collection.name}
+                  kind="pokedex"
+                  identity={{
+                    name: collection.name,
+                    finish: collection.finish,
+                    finishEditable: collection.finishEditable,
+                    coverCode: codeEditable ? collection.coverCode : undefined,
+                    hasCoverImage: coverUpload ? collection.coverLogoPath !== null : undefined,
+                    userId: coverUpload ? userId : null,
+                  }}
+                />
+              </ActionCapsule>
             </div>
           ) : !active ? (
             <ReactivateCollectionButton collectionId={collection.id} collectionName={collection.name} />

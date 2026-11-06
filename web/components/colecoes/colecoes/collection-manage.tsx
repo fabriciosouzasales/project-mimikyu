@@ -404,18 +404,23 @@ export function CollectionSettingsButton({
   collectionName,
   kind,
   identity,
+  className,
+  labelClassName,
 }: {
   collectionId: string;
   collectionName: string;
   kind: CollectionKind;
   identity: Identity;
+  /** Apresentação do gatilho (ex.: ação da cápsula do cabeçalho); o painel não muda. */
+  className?: string;
+  labelClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <button type="button" className={styles.settingsButton} onClick={() => setOpen(true)} aria-haspopup="dialog">
+      <button type="button" className={className ?? styles.settingsButton} onClick={() => setOpen(true)} aria-haspopup="dialog">
         <Settings2 className="h-4 w-4" aria-hidden="true" />
-        Ajustes
+        <span className={labelClassName}>Ajustes</span>
       </button>
       {open ? (
         <SettingsPanel

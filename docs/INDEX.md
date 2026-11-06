@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Índice |
 | **Arquivo** | `docs/INDEX.md` |
-| **Versão** | 3.20 |
+| **Versão** | 3.28 |
 | **Status** | Aprovado |
 | **Objetivo** | Catálogo único de tudo que existe na documentação do projeto — um resumo de uma linha por documento, para orientar uma sessão nova sem precisar ler cada arquivo. |
 | **Manutenção** | Atualizar sempre que um documento for criado, removido ou tiver título/resumo alterado de forma relevante (mesma disciplina de `adr/ADR-INDEX.md`/`standards/STD-INDEX.md`). |
@@ -116,6 +116,7 @@ Registro incremental de decisões de modelagem de domínio (conceitual + lógica
 | [`domain-modeling/collections/COLLECTION-FUNCTIONAL-COVERAGE-AUDIT-01.md`](domain-modeling/collections/COLLECTION-FUNCTIONAL-COVERAGE-AUDIT-01.md) | Auditoria de cobertura funcional de Collection (2026-10-29, não normativa): 69 capacidades classificadas contra o ROADMAP 2.54, 9 lacunas confirmadas (colaboração multiusuário, visibilidade pública, arquivar/excluir coleção, Fluxos 2/5 na coleção, condição, graduação, custódia, B1–B8), análise da coleção familiar e decisões D1–D7 pendentes do proprietário. |
 | [`domain-modeling/collections/north-star-2026-10-16.md`](domain-modeling/collections/north-star-2026-10-16.md) | **Collection North Star — referência normativa de experiência de Collection** (v1.20, 2026-10-29; NS-19 define o encerramento da Collection V1.0; frente vigente; inclui NS-15–NS-18 e matriz de rastreabilidade §7): visão, públicos, cinco fluxos centrais, nomenclatura da interface (N1–N27), critérios obrigatórios de base funcional para P7–P9 (B1–B8) e necessidade do contrato CT-01 (primeira coleção atômica). Em domínio, `C-*`/`LDM-*` prevalecem. **v1.16 (2026-10-18):** N9 revisado ("os acabamentos que você escolher"). **v1.21 (2026-10-31):** N27 "Lista de desejos". |
 | [`domain-modeling/collections/wishlist-product-contract.md`](domain-modeling/collections/wishlist-product-contract.md) | **Contrato funcional de produto da Lista de desejos (Wishlist), V1-11 — W0** (v1.1, 2026-10-31, aprovado): decisões D1–D9 (C-210–C-219, LDM-204–LDM-208, N27), contrato do item, identificação inequívoca da variante, seis entradas e quatro cenários do Fichário, preço por variante distinta, privacidade e fronteira CI-N1/CI-N2, lacunas L1–L7. v1.3: W1 encerrada — SQL 5345–5347 no LIVE e em `database/schema/`, frontend homologado, publicação pendente. v1.4: V1-11 concluída (W1–W8); filtro "falta em alguma coleção" retirado do escopo (L8, candidato futuro). |
+| [`domain-modeling/collections/reports-product-contract.md`](domain-modeling/collections/reports-product-contract.md) | **Contrato funcional de produto dos Relatórios contextuais, V1-14 — D7** (v1.16, 2026-11-05, aprovado): relatórios por contexto (Coleção, Acervo, Locais) sem página central, navegação integrada (cápsula de ações + menu compacto) e relatório em sobreposição sem sair do módulo, impressão integral obrigatória, valor por exemplar com NM e cobertura, só o titular; catálogo de evolução; R1-A (Checklist de completude, folha de impressão padrão compartilhada com o Catálogo) encerrada localmente, publicação pendente. |
 | [`domain-modeling/collections/binder-auto-arrange-contract.md`](domain-modeling/collections/binder-auto-arrange-contract.md) | **Contrato funcional e SQL da organização automática do fichário (P2)** (v1.5, 2026-11-01; token com época e marco de cobertura; §7 implementado na interface E1–E4; §9 homologação, primeira aplicação real no ME3 com integridade PASS, decisão sem feature flag e riscos R1–R5): elegibilidade (Set/Master Set, proprietária, bolsos reservados vazios e livres, exemplares no local), 1:1 estrito sem desempate, token `aa1:`, limite 500, travas, histórico `CARDS_AUTO_ARRANGED`. Decisões C-220–C-226 aprovadas; SQL 5341–5344 aplicado no LIVE e homologado (GATE 04, 2026-11-01). |
 | [`domain-modeling/collections/pkmnbindr-benchmark.md`](domain-modeling/collections/pkmnbindr-benchmark.md) | Benchmark de produto/UX (PkmnBindr) — referência não normativa, motiva mas não decide sozinha a direção de produto de Collections. |
 
@@ -437,3 +438,11 @@ Catálogo completo com status em [`standards/STD-INDEX.md`](standards/STD-INDEX.
 | 3.18 | **`V1-11 W1 IMPLEMENTATION-01` (2026-11-01).** Resumo do contrato da Lista de desejos atualizado (v1.2: W1 com SQL 5345–5347 proposto, não executado, e frontend local). |
 | 3.19 | **`V1-11 W1 FINAL CLOSEOUT & CONTROLLED COMMIT-06` (2026-11-02).** Resumo do contrato da Lista de desejos atualizado (v1.3: W1 encerrada). |
 | 3.20 | **`V1-11 FINAL PRODUCT CLOSEOUT-01` (2026-11-04).** Resumo do contrato da Lista de desejos atualizado (v1.4: V1-11 concluída; filtro retirado do escopo). |
+| 3.21 | **`V1-14 D7 APPROVAL + R1-A IMPLEMENTATION-01` (2026-11-05).** Linha nova para `domain-modeling/collections/reports-product-contract.md` (v1.0). |
+| 3.22 | **`V1-14 R1-A UX REDIRECTION-02` (2026-11-05).** Resumo de `reports-product-contract.md` atualizado para a v1.1 (navegação integrada e sobreposição). |
+| 3.23 | **`V1-14 R1-A VISUAL & PRINT CORRECTION-03` (2026-11-05).** Resumo de `reports-product-contract.md` na v1.2. |
+| 3.24 | **`V1-14 R1-A PRINT DESIGN REFINEMENT-04` (2026-11-05).** Resumo de `reports-product-contract.md` na v1.3. |
+| 3.25 | **`V1-14 R1-A PRINT HEADER & FOOTER STANDARDIZATION-05` (2026-11-05).** Resumo de `reports-product-contract.md` na v1.4. |
+| 3.26 | **`V1-14 R1-A SUSTAINABLE PRINT OPTIMIZATION-06` (2026-11-05).** Resumo de `reports-product-contract.md` na v1.5. |
+| 3.27 | **`V1-14 R1-A PRINT HORIZONTAL ALIGNMENT-07` (2026-11-05).** Resumo de `reports-product-contract.md` na v1.6. |
+| 3.28 | **`V1-14 R1-A FINAL COMMIT` (2026-11-05).** Resumo de `reports-product-contract.md` na v1.16; R1-A encerrada localmente. |

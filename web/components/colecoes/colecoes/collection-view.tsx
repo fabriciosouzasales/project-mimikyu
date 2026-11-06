@@ -1,5 +1,9 @@
 import Link from "next/link";
 import { CollectionShareButton } from "@/components/colecoes/sharing/share-panel";
+import { CollectionReportsAction } from "@/components/reports/collection-reports-action";
+import { ActionCapsule } from "@/components/ui/action-capsule";
+import capsuleStyles from "@/components/ui/action-capsule.module.css";
+import { collectionReportItems } from "@/lib/reports/collection-checklist";
 import { BinderCoverLink, BinderEntry } from "@/components/colecoes/fichario/binder-entry";
 import { type BinderHeader, binderEntryVisible } from "@/lib/colecoes/binder";
 import type { ReactNode } from "react";
@@ -138,6 +142,23 @@ export function CollectionView({
   const unit = isMaster ? (shown === 1 ? "posição" : "posições") : shown === 1 ? "carta" : "cartas";
   const currentSegment = segments.find((segment) => segment.key === filter);
 
+  // V1-14 R1-A (UX REDIRECTION-02): "Relatórios" é uma ação da cápsula do cabeçalho, ao lado de
+  // Compartilhar e Ajustes — também na coleção arquivada (relatório é só leitura). O relatório
+  // abre em sobreposição sobre esta página; só o titular chega aqui.
+  const reportsAction = (
+    <CollectionReportsAction
+      collectionId={collection.id}
+      items={collectionReportItems({
+        collectionId: collection.id,
+        completionPolicy: collection.completionPolicy,
+        totalPositions: collection.totalPositions,
+        satisfiedPositions: collection.satisfiedPositions,
+      })}
+      className={capsuleStyles.item}
+      labelClassName={capsuleStyles.label}
+    />
+  );
+
   const page = (
     <div className={acervoStyles.root}>
       <header className={`${acervoStyles.hero} ${heroStyles.hero}`} data-has-fan={hero.cards.length > 0 || undefined}>
@@ -151,22 +172,37 @@ export function CollectionView({
           {canManage ? (
             <div className={manageStyles.heroBarActions}>
               <ReactivatedStatus collectionId={collection.id} />
-              <CollectionShareButton collectionId={collection.id} collectionName={collection.name} />
-              <CollectionSettingsButton
-                collectionId={collection.id}
-                collectionName={collection.name}
-                kind="card_set"
-                identity={{
-                  name: collection.name,
-                  finish: collection.finish,
-                  finishEditable: collection.finishEditable,
-                  setName: collection.cardSetName,
-                }}
-              />
+              <ActionCapsule label="Ações da coleção">
+                {reportsAction}
+                <CollectionShareButton
+                  collectionId={collection.id}
+                  collectionName={collection.name}
+                  className={capsuleStyles.item}
+                  labelClassName={capsuleStyles.label}
+                />
+                <CollectionSettingsButton
+                  collectionId={collection.id}
+                  collectionName={collection.name}
+                  kind="card_set"
+                  identity={{
+                    name: collection.name,
+                    finish: collection.finish,
+                    finishEditable: collection.finishEditable,
+                    setName: collection.cardSetName,
+                  }}
+                  className={capsuleStyles.item}
+                  labelClassName={capsuleStyles.label}
+                />
+              </ActionCapsule>
             </div>
           ) : !active ? (
-            <ReactivateCollectionButton collectionId={collection.id} collectionName={collection.name} />
-          ) : null}
+            <div className={manageStyles.heroBarActions}>
+              <ActionCapsule label="Ações da coleção">{reportsAction}</ActionCapsule>
+              <ReactivateCollectionButton collectionId={collection.id} collectionName={collection.name} />
+            </div>
+          ) : (
+            <ActionCapsule label="Ações da coleção">{reportsAction}</ActionCapsule>
+          )}
         </div>
         <div className={heroStyles.stage}>
           <div className={heroStyles.text}>
