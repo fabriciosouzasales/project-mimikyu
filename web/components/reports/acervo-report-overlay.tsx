@@ -6,15 +6,18 @@ import {
   readFavoritesReport,
   readSetInventoryReport,
   readSetSummaryReport,
+  readTopCardsReport,
   readWishlistReport,
 } from "@/app/colecoes/acervo/relatorios/actions";
 import { type AcervoReportId, acervoReport } from "@/lib/reports/acervo-reports";
 import { setInventoryIncompleteText } from "@/lib/reports/acervo-set-inventory";
 import { setSummaryIncompleteText } from "@/lib/reports/acervo-set-summary";
 import { favoritesIncompleteText } from "@/lib/reports/favorites-report";
+import { topCardsIncompleteText } from "@/lib/reports/top-cards";
 import { wishlistIncompleteText } from "@/lib/reports/wishlist-report";
 import { AcervoValueSheet } from "./acervo-value-report";
 import { FavoritesReportSheet } from "./favorites-report";
+import { TopCardsSheet } from "./top-cards-report";
 import { WishlistReportSheet } from "./wishlist-report";
 import { AcervoSetInventorySheet } from "./acervo-set-inventory-report";
 import { AcervoSetSummarySheet } from "./acervo-set-summary-report";
@@ -55,6 +58,17 @@ function loadReport(report: AcervoReportId): Promise<ReportSheetEntry> {
         : { status: "error" },
     );
   }
+  if (report === "top") {
+    return readTopCardsReport().then((r) =>
+      r.status === "ready"
+        ? {
+            status: "ready",
+            incomplete: topCardsIncompleteText(r.data.report.incompleteReason),
+            sheet: <TopCardsSheet report={r.data.report} issuedAt={r.data.issuedAt} />,
+          }
+        : { status: "error" },
+    );
+  }
   if (report === "value") {
     return readAcervoValueReport().then((r) =>
       r.status === "ready"
@@ -83,7 +97,8 @@ function loadReport(report: AcervoReportId): Promise<ReportSheetEntry> {
  * (`readSetInventoryReport`: 5160/5159/3989) e 03 "Valor estimado total" (R1-C, `readAcervoValueReport`:
  * mesma leitura do 02, projetada por Card Set) e 04 "Minhas favoritas" (R1-D, `readFavoritesReport`:
  * 5336 + referência por carta + posse) e 05 "Minha Lista de Desejos" (R1-E, `readWishlistReport`:
- * 5350/5351 + 3989 por variante distinta) — só o titular, somente leitura. Casca, cabeçalho
+ * 5350/5351 + 3989 por variante distinta) e 06 "Top 10 cartas mais valiosas" (R1-F, `readTopCardsReport`:
+ * 5160/5159 + 3989, mesma base do 03) — só o titular, somente leitura. Casca, cabeçalho
  * funcional e impressão: `ReportSheetOverlay`.
  */
 export function AcervoReportOverlay({ report, onClose }: { report: AcervoReportId; onClose: () => void }) {

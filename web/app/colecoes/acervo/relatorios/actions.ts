@@ -9,6 +9,7 @@ import {
   getSetSummaryReport,
 } from "@/lib/reports/acervo-set-inventory-queries";
 import { type FavoritesReportLoad, getFavoritesReport } from "@/lib/reports/favorites-report-queries";
+import { type TopCardsReportLoad, getTopCardsReport } from "@/lib/reports/top-cards-queries";
 import { type WishlistReportLoad, getWishlistReport } from "@/lib/reports/wishlist-report-queries";
 import { createClient } from "@/lib/supabase/server";
 import { getCachedUser } from "@/lib/supabase/request-auth-cache";
@@ -110,6 +111,28 @@ export async function readWishlistReport(): Promise<WishlistReportLoad> {
     return await getWishlistReport(supabase, new Date(), imageUrl);
   } catch (error) {
     console.error("[reports] readWishlistReport falhou", { message: error instanceof Error ? error.message : "unknown" });
+    return { status: "error" };
+  }
+}
+
+/**
+ * V1-14 R1-F — "Top 10 cartas mais valiosas" (6º do Meu acervo): leitura compartilhada do acervo
+ * (5160/5159) + 3989 por variante (Pricing Resilience), mesma base monetária do Valor estimado
+ * total. Só o titular (as RPCs resolvem o dono por `auth.uid()`), nenhum identificador do cliente,
+ * somente leitura, sem SQL nova.
+ */
+export async function readTopCardsReport(): Promise<TopCardsReportLoad> {
+  const {
+    data: { user },
+  } = await getCachedUser();
+  if (!user) return { status: "error" };
+  const supabase = await createClient();
+  try {
+    // Miniaturas: mesma origem pública das imagens do Meu acervo (bucket `card-front`, síncrono).
+    const imageUrl = (path: string) => supabase.storage.from("card-front").getPublicUrl(path).data.publicUrl ?? null;
+    return await getTopCardsReport(supabase, new Date(), imageUrl);
+  } catch (error) {
+    console.error("[reports] readTopCardsReport falhou", { message: error instanceof Error ? error.message : "unknown" });
     return { status: "error" };
   }
 }

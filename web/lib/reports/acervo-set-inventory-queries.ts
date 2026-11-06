@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { chunkVariantIds, parseVariantPrices } from "../pricing/variant-pricing.ts";
+import { type VariantPrice, chunkVariantIds, parseVariantPrices } from "../pricing/variant-pricing.ts";
 import type { InventorySummaryInput } from "./acervo-reports.ts";
 import { type SetSummaryReport, buildSetSummaryReport } from "./acervo-set-summary.ts";
 import { type AcervoValueReport, buildAcervoValueReport } from "./acervo-value.ts";
@@ -56,7 +56,17 @@ function toItem(row: Record<string, unknown>): SetInventoryItemInput | null {
     variantLabel: str(row.variant_label),
     isDefaultVariant: row.is_default_variant === true,
     copies,
+    languageName: str(row.language_name),
+    imagePath: str(row.image_path),
   };
+}
+
+/**
+ * Regra única de referência dos relatórios do acervo: só `has_pricing` com valor > 0 vira
+ * referência (sem cotação nunca é zero). Usada pelo 02/03 e pelo Top 10 (R1-F).
+ */
+export function inventoryPriceInput(price: VariantPrice): SetInventoryPriceInput | null {
+  return price.hasPricing && price.brlAmount !== null && price.brlAmount > 0 ? { brl: price.brlAmount, basis: price.basis, observedAt: price.observedAt } : null;
 }
 
 export type RpcResult = { data: unknown; error: { code?: string } | null };
@@ -157,9 +167,8 @@ async function readPricedInventory(supabase: Rpc): Promise<InventoryRead> {
     const parsed = parseVariantPrices(priceRead.data);
     if (!parsed) return { status: "error", stage: "prices" };
     for (const [id, price] of parsed) {
-      if (price.hasPricing && price.brlAmount !== null && price.brlAmount > 0) {
-        prices.set(id, { brl: price.brlAmount, basis: price.basis, observedAt: price.observedAt });
-      }
+      const input = inventoryPriceInput(price);
+      if (input) prices.set(id, input);
     }
   }
 

@@ -24,6 +24,10 @@ export type SetInventoryItemInput = {
   variantLabel: string | null;
   isDefaultVariant: boolean;
   copies: number;
+  /** Nome do idioma (5159) — usado pelo Top 10 (R1-F); opcional para os demais relatórios. */
+  languageName?: string | null;
+  /** Frente da carta no bucket público `card-front` (5159) — miniatura do Top 10 (R1-F). */
+  imagePath?: string | null;
 };
 
 /** Referência NM unitária válida (> 0) por variante; ausente = sem cotação. */
