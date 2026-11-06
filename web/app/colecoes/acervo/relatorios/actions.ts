@@ -8,6 +8,7 @@ import {
   getSetInventoryReport,
   getSetSummaryReport,
 } from "@/lib/reports/acervo-set-inventory-queries";
+import { type FavoritesReportLoad, getFavoritesReport } from "@/lib/reports/favorites-report-queries";
 import { createClient } from "@/lib/supabase/server";
 import { getCachedUser } from "@/lib/supabase/request-auth-cache";
 
@@ -64,6 +65,28 @@ export async function readAcervoValueReport(): Promise<AcervoValueReportLoad> {
     return await getAcervoValueReport(supabase);
   } catch (error) {
     console.error("[reports] readAcervoValueReport falhou", { message: error instanceof Error ? error.message : "unknown" });
+    return { status: "error" };
+  }
+}
+
+/**
+ * V1-14 R1-D — dados do relatório 04, "Minhas favoritas": favoritas (5336), referência por carta
+ * (`get_cards_pricing_summary`) e posse (5160/5159 + `get_my_card_favorites_by_variant`). Só o
+ * titular (todas resolvem o dono por `auth.uid()`), nenhum identificador do cliente, somente
+ * leitura, sem SQL nova.
+ */
+export async function readFavoritesReport(): Promise<FavoritesReportLoad> {
+  const {
+    data: { user },
+  } = await getCachedUser();
+  if (!user) return { status: "error" };
+  const supabase = await createClient();
+  try {
+    // Miniaturas: mesma origem pública da página Cartas favoritas (bucket `card-front`, síncrono).
+    const imageUrl = (path: string) => supabase.storage.from("card-front").getPublicUrl(path).data.publicUrl ?? null;
+    return await getFavoritesReport(supabase, new Date(), imageUrl);
+  } catch (error) {
+    console.error("[reports] readFavoritesReport falhou", { message: error instanceof Error ? error.message : "unknown" });
     return { status: "error" };
   }
 }

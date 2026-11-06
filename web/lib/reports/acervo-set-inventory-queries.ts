@@ -26,7 +26,7 @@ export type SetSummaryReportLoad = { status: "ready"; data: SetSummaryReportData
 export type AcervoValueReportData = { report: AcervoValueReport; issuedAt: string };
 export type AcervoValueReportLoad = { status: "ready"; data: AcervoValueReportData } | { status: "error" };
 
-type Rpc = Pick<SupabaseClient, "rpc">;
+export type Rpc = Pick<SupabaseClient, "rpc">;
 
 function n(value: unknown): number | null {
   const v = typeof value === "string" && value.trim() !== "" ? Number(value) : value;
@@ -59,9 +59,9 @@ function toItem(row: Record<string, unknown>): SetInventoryItemInput | null {
   };
 }
 
-type RpcResult = { data: unknown; error: { code?: string } | null };
+export type RpcResult = { data: unknown; error: { code?: string } | null };
 
-async function inBatches(tasks: (() => PromiseLike<RpcResult>)[], limit: number): Promise<RpcResult[]> {
+export async function inBatches(tasks: (() => PromiseLike<RpcResult>)[], limit: number): Promise<RpcResult[]> {
   const out: RpcResult[] = [];
   for (let i = 0; i < tasks.length; i += limit) out.push(...(await Promise.all(tasks.slice(i, i + limit).map((t) => t()))));
   return out;
@@ -78,7 +78,7 @@ const itemsParams = (offset: number) => ({
   p_offset: offset,
 });
 
-type ItemsRead =
+export type ItemsRead =
   | { status: "ok"; summary: InventorySummaryInput; items: SetInventoryItemInput[]; complete: boolean; total: number }
   | { status: "error"; stage: string; code?: string };
 
@@ -87,7 +87,7 @@ type ItemsRead =
  * as páginas (a 1ª dá o total; as demais em paralelo), sem filtro de coleção. Só o titular
  * (`auth.uid()` no banco; nenhum identificador vindo do cliente; nenhuma escrita).
  */
-async function readInventoryItems(supabase: Rpc): Promise<ItemsRead> {
+export async function readInventoryItems(supabase: Rpc): Promise<ItemsRead> {
   const [summaryRes, firstRes] = await Promise.all([
     supabase.rpc("get_my_inventory_summary"),
     supabase.rpc("get_my_inventory_items", itemsParams(0)),
