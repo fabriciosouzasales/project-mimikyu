@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Roadmap |
 | **Arquivo** | `docs/ROADMAP.md` |
-| **Versão** | 3.12 |
+| **Versão** | 3.13 |
 | **Status** | Aprovado |
 | **Objetivo** | Consolidar, em uma única fonte de verdade, a trajetória macro do Project Mimikyu — o que já foi concluído, o que está em andamento e o que é direção futura provável, mas ainda não comprometida. |
 | **Escopo** | Marcos de alto nível (Fases/Sub-Fases/Blocos). Não substitui `docs/README.md` (estado atual detalhado), `05-modelo-de-dados.md` (execução física) nem `06-pipeline-importacao.md` (estratégia de importação). |
@@ -60,6 +60,8 @@ Criado em 2026-07-24, junto com a reativação da manutenção de `adr/ADR-INDEX
 > **Precificação na V1.0.** Toda consulta de preço usa **Near Mint (NM)** como condição padrão — a regra já vigente em Pricing (`05f-pricing.md`, "NM como condição padrão de comparação/apresentação"; `3983`). NM é **referência de preço, não declaração sobre a condição física** do exemplar, e a interface deixa isso claro ao usuário. Preço indisponível nunca é tratado como zero. Continuam valendo as regras de variante, acabamento, idioma, fonte, moeda e `CARD_FALLBACK` dos contratos existentes.
 >
 > **Relatórios — diretrizes preliminares.** Quantidade de exemplares e de cartas distintas; valor estimado do acervo; valor estimado de cada coleção; progresso e faltantes; checklist por coleção (possuídas × ausentes), com referência visual no checklist do Catálogo Editorial. Filtros, layout final, impressão, exportação e regras adicionais ficam para quando o incremento começar.
+>
+> **Backlog V1.0 — integridade de Pricing (registrado em 2026-11-06, decisão do proprietário; prioridade de integridade, NÃO bloqueante da R1-F nem das próximas entregas; sem implementação nem SQL agora).** Origem: incidente ME5.5CC (`database/proposals/2026-11-06-me55cc-wrong-link-containment/README.md`; contenção 3990 aplicada no LIVE). (1) **Prevenção de associações incorretas JustTCG** — revisar o casamento automático por Card Set, número e identidade comercial para que total de numeração divergente com nome divergente vá para revisão humana em vez de CONFIRMED, preservando diferenças legítimas de total; o ME5.5CC (número original da reimpressão casado com a numeração local) é o caso de referência. (2) **Revinculação ME5.5CC** — avaliar separadamente as correspondências corretas das cinco cartas (Charizard, Delcatty, Misty, Tyranitar Sombrio, Sneasel) e o tratamento dos 19 produtos que seguem recebendo observações sob as identidades ainda CONFIRMED dos vínculos rejeitados. (3) **Casos em revisão, sem alteração** — NP 27 (Tropical Tidal Wave × "Raichu 27/99 Prerelease") e SV10 046 (Staryu da Misty, total externo 180 × local 182).
 >
 > **Backlog V2.0 (não bloqueia a V1.0; decisões históricas preservadas; sem modelagem nem implementação agora):** condição real do exemplar (C-103–C-120); graduação/certificação (C-121–C-140); custódia — empréstimo, perda, recuperação e situações correlatas (C-49–C-52); reconfiguração da grade de fichário existente (`BINDER-GRID-RECONFIGURATION`).
 >
@@ -911,3 +913,4 @@ Itens reais, já identificados em auditoria ou por decisão explícita de adiame
 | 3.10 | **V1-14 — R1-B: Inventário geral por Card Set (2026-11-06).** Substitui o inventário por coleção; contrato D7 v1.20. |
 | 3.11 | **V1-14 — R1-B: dois inventários (2026-11-06, `RESTORE APPROVED REPORT + KEEP DETAIL-04`).** Inventário geral e por coleção restaurado; o por Card Set vira "Inventário detalhado por Card Set"; catálogo de 9; contrato D7 v1.21. |
 | 3.12 | **V1-14 — R1-B: realinhamento contextual (2026-11-06, `CONTEXTUAL REPORT REALIGNMENT-05`).** Acervo: inventários resumido e detalhado por Card Set; Minhas coleções: Distribuição do Acervo por coleção; contrato D7 v1.22. |
+| 3.13 | **Backlog V1.0 — integridade de Pricing (2026-11-06, decisão do proprietário).** Registrados no bloco da Collection V1.0, como prioridade de integridade não bloqueante: prevenção de associações incorretas JustTCG (referência: incidente ME5.5CC), revinculação das cinco cartas do ME5.5CC e tratamento dos produtos que seguem recebendo observações, e os casos NP 27 e SV10 046 mantidos para revisão. Sem implementação nem SQL; matriz V1-01 a V1-15 e sequência aprovada inalteradas. |
