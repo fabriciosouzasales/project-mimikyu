@@ -1,6 +1,7 @@
 "use server";
 
 import { type PositionPrices, getPokedexPositionPrices } from "@/lib/pricing/position-pricing-queries";
+import type { VariantPricesStatus } from "@/lib/pricing/variant-pricing";
 import { revalidatePath } from "next/cache";
 import { resolveCardSetForAdd } from "@/app/colecoes/acervo/actions";
 import { ACERVO_PATH } from "@/lib/colecoes/acervo";
@@ -1707,7 +1708,7 @@ export async function loadMorePokedexPositions(input: {
   filter: PokedexFilter;
   generation: string | null;
   offset: number;
-}): Promise<{ ok: true; page: PokedexPositionsPage; prices: PositionPrices | null } | PokedexFail> {
+}): Promise<{ ok: true; page: PokedexPositionsPage; prices: PositionPrices | null; priceStatus: VariantPricesStatus } | PokedexFail> {
   const filter = input?.filter;
   if (
     !isCollectionId(input?.collectionId) ||
@@ -1722,9 +1723,10 @@ export async function loadMorePokedexPositions(input: {
   const supabase = await createClient();
   const page = await getMyPokedexPositions(supabase, input.collectionId, filter, input.generation, input.offset);
   if (page === null) return { ok: false, reason: "unavailable" };
-  // V1-09 Fase B: preço do representante das posições desta página (5334 + 3983); falha = sem etiqueta.
-  const prices = await getPokedexPositionPrices(supabase, input.collectionId.toLowerCase(), page.items);
-  return { ok: true, page, prices };
+  // V1-09 Fase B: preço do representante das posições desta página (5334 + 3989); falha = sem etiqueta
+  // e estado devolvido à grade (PRICING TIMEOUT CORRECTION-01), que avisa.
+  const read = await getPokedexPositionPrices(supabase, input.collectionId.toLowerCase(), page.items);
+  return { ok: true, page, prices: read.status === "unavailable" ? null : read.prices, priceStatus: read.status };
 }
 
 // ---------------------------------------------------------------------------

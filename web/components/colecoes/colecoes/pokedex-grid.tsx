@@ -29,6 +29,8 @@ import freeStyles from "./free-collection.module.css";
 import { VariantPriceSummary } from "@/components/card/variant-price-summary";
 import { priceAccessibleText } from "@/lib/pricing/variant-pricing";
 import type { PositionPrice, PositionPrices } from "@/lib/pricing/position-pricing-queries";
+import { type VariantPricesStatus, combinePriceIssue } from "@/lib/pricing/variant-pricing";
+import { PriceReadNotice } from "./price-read-notice";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 /** Mesmo teto de prioridade da grade da Pokédex: só o topo visível carrega cedo. */
@@ -61,6 +63,7 @@ export function PokedexGrid({
   linkable = false,
   focusNumber = null,
   prices = null,
+  priceStatus = null,
   priceNow = 0,
 }: {
   collectionId: string;
@@ -75,10 +78,14 @@ export function PokedexGrid({
   focusNumber?: number | null;
   /** V1-09 Fase B: preço do exemplar representante (chave = posição). */
   prices?: PositionPrices | null;
+  /** Estado da leitura de preços da página do servidor (CORRECTION-01). */
+  priceStatus?: VariantPricesStatus | null;
   priceNow?: number;
 }) {
   const [items, setItems] = useState(initial);
   const [priceMap, setPriceMap] = useState<PositionPrices>(prices ?? {});
+  // Alguma leitura (página do servidor ou "Mostrar mais") não foi completa → aviso.
+  const [priceIssue, setPriceIssue] = useState<VariantPricesStatus | null>(priceStatus === "complete" ? null : priceStatus);
   const [count, setCount] = useState(total);
   const [error, setError] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -122,12 +129,13 @@ export function PokedexGrid({
     if (conquered.length > 0) pendingCelebrationRef.current = [...pendingCelebrationRef.current, ...conquered];
     setItems(initial);
     setPriceMap(prices ?? {});
+    setPriceIssue(priceStatus === "complete" ? null : priceStatus);
     setCount(total);
     setError(false);
     // Depois do commit do React: só celebra se nenhum painel estiver aberto.
     const frame = window.requestAnimationFrame(() => flushCelebration());
     return () => window.cancelAnimationFrame(frame);
-  }, [initial, total, prices, flushCelebration]);
+  }, [initial, total, prices, priceStatus, flushCelebration]);
 
   useEffect(() => {
     const onClosed = () => flushCelebration();
@@ -182,6 +190,8 @@ export function PokedexGrid({
       firstNewRef.current = result.page.items.find((item) => !items.some((current) => current.positionId === item.positionId))?.positionId ?? null;
       setItems(merged);
       if (result.prices) setPriceMap((current) => ({ ...current, ...result.prices }));
+      // Falha nas páginas novas não apaga as etiquetas já lidas: o aviso passa a valer para o conjunto.
+      setPriceIssue((current) => combinePriceIssue(current, result.priceStatus));
       // O total pode ter mudado entre as leituras (outra aba): vale o mais recente.
       setCount(result.page.total || merged.length);
       setAnnounce(added > 0 ? `${formatCount(added)} Pokémon a mais carregados.` : "Não há mais Pokémon para mostrar.");
@@ -190,6 +200,7 @@ export function PokedexGrid({
 
   return (
     <CardZoomProvider>
+      <PriceReadNotice status={priceIssue} className="mb-4" />
       <ul className={acervoStyles.grid} aria-label={label}>
         {items.map((position, index) => (
           <li

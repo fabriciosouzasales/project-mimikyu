@@ -351,6 +351,36 @@ export function priceAccessibleText(price: VariantPrice | null | undefined, now:
   return parts.join(", ");
 }
 
+/**
+ * Estado de uma leitura de preços em lote (PRICING TIMEOUT CORRECTION-01):
+ * `complete` = tudo lido; `partial` = parte dos blocos falhou; `unavailable` =
+ * nada lido. Falha de leitura nunca é "sem cotação" nem preço zero.
+ */
+export type VariantPricesStatus = "complete" | "partial" | "unavailable";
+
+/**
+ * Aviso discreto da página quando a leitura não foi completa; `null` quando
+ * não há nada a avisar (leitura completa ou sem leitura de preço).
+ */
+export function priceReadNoticeText(status: VariantPricesStatus | null | undefined): string | null {
+  if (status === "partial") {
+    return "Alguns preços de referência não puderam ser carregados agora. Cartas sem etiqueta podem ter cotação — recarregue a página em instantes.";
+  }
+  if (status === "unavailable") return "Os preços de referência não puderam ser carregados agora. Recarregue a página em instantes.";
+  return null;
+}
+
+/**
+ * Estado agregado de várias leituras da mesma grade (página do servidor +
+ * "Mostrar mais"): nada a avisar só se todas foram completas; todas
+ * indisponíveis = indisponível; qualquer outra mistura = parcial.
+ */
+export function combinePriceIssue(current: VariantPricesStatus | null, next: VariantPricesStatus): VariantPricesStatus | null {
+  if (current === null && next === "complete") return null;
+  if (current === "unavailable" && next === "unavailable") return "unavailable";
+  return "partial";
+}
+
 export const NM_REFERENCE_NOTE = "Referência de mercado em condição Near Mint. Não reflete o estado do seu exemplar.";
 
 export type CompactPriceDetail = {

@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { VariantPrice } from "./variant-pricing";
-import { getVariantPrices } from "./variant-pricing-queries";
+import type { VariantPrice } from "./variant-pricing.ts";
+import { type PricingRpc, type VariantPricesStatus, readVariantPrices } from "./variant-pricing-queries.ts";
 import {
   type CardVariantRow,
   type PositionVariant,
@@ -11,13 +11,25 @@ import {
   pokedexPositionVariants,
   positionVariantIds,
   setPositionVariants,
-} from "./position-pricing";
+} from "./position-pricing.ts";
 
 /** Preço pronto para a etiqueta de uma posição: variante resolvida + preço da 3983. */
 export type PositionPrice = PositionVariant & { price: VariantPrice };
 
 /** Forma serializável (Record) — atravessa a fronteira de Client Components. */
 export type PositionPrices = Record<string, PositionPrice>;
+
+/**
+ * Leitura com estado (PRICING TIMEOUT CORRECTION-01): `complete` = todas as
+ * posições exibidas tiveram o preço lido; `partial` = algum bloco da 3989
+ * falhou (essas posições ficam sem etiqueta e a página avisa); `unavailable` =
+ * nada foi lido (5333/5334 ou todos os blocos). Posição ausente de `prices` em
+ * leitura `complete` = sem preço confirmado.
+ */
+export type PositionPricesRead = { status: VariantPricesStatus; prices: PositionPrices };
+
+const UNAVAILABLE: PositionPricesRead = { status: "unavailable", prices: {} };
+const EMPTY: PositionPricesRead = { status: "complete", prices: {} };
 
 /** Teto por chamada de 5333/5334. */
 const IDS_PER_CALL = 500;
@@ -74,33 +86,36 @@ async function readRepresentatives(
   return results.flat() as RepresentativeVariantRow[];
 }
 
-/** Variantes resolvidas + um lote de preços (3983, blocos de 100). Sem preço válido, a posição fica de fora. */
-async function attachPrices(supabase: SupabaseClient, variants: Map<string, PositionVariant>): Promise<PositionPrices | null> {
-  if (variants.size === 0) return {};
-  const prices = await getVariantPrices(supabase, positionVariantIds(variants));
-  if (!prices) return null;
+/**
+ * Variantes resolvidas + preços (3989, blocos de 100, até 2 simultâneos). Sem
+ * preço lido, a posição fica de fora; os blocos lidos são preservados mesmo
+ * quando outro falha (estado `partial`).
+ */
+export async function attachPrices(supabase: PricingRpc, variants: Map<string, PositionVariant>): Promise<PositionPricesRead> {
+  if (variants.size === 0) return EMPTY;
+  const read = await readVariantPrices(supabase, positionVariantIds(variants));
   const out: PositionPrices = {};
   for (const [key, variant] of variants) {
-    const price = prices.get(variant.cardVariantId);
+    const price = read.prices.get(variant.cardVariantId);
     if (price) out[key] = { ...variant, price };
   }
-  return out;
+  return { status: read.status, prices: out };
 }
 
 /**
  * Set padrão: preços das posições exibidas que têm exemplar (chave = card_id).
- * Uma leitura de variantes da página + um lote de preços. `null` = leitura
- * indisponível (a grade continua, só sem etiquetas).
+ * Uma leitura de variantes da página + os blocos de preço. Falha = estado
+ * `unavailable`/`partial` (a grade continua; a página avisa).
  */
 export async function getSetPositionPrices(
   supabase: SupabaseClient,
   collectionId: string,
   positions: readonly { cardId: string; copiesInCollection: number }[],
-): Promise<PositionPrices | null> {
+): Promise<PositionPricesRead> {
   const owned = positions.filter((position) => position.copiesInCollection > 0).map((position) => position.cardId);
-  if (owned.length === 0) return {};
+  if (owned.length === 0) return EMPTY;
   const rows = await readCardVariants(supabase, collectionId, owned);
-  if (!rows) return null;
+  if (!rows) return UNAVAILABLE;
   return attachPrices(supabase, setPositionVariants(rows));
 }
 
@@ -109,11 +124,11 @@ export async function getMasterSetPositionPrices(
   supabase: SupabaseClient,
   collectionId: string,
   positions: readonly { key: string; cardId: string; variantTypeId: string | null; copiesInCollection: number }[],
-): Promise<PositionPrices | null> {
+): Promise<PositionPricesRead> {
   const owned = positions.filter((position) => position.copiesInCollection > 0);
-  if (owned.length === 0) return {};
+  if (owned.length === 0) return EMPTY;
   const rows = await readCardVariants(supabase, collectionId, owned.map((position) => position.cardId));
-  if (!rows) return null;
+  if (!rows) return UNAVAILABLE;
   return attachPrices(supabase, masterPositionVariants(rows, owned));
 }
 
@@ -126,10 +141,10 @@ export async function getPokedexPositionPrices(
     isSatisfied: boolean;
     representative: { collectorNumber: string | null; setCode: string | null } | null;
   }[],
-): Promise<PositionPrices | null> {
+): Promise<PositionPricesRead> {
   const owned = positions.filter((position) => position.isSatisfied && position.representative);
-  if (owned.length === 0) return {};
+  if (owned.length === 0) return EMPTY;
   const rows = await readRepresentatives(supabase, collectionId, owned.map((position) => position.positionId));
-  if (!rows) return null;
+  if (!rows) return UNAVAILABLE;
   return attachPrices(supabase, pokedexPositionVariants(rows, owned));
 }

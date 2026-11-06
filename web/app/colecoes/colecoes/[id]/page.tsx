@@ -39,7 +39,7 @@ import {
   masterSetTotalPages,
   parseMasterSetPage,
 } from "@/lib/colecoes/master-set";
-import { getVariantPrices } from "@/lib/pricing/variant-pricing-queries";
+import { readVariantPrices } from "@/lib/pricing/variant-pricing-queries";
 import { getMasterSetPositionPrices, getPokedexPositionPrices, getSetPositionPrices } from "@/lib/pricing/position-pricing-queries";
 import { createClient } from "@/lib/supabase/server";
 import { getCachedUser, getCachedUserProfile } from "@/lib/supabase/request-auth-cache";
@@ -115,11 +115,12 @@ export default async function ColecaoPage({
     ]);
     const freeSummary = withCover ?? summary;
     // V1-09: preço NM por variante (3983) dos grupos exibidos (≤ 48), junto com a capa.
-    const [coverLogoUrl, prices] = await Promise.all([
+    // PRICING TIMEOUT CORRECTION-01: leitura com estado (falha avisa; nunca vira "sem preço").
+    const [coverLogoUrl, priceRead] = await Promise.all([
       freeSummary.coverLogoPath
         ? getCoverLogoUrls(supabase, [freeSummary.coverLogoPath]).then((urls) => urls.get(freeSummary.coverLogoPath as string) ?? null)
         : Promise.resolve(null),
-      getVariantPrices(supabase, (items?.items ?? []).map((item) => item.cardVariantId)),
+      readVariantPrices(supabase, (items?.items ?? []).map((item) => item.cardVariantId)),
     ]);
     return (
       <AppShell title={summary.name} icon={LibraryBig}>
@@ -133,7 +134,8 @@ export default async function ColecaoPage({
           coverLogoUrl={coverLogoUrl}
           userId={user.id}
           binder={binder}
-          prices={prices}
+          prices={priceRead.status === "unavailable" ? null : priceRead.prices}
+          priceStatus={priceRead.status}
           priceNow={Date.now()}
         />
       </AppShell>
@@ -180,7 +182,8 @@ export default async function ColecaoPage({
           heroLineup={heroLineup}
           binder={binder}
           registerMode={wantsRegister(query)}
-          positionPrices={pokedexPrices}
+          positionPrices={pokedexPrices?.prices ?? null}
+          priceStatus={pokedexPrices?.status ?? null}
           priceNow={Date.now()}
         />
       </AppShell>
@@ -264,7 +267,8 @@ export default async function ColecaoPage({
           master={master ? { ...master, wishedPositions } : null}
           binder={binder}
           registerMode={wantsRegister(query)}
-          positionPrices={positionPrices}
+          positionPrices={positionPrices?.prices ?? null}
+          priceStatus={positionPrices?.status ?? null}
           priceNow={Date.now()}
           wishedCards={wishedCards}
         />

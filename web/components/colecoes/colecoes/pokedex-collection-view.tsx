@@ -35,6 +35,7 @@ import { PokedexBulkLauncher } from "./pokedex-bulk-link";
 import { CollectionAddLauncher } from "./collection-add";
 import type { RegisterMode } from "@/lib/colecoes/collection-add";
 import type { PositionPrices } from "@/lib/pricing/position-pricing-queries";
+import type { VariantPricesStatus } from "@/lib/pricing/variant-pricing";
 import { PokedexGrid } from "./pokedex-grid";
 import { PokedexHeroBackdrop, PokedexHeroStage } from "./pokedex-hero-stage";
 import { PokedexFirstRun } from "./pokedex-first-run";
@@ -68,6 +69,7 @@ export function PokedexCollectionView({
   userId = null,
   registerMode = null,
   positionPrices = null,
+  priceStatus = null,
   priceNow = 0,
 }: {
   collection: CollectionSummary;
@@ -91,6 +93,8 @@ export function PokedexCollectionView({
   registerMode?: RegisterMode | null;
   /** V1-09 Fase B: preço NM do exemplar representante por posição (5334 + 3983). */
   positionPrices?: PositionPrices | null;
+  /** Estado da leitura de preços (CORRECTION-01). */
+  priceStatus?: VariantPricesStatus | null;
   priceNow?: number;
 }) {
   const active = collection.lifecycleStatus === "ACTIVE";
@@ -347,6 +351,7 @@ export function PokedexCollectionView({
             linkable={linkable}
             focusNumber={focusNumber}
             prices={positionPrices}
+            priceStatus={priceStatus}
             priceNow={priceNow}
           />
         )}

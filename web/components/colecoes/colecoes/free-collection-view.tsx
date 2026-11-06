@@ -22,7 +22,8 @@ import { FREE_COVER_CODE_ENABLED, FREE_COVER_UPLOAD_ENABLED, distinctSetCount, f
 import { CardZoomProvider, CardZoomTrigger } from "@/components/card/card-zoom";
 import { CARD_GRID_SIZES as GRID_SIZES, CardArt } from "../acervo/card-art";
 import { VariantPriceSummary } from "@/components/card/variant-price-summary";
-import { type VariantPrice, priceAccessibleText } from "@/lib/pricing/variant-pricing";
+import { type VariantPrice, type VariantPricesStatus, priceAccessibleText } from "@/lib/pricing/variant-pricing";
+import { PriceReadNotice } from "./price-read-notice";
 import acervoStyles from "../acervo/acervo.module.css";
 import { BinderCover } from "./binder-cover";
 import { CollectionHeroBackdrop, CollectionHeroFan } from "./collection-hero-fan";
@@ -70,6 +71,7 @@ export function FreeCollectionView({
   binder = null,
   registerMode = null,
   prices = null,
+  priceStatus = null,
   priceNow = 0,
 }: {
   collection: CollectionSummary;
@@ -91,6 +93,8 @@ export function FreeCollectionView({
   /** V1-09: preço NM por variante (3983) das cartas exibidas; `null` = sem leitura. */
   prices?: Map<string, VariantPrice> | null;
   /** Instante da regra de 14 dias (servidor). */
+  /** Estado da leitura de preços (CORRECTION-01): parcial/indisponível → aviso discreto. */
+  priceStatus?: VariantPricesStatus | null;
   priceNow?: number;
 }) {
   const active = collection.lifecycleStatus === "ACTIVE";
@@ -246,6 +250,7 @@ export function FreeCollectionView({
           <PastEnd href={freeCollectionHref(collection.id)} />
         ) : (
           <>
+            <PriceReadNotice status={priceStatus} className="mb-4" />
             {/* Clicar na carta amplia — mesmo preview e mesmo morph do Catálogo Editorial. */}
             <CardZoomProvider>
               <ul className={acervoStyles.grid} aria-label="Cartas da coleção">

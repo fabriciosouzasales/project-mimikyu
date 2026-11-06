@@ -41,7 +41,8 @@ import { MasterSetLinkLauncher } from "./master-set-link";
 import styles from "./colecoes.module.css";
 import freeStyles from "./free-collection.module.css";
 import { VariantPriceSummary } from "@/components/card/variant-price-summary";
-import { priceAccessibleText } from "@/lib/pricing/variant-pricing";
+import { type VariantPricesStatus, priceAccessibleText } from "@/lib/pricing/variant-pricing";
+import { PriceReadNotice } from "./price-read-notice";
 import type { PositionPrice, PositionPrices } from "@/lib/pricing/position-pricing-queries";
 import { WishButton, wishHostClass } from "@/components/wishlist/wish-button";
 import { WishlistController } from "@/components/wishlist/wishlist-controller";
@@ -92,6 +93,7 @@ export function CollectionView({
   binder = null,
   registerMode = null,
   positionPrices = null,
+  priceStatus = null,
   priceNow = 0,
   wishedCards = null,
 }: {
@@ -115,6 +117,8 @@ export function CollectionView({
    * `positionKey` (Master Set). `null` = sem leitura (grade sem etiquetas).
    */
   positionPrices?: PositionPrices | null;
+  /** Estado da leitura de preços (CORRECTION-01): parcial/indisponível → aviso discreto. */
+  priceStatus?: VariantPricesStatus | null;
   priceNow?: number;
   /**
    * V1-11 W2: cartas com algum desejo na Lista de desejos (só Set padrão, titular).
@@ -341,6 +345,7 @@ export function CollectionView({
           </div>
         </div>
 
+      <PriceReadNotice status={priceStatus} className="mb-4" />
       {isMaster ? (
         <MasterSetGallery
           collectionId={collection.id}
