@@ -15,8 +15,8 @@ import {
 export type FavoritesReportData = { report: FavoritesReport; issuedAt: string };
 export type FavoritesReportLoad = { status: "ready"; data: FavoritesReportData } | { status: "error" };
 
-/** Páginas da 5336 lidas em paralelo depois da primeira (leves, índice da PK). */
-const PAGE_PARALLEL = 4;
+/** Páginas da 5336 lidas em paralelo depois da primeira (leves, índice da PK). Também usada pela R2-D (5356). */
+export const PAGE_PARALLEL = 4;
 /** Referência por carta: teto da `get_cards_pricing_summary` (3972). */
 const PRICE_IDS_PER_CALL = 100;
 
@@ -50,7 +50,7 @@ async function readAllFavorites(supabase: Rpc): Promise<{ status: "ok"; cards: F
 }
 
 /** Referência NM por carta (`get_cards_pricing_summary`), blocos de 100, no máximo 2 simultâneos. */
-async function readReferences(supabase: Rpc, cardIds: readonly string[]): Promise<{ status: "ok"; references: Map<string, number> } | Fail> {
+export async function readReferences(supabase: Rpc, cardIds: readonly string[]): Promise<{ status: "ok"; references: Map<string, number> } | Fail> {
   const blocks = chunkIds(cardIds, PRICE_IDS_PER_CALL);
   const reads = await inBatches(blocks.map((block) => () => supabase.rpc("get_cards_pricing_summary", { p_card_ids: block })), PRICE_PARALLEL);
   const references = new Map<string, number>();
@@ -68,7 +68,7 @@ async function readReferences(supabase: Rpc, cardIds: readonly string[]): Promis
  * carta de cada variante (`get_my_card_favorites_by_variant`, 5336, blocos de 500, 2 simultâneos).
  * Custo adicional da posse: as páginas do acervo + ceil(variantes / 500) chamadas.
  */
-async function readOwnedCopies(supabase: Rpc): Promise<{ status: "ok"; owned: Map<string, number>; complete: boolean } | Fail> {
+export async function readOwnedCopies(supabase: Rpc): Promise<{ status: "ok"; owned: Map<string, number>; complete: boolean } | Fail> {
   const inventory = await readInventoryItems(supabase);
   if (inventory.status === "error") return inventory;
   const copiesByVariant = new Map<string, number>();

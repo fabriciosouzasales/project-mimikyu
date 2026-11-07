@@ -297,7 +297,7 @@ test("impressão: todos os desejos em cartões de duas colunas, miniaturas prepa
 test("menu da coleção e regressão: R2-A, R2-B e R1-E inalterados", () => {
   const c = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
   const set = collectionReportItems({ collectionId: c, completionPolicy: "MASTER_SET", totalPositions: 100, satisfiedPositions: 62 });
-  assert.deepEqual(set.map((i) => i.id), ["checklist", "missing", "set-wishlist"]);
+  assert.deepEqual(set.map((i) => i.id).slice(0, 3), ["checklist", "missing", "set-wishlist"]); // R2-D entra depois (set-favorites.test.ts)
   assert.equal(set[2]?.label, "Cartas desejadas do Card Set");
   assert.equal(set[2]?.icon, "wish");
   assert.equal(set[2]?.disabledReason, null);

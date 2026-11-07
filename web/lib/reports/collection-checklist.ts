@@ -266,7 +266,8 @@ export type ReportMenuItem = {
 
 /**
  * Relatórios da coleção para o menu de Relatórios da cápsula: Checklist de completude (R1-A ≡
- * R2-A), Cartas faltantes (R2-B) e Cartas desejadas do Card Set (R2-C). Nenhum botão fictício. Coleção fora de Set padrão/Master Set
+ * R2-A), Cartas faltantes (R2-B), Cartas desejadas do Card Set (R2-C) e Cartas favoritas do Card Set
+ * (R2-D). Nenhum botão fictício. Coleção fora de Set padrão/Master Set
  * mostra os itens indisponíveis, com o motivo.
  */
 export function collectionReportItems(input: {
@@ -298,6 +299,14 @@ export function collectionReportItems(input: {
       id: "set-wishlist",
       label: "Cartas desejadas do Card Set",
       icon: "wish",
+      href: null,
+      metric: null,
+      disabledReason: kind ? null : "Para coleções de Set padrão e Master Set.",
+    },
+    {
+      id: "set-favorites",
+      label: "Cartas favoritas do Card Set",
+      icon: "favorite",
       href: null,
       metric: null,
       disabledReason: kind ? null : "Para coleções de Set padrão e Master Set.",

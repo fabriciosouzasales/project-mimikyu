@@ -1,6 +1,7 @@
 "use client";
 
 import { type ReactNode, useEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { PRINT_IMAGE_CONCURRENCY, PRINT_IMAGE_ITEM_TIMEOUT_MS, prepareImageQueue } from "@/lib/reports/print-image-queue";
 
 /**
@@ -19,6 +20,8 @@ import { PRINT_IMAGE_CONCURRENCY, PRINT_IMAGE_ITEM_TIMEOUT_MS, prepareImageQueue
  * Sem dependência externa; só a API do navegador (`img.complete`, `naturalWidth`, eventos load/error).
  */
 const GATE = "[data-print-image-gate]";
+/** Evento síncrono do preparo para o gate: "terminei" — o gate recalcula na hora (sem esperar `load`). */
+const READY_EVENT = "mmkyu:print-images-checked";
 
 export type PrintProgress = { ready: number; total: number };
 
@@ -64,7 +67,13 @@ export async function preparePrintImages(onProgress?: (progress: PrintProgress) 
     concurrency: PRINT_IMAGE_CONCURRENCY,
     onProgress: (ready, total) => onProgress?.({ ready, total }),
   });
-  return result.failed.length === 0 && pendingImages(root).length === 0;
+  const ok = result.failed.length === 0 && pendingImages(root).length === 0;
+  // Imagem que veio do cache do navegador fica pronta na hora e o `load` dela pode chegar DEPOIS da
+  // impressão abrir: o preparo avisa o gate de forma síncrona (dispatchEvent é síncrono).
+  root.dispatchEvent(new Event(READY_EVENT));
+  // Garantia adicional: um quadro de animação para o navegador aplicar o gate pronto antes de imprimir.
+  if (ok) await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+  return ok;
 }
 
 export function PrintImageGate({ children }: { children: ReactNode }) {
@@ -75,16 +84,25 @@ export function PrintImageGate({ children }: { children: ReactNode }) {
     const root = ref.current;
     if (!root) return;
     const images = [...root.querySelectorAll<HTMLImageElement>("img")];
-    const update = () => setPending(pendingImages(root).length);
+    const count = () => pendingImages(root).length;
+    /*
+     * Cada miniatura que termina atualiza o gate de forma SÍNCRONA (`flushSync`). Sem isso, o botão
+     * Imprimir abria a impressão logo depois do preparo, antes de o React aplicar o novo estado, e a
+     * 1ª impressão saía com o aviso de miniaturas pendentes (bug da homologação da R2-D). Os ouvintes
+     * do gate são registrados na montagem, antes dos do preparo, então rodam primeiro na mesma imagem.
+     */
+    const onImage = () => flushSync(() => setPending(count()));
     for (const img of images) {
-      img.addEventListener("load", update);
-      img.addEventListener("error", update);
+      img.addEventListener("load", onImage);
+      img.addEventListener("error", onImage);
     }
-    update();
+    root.addEventListener(READY_EVENT, onImage);
+    setPending(count());
     return () => {
+      root.removeEventListener(READY_EVENT, onImage);
       for (const img of images) {
-        img.removeEventListener("load", update);
-        img.removeEventListener("error", update);
+        img.removeEventListener("load", onImage);
+        img.removeEventListener("error", onImage);
       }
     };
   }, []);
