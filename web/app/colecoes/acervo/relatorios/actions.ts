@@ -9,6 +9,7 @@ import {
   getSetSummaryReport,
 } from "@/lib/reports/acervo-set-inventory-queries";
 import { type FavoritesReportLoad, getFavoritesReport } from "@/lib/reports/favorites-report-queries";
+import { type DuplicatesReportLoad, getDuplicatesReport } from "@/lib/reports/duplicates-queries";
 import { type TopCardsReportLoad, getTopCardsReport } from "@/lib/reports/top-cards-queries";
 import { type WishlistReportLoad, getWishlistReport } from "@/lib/reports/wishlist-report-queries";
 import { createClient } from "@/lib/supabase/server";
@@ -133,6 +134,28 @@ export async function readTopCardsReport(): Promise<TopCardsReportLoad> {
     return await getTopCardsReport(supabase, new Date(), imageUrl);
   } catch (error) {
     console.error("[reports] readTopCardsReport falhou", { message: error instanceof Error ? error.message : "unknown" });
+    return { status: "error" };
+  }
+}
+
+/**
+ * V1-14 R1-G — "Cartas repetidas" (7º do Meu acervo): leitura compartilhada do acervo (5160/5159)
+ * + 3989 por variante (Pricing Resilience) em paralelo com a 5354 (localização física dos grupos
+ * repetidos), mesma base monetária do Valor estimado total. Só o titular (as RPCs resolvem o dono
+ * por `auth.uid()`), nenhum identificador do cliente, somente leitura.
+ */
+export async function readDuplicatesReport(): Promise<DuplicatesReportLoad> {
+  const {
+    data: { user },
+  } = await getCachedUser();
+  if (!user) return { status: "error" };
+  const supabase = await createClient();
+  try {
+    // Miniaturas: mesma origem pública das imagens do Meu acervo (bucket `card-front`, síncrono).
+    const imageUrl = (path: string) => supabase.storage.from("card-front").getPublicUrl(path).data.publicUrl ?? null;
+    return await getDuplicatesReport(supabase, new Date(), imageUrl);
+  } catch (error) {
+    console.error("[reports] readDuplicatesReport falhou", { message: error instanceof Error ? error.message : "unknown" });
     return { status: "error" };
   }
 }

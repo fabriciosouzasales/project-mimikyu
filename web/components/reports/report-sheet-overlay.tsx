@@ -9,7 +9,16 @@ import { ReportPrintButton } from "./report-print-button";
 import styles from "./report-overlay.module.css";
 
 /** Estado de um relatório na sobreposição: cada relatório entrega a própria folha pronta. */
-export type ReportSheetEntry = { status: "loading" } | { status: "error" } | { status: "ready"; incomplete: string | null; sheet: ReactNode };
+export type ReportSheetEntry =
+  | { status: "loading" }
+  | { status: "error" }
+  | {
+      status: "ready";
+      incomplete: string | null;
+      sheet: ReactNode;
+      /** Preparo opcional antes da impressão (ex.: miniaturas sob demanda, R1-G); ausente = imprime direto. */
+      preparePrint?: (onProgress: (progress: { ready: number; total: number }) => void) => Promise<boolean>;
+    };
 
 export type ReportSheetOverlayProps = {
   /** Ícone + rótulo curto acima do título ("Relatório do acervo", "Relatório de Minhas coleções"). */
@@ -115,7 +124,7 @@ function ReportSheet({ eyebrow, title, context, errorNote, load: loadReport, tit
                 {fullscreen ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}
               </button>
             ) : null}
-            <ReportPrintButton ready={ready} reason={printReason} />
+            <ReportPrintButton ready={ready} reason={printReason} prepare={entry.status === "ready" ? entry.preparePrint : undefined} />
             <button type="button" className={styles.closeButton} onClick={close} data-autofocus aria-label="Fechar relatório" title="Fechar (Esc)">
               <X aria-hidden="true" />
             </button>

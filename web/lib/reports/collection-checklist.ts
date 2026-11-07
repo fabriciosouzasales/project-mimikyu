@@ -238,7 +238,7 @@ export function issuedAtLabel(now: Date): string {
   return now.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
 }
 
-export type ReportMenuIcon = "checklist" | "missing" | "value" | "wish" | "favorite" | "top" | "inventory" | "inventory-sets" | "collections" | "upcoming";
+export type ReportMenuIcon = "checklist" | "missing" | "value" | "wish" | "favorite" | "top" | "duplicates" | "inventory" | "inventory-sets" | "collections" | "upcoming";
 
 export type ReportMenuItem = {
   id: string;
