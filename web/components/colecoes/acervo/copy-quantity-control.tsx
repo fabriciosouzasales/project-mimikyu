@@ -1,11 +1,11 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useEffect, useId, useRef, useState, useTransition } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Loader2, Minus, Plus } from "lucide-react";
 import { addMyCopies, removeMyCopies } from "@/app/colecoes/acervo/actions";
 import { Button } from "@/components/ui/button";
 import { failureMessage } from "@/lib/colecoes/acervo-add";
+import { quantityToSyncAfterSave } from "@/lib/colecoes/acervo-refresh";
 import {
   type QuantityCopy,
   clampQuantity,
@@ -39,7 +39,6 @@ export function CopyQuantityControl({
   copies: QuantityCopy[];
   total: number;
 }) {
-  const router = useRouter();
   const inputId = useId();
   const changeId = useId();
   const bounds = quantityBounds(copies, total);
@@ -50,10 +49,11 @@ export function CopyQuantityControl({
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
   const inFlight = useRef(false);
   const keyFor = useRef<{ target: number; key: string } | null>(null);
-  const [, startNavigation] = useTransition();
+  const latestTotal = useRef(total);
 
   // Depois de gravar, o servidor devolve o novo total: o número volta a refleti-lo.
   useEffect(() => {
+    latestTotal.current = total;
     if (inFlight.current) return;
     setTarget(total);
     setDraft(String(total));
@@ -75,6 +75,7 @@ export function CopyQuantityControl({
 
   async function save() {
     if (inFlight.current || delta === 0) return;
+    const totalAtStart = total;
     inFlight.current = true;
     setPending(true);
     setMessage(null);
@@ -100,8 +101,8 @@ export function CopyQuantityControl({
         const response = await removeMyCopies(ids);
         if (!response.ok) {
           const partial = response.removed > 0 ? ` ${response.removed} já ${response.removed === 1 ? "saiu" : "saíram"}.` : "";
+          // A ação já revalida quando algum exemplar saiu (removeMyCopies): a rota nova vem na resposta.
           setMessage({ tone: "error", text: `${failureMessage(response.reason)}${partial}` });
-          if (response.removed > 0) startNavigation(() => router.refresh());
           return;
         }
         setMessage({
@@ -109,12 +110,20 @@ export function CopyQuantityControl({
           text: `Pronto — agora você tem ${total - response.removed} ${total - response.removed === 1 ? "exemplar" : "exemplares"} desta carta.`,
         });
       }
-      startNavigation(() => router.refresh());
+      // INCIDENT-01 E1: sem `router.refresh()` — addMyCopies/removeMyCopies chamam `revalidatePath`, e a
+      // resposta da própria ação já traz galeria, números e detalhe atualizados (ver lib/colecoes/acervo-refresh.ts).
     } catch {
       setMessage({ tone: "error", text: failureMessage("unavailable") });
     } finally {
       inFlight.current = false;
       setPending(false);
+      // O total novo pode ter chegado ainda durante o envio (resposta da ação): sincroniza agora,
+      // só se ele mudou — numa falha sem alteração, a escolha do colecionador continua para nova tentativa.
+      const synced = quantityToSyncAfterSave(totalAtStart, latestTotal.current);
+      if (synced !== null) {
+        setTarget(synced);
+        setDraft(String(synced));
+      }
     }
   }
 

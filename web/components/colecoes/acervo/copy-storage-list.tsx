@@ -1,14 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Box, Globe, Library, Loader2, MapPin, Star } from "lucide-react";
 import { setMyCopiesStorage } from "@/app/colecoes/acervo/actions";
 import { Button } from "@/components/ui/button";
 import { InlineFeedback } from "@/components/ui/feedback";
 import { Select } from "@/components/ui/select";
 import { type AcervoStorageFilter, formatCount, pluralize } from "@/lib/colecoes/acervo";
+import { activeProvisional } from "@/lib/colecoes/acervo-refresh";
 import { copyMatchesStorageFilter } from "@/lib/colecoes/acervo-storage-filter";
 import {
   type CopyStorageFailure,
@@ -42,7 +42,8 @@ import local from "./copy-storage.module.css";
  * completa (todos os exemplares do item) e os que estão no local filtrado — ou
  * sem local — ganham destaque, com uma frase que explica por que os demais
  * também aparecem. Mover um exemplar atualiza o destaque na hora (mesmo
- * resultado provisório do WHERE-03) e a galeria por trás via `router.refresh()`.
+ * resultado provisório do WHERE-03) e a galeria por trás pela resposta da própria
+ * ação, que revalida a rota (INCIDENT-01 E1 — sem `router.refresh()` extra).
  */
 
 export type StorageCopy = {
@@ -82,7 +83,6 @@ export function CopyStorageList({
   /** WHERE-04: filtro de local da galeria; `null` = sem filtro (sem destaque). */
   storageFilter?: { filter: AcervoStorageFilter; name: string | null } | null;
 }) {
-  const router = useRouter();
   const setSheetLocked = useDetailSheetLock();
   const selectId = useId();
   const confirmTitleId = useId();
@@ -99,9 +99,17 @@ export function CopyStorageList({
   const [binderConfirm, setBinderConfirm] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   // Resultado já gravado, mostrado até o servidor devolver a lista nova.
-  const [patch, setPatch] = useState<{ ids: string[]; id: string | null; name: string | null } | null>(null);
+  // `basis` = a leitura do servidor vigente quando a gravação começou. O provisório só vale enquanto ela
+  // for a leitura exibida: chegou outra (resposta da ação, em qualquer ordem) → o servidor manda.
+  // INCIDENT-01 E0/E1 VALIDATION-01: determinístico, sem depender da ordem entre `setPatch` e a lista nova.
+  const [patch, setPatch] = useState<{
+    ids: string[];
+    id: string | null;
+    name: string | null;
+    basis: typeof storage;
+  } | null>(null);
+  const activePatch = activeProvisional(patch, storage);
   const inFlight = useRef(false);
-  const [, startRefresh] = useTransition();
 
   // Lista nova do servidor: ela é a verdade — sai o resultado provisório e saem
   // da seleção exemplares que não existem mais (ex.: removidos na lixeira).
@@ -117,12 +125,12 @@ export function CopyStorageList({
   const locationsById = useMemo(() => new Map((storage?.locations ?? []).map((l) => [l.id, l])), [storage]);
   const storageByCopy = useMemo(() => {
     const base = { ...(storage?.storageByCopy ?? {}) };
-    if (patch) for (const id of patch.ids) base[id] = patch.id;
+    if (activePatch) for (const id of activePatch.ids) base[id] = activePatch.id;
     return base;
-  }, [storage, patch]);
+  }, [storage, activePatch]);
 
   const nameOf = (copy: StorageCopy): string | null => {
-    if (patch?.ids.includes(copy.physicalCardId)) return patch.name;
+    if (activePatch?.ids.includes(copy.physicalCardId)) return activePatch.name;
     return copy.storageName;
   };
 
@@ -176,6 +184,7 @@ export function CopyStorageList({
     setError(null);
     // Só os que mudam de fato; os que já estão no destino ficam como estão.
     const ids = selected.filter((id) => (storageByCopy[id] ?? null) !== target);
+    const basis = storage;
     try {
       const result = await setMyCopiesStorage({ physicalCardIds: ids, storageContainerId: target, unplaceFromBinder: binderConfirm }).catch(
         () => ({ ok: false, reason: "unavailable" }) as const,
@@ -192,17 +201,18 @@ export function CopyStorageList({
         setStep({ kind: "choose" });
         if (result.reason === "storage_gone") setChoice("");
         if (result.reason === "copies_gone") setSelected([]);
-        if (result.reason === "storage_gone" || result.reason === "copies_gone") startRefresh(() => router.refresh());
+        // storage_gone/copies_gone: a ação já revalida (setMyCopiesStorage) — a lista nova vem na resposta.
         return;
       }
       const name = target === null ? null : (targetLocation?.name ?? null);
       setBinderConfirm(false);
-      setPatch({ ids, id: target, name });
+      setPatch({ ids, id: target, name, basis });
       setNotice(storageAssignSuccess(ids.length, name));
       setSelected(initialSelection());
       setChoice("");
       setStep({ kind: "choose" });
-      startRefresh(() => router.refresh());
+      // INCIDENT-01 E1: sem `router.refresh()` — a ação revalida, e a resposta dela já traz a galeria e
+      // o detalhe novos (o provisório deixa de valer assim que a leitura exibida não é mais `basis`).
     } finally {
       inFlight.current = false;
       setPending(false);

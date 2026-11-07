@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Índice |
 | **Arquivo** | `docs/INDEX.md` |
-| **Versão** | 3.30 |
+| **Versão** | 3.32 |
 | **Status** | Aprovado |
 | **Objetivo** | Catálogo único de tudo que existe na documentação do projeto — um resumo de uma linha por documento, para orientar uma sessão nova sem precisar ler cada arquivo. |
 | **Manutenção** | Atualizar sempre que um documento for criado, removido ou tiver título/resumo alterado de forma relevante (mesma disciplina de `adr/ADR-INDEX.md`/`standards/STD-INDEX.md`). |
@@ -151,6 +151,7 @@ Catálogo completo com status em [`standards/STD-INDEX.md`](standards/STD-INDEX.
 | Documento | Resumo |
 |---|---|
 | [`history/pipeline-sprint-log.md`](history/pipeline-sprint-log.md) | Diário histórico da evolução sprint a sprint do pipeline de importação. |
+| [`history/development/performance-incident-01/README.md`](history/development/performance-incident-01/README.md) | PERFORMANCE INCIDENT-01 — timeouts 57014 no Meu acervo (**em monitoramento**): diagnóstico, baseline E0 (2 renderizações e 28 leituras por mutação), correção E1 do refresh redundante (14 leituras p50 depois), recorrência e pressão de recursos do Nano, migração Nano → Micro; C1/C2b/C5 pendentes. |
 | [`history/development/variant-display-semantics-01/p9-2026-10-09/README.md`](history/development/variant-display-semantics-01/p9-2026-10-09/README.md) | Evidência sanitizada do gate P9 (payload) da F2.1: amostras, metadados de captura e decisão `p9-decide` PASS, com `MANIFEST.sha256`. |
 | [`history/development/variant-display-semantics-01/p9-2026-10-09/summary.md`](history/development/variant-display-semantics-01/p9-2026-10-09/summary.md) | Resumo da medição P9 (payload gzip baseline × F2.1, ME2.5, veredito PASS) — evidência histórica. |
 | [`history/development/variant-display-semantics-01/gcomp-2026-10-09/README.md`](history/development/variant-display-semantics-01/gcomp-2026-10-09/README.md) | Evidência do gate G-COMP: query read-only `G-COMP-DB-01` com o resultado, leitura da galeria no lado da aplicação e comparação (PASS), com `MANIFEST.sha256`. |
@@ -448,3 +449,5 @@ Catálogo completo com status em [`standards/STD-INDEX.md`](standards/STD-INDEX.
 | 3.28 | **`V1-14 R1-A FINAL COMMIT` (2026-11-05).** Resumo de `reports-product-contract.md` na v1.16; R1-A encerrada localmente. |
 | 3.29 | **`V1-14 R1-B INVENTORY & VALUE-01` (2026-11-06).** Resumo de `reports-product-contract.md` na v1.18 (R1-B). |
 | 3.30 | **`R1-B REPORT CATALOG RESTRUCTURING-03` (2026-11-06).** Resumo de `reports-product-contract.md` na v1.19. |
+| 3.31 | **`PERFORMANCE INCIDENT-01 E0/E1` (2026-11-07).** Novo registro `history/development/performance-incident-01/README.md`. |
+| 3.32 | **`INCIDENT-01 E1 FINAL VALIDATION` (2026-11-07).** Resumo do registro do incidente atualizado (em monitoramento; Nano → Micro). |

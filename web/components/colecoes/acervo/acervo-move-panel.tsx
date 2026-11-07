@@ -4,6 +4,7 @@ import * as DialogPrimitive from "@radix-ui/react-dialog";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useId, useRef, useState, useTransition } from "react";
+import { moveConfirmNeedsClientRefresh } from "@/lib/colecoes/acervo-refresh";
 import { Loader2, RotateCcw, X } from "lucide-react";
 import { moveMyCopies, previewMyCopiesMove } from "@/app/colecoes/acervo/actions";
 import { Button } from "@/components/ui/button";
@@ -117,26 +118,24 @@ export function AcervoMovePanel({
       // A requisição pode ter chegado ao servidor: não dá para saber.
       result = { ok: false, reason: "unknown" };
     }
+    // INCIDENT-01 E1: `moveMyCopies` revalida em sucesso, `unknown`, `plan_changed` e `storage_gone` — a
+    // resposta da ação já traz a rota nova. Refresh só onde ela não revalidou (ver lib/colecoes/acervo-refresh.ts).
+    if (moveConfirmNeedsClientRefresh(result)) refresh();
     if (result.ok) {
       const text =
         result.updated === 0
           ? "Nada mudou: todos os exemplares já estavam no destino."
           : moveSuccessMessage(result.updated, result.targetName, result.atTarget);
-      refresh();
       onDone(text);
       setPhase({ kind: "done", text });
     } else if (result.reason === "plan_changed" && "preview" in result) {
-      refresh();
       setPhase({ kind: "ready", preview: result.preview, changed: true });
     } else if (result.reason === "plan_changed" || result.reason === "unresolved") {
-      refresh();
       await runPreview(selection.items.map((item) => item.key));
       return;
     } else if (result.reason === "storage_gone") {
-      refresh();
       setPhase({ kind: "choose", error: "storage_gone" });
     } else if (result.reason === "unknown") {
-      refresh();
       setPhase({ kind: "unknown" });
     } else {
       setPhase({ kind: "failed", reason: result.reason });

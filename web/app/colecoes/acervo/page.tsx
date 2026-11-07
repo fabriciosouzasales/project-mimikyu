@@ -20,6 +20,11 @@ import { getCachedUser, getCachedUserProfile } from "@/lib/supabase/request-auth
 
 export const metadata: Metadata = { title: "Meu acervo · Coleções" };
 
+/** E0: auth.getUser + user_profile + is_admin, 5159–5161 + idiomas + 5219, preço + favoritos + desejos. */
+const ACERVO_RENDER_READS_BASE = 11;
+/** E0: 5162 + local de cada exemplar (`physical_card`) + local padrão das coleções (`collection`). */
+const ACERVO_RENDER_READS_DETAIL = 3;
+
 /**
  * Meu acervo — /colecoes/acervo (MY-INVENTORY-IMPLEMENTATION-01, Etapa B).
  *
@@ -42,6 +47,7 @@ export default async function AcervoPage({
 }) {
   const params = await searchParams;
   const state = parseAcervoState(params);
+  const renderStartedAt = Date.now();
 
   const supabase = await createClient();
   const {
@@ -83,6 +89,19 @@ export default async function AcervoPage({
     getMyWishedVariants(supabase, pageVariantIds),
   ]);
   const priceNow = Date.now();
+
+  // INCIDENT-01 E0: uma linha por renderização completa da página (sem dados do usuário). Com as
+  // linhas das mutações (`acervo.add`, `acervo.remove`, `colecoes.copy_storage`, `acervo.move`), mostra
+  // quantas renderizações cada operação provoca. `plannedReads` = leituras ao banco previstas
+  // pelo caminho do código (3 de sessão/casca + 5 da 1ª rodada + 3 com o detalhe + 3 da 2ª rodada).
+  console.info(
+    JSON.stringify({
+      scope: "acervo.render",
+      ms: priceNow - renderStartedAt,
+      detail: state.detail !== null,
+      plannedReads: ACERVO_RENDER_READS_BASE + (state.detail ? ACERVO_RENDER_READS_DETAIL : 0),
+    }),
+  );
 
   return (
     <AppShell title="Meu acervo" icon={Library}>

@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { formatCollectorNumber, formatCount, pluralize } from "@/lib/colecoes/acervo";
+import { addCommitNeedsClientRefresh } from "@/lib/colecoes/acervo-refresh";
 import {
   ADD_MAX_QUANTITY,
   type AddFailure,
@@ -224,11 +225,14 @@ function useConfirmFlow({
   runCommit,
   onBusy,
   afterCommit,
+  hasTarget,
 }: {
   runPreview: () => Promise<{ ok: true; preview: PreviewResult } | { ok: false; reason: AddFailure }>;
   runCommit: (key: string, fingerprint: string) => Promise<{ ok: true; result: RegisterResult } | { ok: false; reason: AddFailure }>;
   onBusy: (busy: boolean) => void;
   afterCommit?: (result: RegisterResult) => Promise<AfterRegister | null>;
+  /** Painel reutilizado fora do Meu acervo (coleção, fichário): mantém o refresh depois do cadastro. */
+  hasTarget: boolean;
 }) {
   const router = useRouter();
   const [review, setReview] = useState<Review | null>(null);
@@ -268,8 +272,10 @@ function useConfirmFlow({
         // comunica o próprio resultado — sucesso parcial não vira "tudo certo".
         const follow = afterCommit ? await afterCommit(response.result).catch(() => ({ tone: "warning" as const, text: FOLLOW_UNKNOWN })) : null;
         setCommit({ status: "done", result: response.result, follow });
-        // Galeria, números e detalhe relidos no servidor (a ação também revalida a rota).
-        startRefresh(() => router.refresh());
+        // INCIDENT-01 E1: a ação revalida a rota e a resposta dela já traz galeria, números e detalhe
+        // novos. No Meu acervo (sem destino) o refresh extra era uma 2ª renderização inteira; com destino
+        // (coleção, fichário com o passo do bolso) ele continua como antes — ver lib/colecoes/acervo-refresh.ts.
+        if (addCommitNeedsClientRefresh({ hasTarget })) startRefresh(() => router.refresh());
       } else {
         setCommit({ status: "error", reason: response.reason });
       }
@@ -280,7 +286,7 @@ function useConfirmFlow({
       inFlight.current = false;
       onBusy(false);
     }
-  }, [review, runCommit, onBusy, router, afterCommit]);
+  }, [review, runCommit, onBusy, router, afterCommit, hasTarget]);
 
   return { review, commit, startReview, cancelReview, confirm };
 }
@@ -520,7 +526,7 @@ function CardsFlow({
     (key: string, fingerprint: string) => confirmAddCards({ idempotencyKey: key, fingerprint, items, collectionId, storageId }),
     [items, collectionId, storageId],
   );
-  const flow = useConfirmFlow({ runPreview, runCommit, onBusy, afterCommit: target?.afterRegister });
+  const flow = useConfirmFlow({ runPreview, runCommit, onBusy, afterCommit: target?.afterRegister, hasTarget: target !== undefined });
 
   async function pick(card: SearchCard) {
     if (!languageId) return;
@@ -964,7 +970,7 @@ function SetFlow({
     [setCode, languageId, collectionId, storageId],
   );
 
-  const flow = useConfirmFlow({ runPreview, runCommit, onBusy, afterCommit: target?.afterRegister });
+  const flow = useConfirmFlow({ runPreview, runCommit, onBusy, afterCommit: target?.afterRegister, hasTarget: target !== undefined });
 
   const visible = useMemo(() => {
     if (sets.status !== "ready") return [];

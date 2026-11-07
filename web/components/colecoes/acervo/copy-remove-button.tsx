@@ -58,10 +58,10 @@ export function CopyRemoveButton({
         setError(failureMessage(response.reason));
         return;
       }
-      startNavigation(() => {
-        if (isLastCopy) router.replace(closeHref, { scroll: false });
-        else router.refresh();
-      });
+      // INCIDENT-01 E1: removeMyCopy chama `revalidatePath` — a resposta da ação já traz galeria,
+      // números e detalhe atualizados; `router.refresh()` aqui era uma 2ª renderização inteira.
+      // Último exemplar: a navegação de fechamento continua (muda a URL; não é refresh redundante).
+      if (isLastCopy) startNavigation(() => router.replace(closeHref, { scroll: false }));
     } catch {
       setError(failureMessage("unavailable"));
     } finally {
