@@ -273,7 +273,7 @@ test("impressão: todos os desejos em cartões de duas colunas, miniaturas prepa
   assert.match(printPart, /<col style=\{\{ width: "50%" \}\} \/>\s*<col style=\{\{ width: "50%" \}\} \/>/);
   assert.match(printPart, /<tr key=\{left\.entryId\} style=\{\{ breakInside: "avoid" \}\}>/);
   assert.match(printPart, /h-\[5mm\] w-\[5mm\]/); // caixa de 5 mm
-  assert.match(sheet, /SET_WISH_PRINT_THUMB_MM = \{ width: 12, height: 16\.8 \}/);
+  assert.match(sheet, /SET_WISH_PRINT_THUMB_MM = \{ width: 16\.8, height: 23\.4 \}/);
   assert.match(printPart, /<WishDetails line=\{line\} print \/>/);
   const details = sheet.slice(sheet.indexOf("function WishDetails"), sheet.indexOf("function PrintList"));
   for (const piece of ["wishCollectorText(line)", "line.cardName", "wishVariantText(line)", "wishOwnershipText(line.ownership)", "Referência NM: ", "Desejado em {wishedAtText(line.wishedAt)}"])
@@ -314,4 +314,21 @@ test("menu da coleção e regressão: R2-A, R2-B e R1-E inalterados", () => {
   assert.match(r1e, /const wishes = await readAllWishes\(supabase\);/);
   assert.match(r1e, /export async function readAllWishes\(supabase: Rpc, cardSetId: string \| null = null\)/);
   for (const source of [read("./set-wishlist.ts"), read("./set-wishlist-queries.ts")]) assert.doesNotMatch(source, /\.insert\(|\.update\(|\.delete\(|\.upsert\(/);
+});
+
+test("miniaturas com a altura do bloco de texto: tela 62 × 86 px e impressão 16,8 × 23,4 mm, proporção da carta", () => {
+  const sheet = read("../../components/reports/set-wishlist-report.tsx");
+  assert.match(sheet, /SET_WISH_SCREEN_TEXT_PX = 14 \+ 16 \+ 14 \+ 14 \+ 14 \+ 14;/); // 86 px
+  assert.match(sheet, /SET_WISH_SCREEN_THUMB_PX = \{ width: 62, height: SET_WISH_SCREEN_TEXT_PX \}/);
+  assert.ok(Math.abs(62 / 86 - 63 / 88) < 0.01);
+  assert.match(sheet, /SET_WISH_PRINT_TEXT_MM = 3\.6 \+ 4\.6 \+ 3\.8 \+ 3\.8 \+ 3\.8 \+ 3\.8;/); // 23,4 mm
+  assert.ok(Math.abs(3.6 + 4.6 + 3.8 * 4 - 23.4) < 1e-9);
+  assert.ok(Math.abs(16.8 / 23.4 - 63 / 88) < 0.005);
+  const details = sheet.slice(sheet.indexOf("function WishDetails"), sheet.indexOf("function PrintList"));
+  assert.match(details, /const row = print \? "h-\[3\.8mm\] leading-\[3\.8mm\] truncate" : "h-\[14px\] leading-\[14px\] truncate";/);
+  assert.equal((details.match(/\$\{row\}/g) ?? []).length, 5); // Nº (tela), variante, situação, referência, data
+  const screen = sheet.slice(sheet.indexOf("function ScreenCard"), sheet.indexOf("function WishDetails"));
+  assert.match(screen, /style=\{\{ width: SET_WISH_SCREEN_THUMB_PX\.width, height: SET_WISH_SCREEN_THUMB_PX\.height \}\}/);
+  assert.match(screen, /className="absolute inset-0 h-full w-full object-cover"/); // a imagem nunca dita o tamanho
+  assert.doesNotMatch(screen, /h-\[56px\] w-\[40px\]/);
 });

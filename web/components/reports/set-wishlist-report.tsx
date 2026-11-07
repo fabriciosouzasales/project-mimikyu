@@ -13,8 +13,17 @@ import { PrintImageGate } from "./print-image-gate";
 export const SET_WISHLIST_TITLE = "Cartas desejadas do Card Set";
 /** Miniaturas imediatas até este nº de desejos na tela; acima, sob demanda. */
 const EAGER_IMAGES_MAX = 60;
-/** Miniatura impressa — o padrão homologado da R2-B (12 × 16,8 mm, proporção 63:88). */
-export const SET_WISH_PRINT_THUMB_MM = { width: 12, height: 16.8 } as const;
+/**
+ * Miniaturas com a altura do bloco de texto (ajuste da homologação, 2026-11-07 — o mesmo da R2-D):
+ * seis linhas de altura fixa — Nº, nome, variante · idioma, situação, referência, data.
+ * Tela: 14 + 16 + 14 + 14 + 14 + 14 = 86 px → miniatura 62 × 86 px (86 × 63/88 ≈ 61,6).
+ * Impressão: 3,6 + 4,6 + 3,8 × 4 = 23,4 mm → miniatura 16,8 × 23,4 mm (23,4 × 63/88 ≈ 16,75).
+ * Base da miniatura alinhada a "Desejado em"; o tamanho é do contêiner — a imagem nunca o dita.
+ */
+export const SET_WISH_SCREEN_TEXT_PX = 14 + 16 + 14 + 14 + 14 + 14;
+export const SET_WISH_SCREEN_THUMB_PX = { width: 62, height: SET_WISH_SCREEN_TEXT_PX } as const;
+export const SET_WISH_PRINT_TEXT_MM = 3.6 + 4.6 + 3.8 + 3.8 + 3.8 + 3.8;
+export const SET_WISH_PRINT_THUMB_MM = { width: 16.8, height: 23.4 } as const;
 
 const N = new Intl.NumberFormat("pt-BR");
 const formatCount = (n: number) => N.format(n);
@@ -138,10 +147,15 @@ function referenceText(line: WishReportLine): string {
 function ScreenCard({ line, eager }: { line: WishReportLine; eager: boolean }) {
   return (
     <li className="flex items-start gap-3 rounded-md border border-neutral-200 px-2 py-1.5">
-      <span aria-hidden="true" className="h-[56px] w-[40px] shrink-0 overflow-hidden rounded-[3px] border border-neutral-200 bg-neutral-100">
+      <span
+        aria-hidden="true"
+        data-set-wish-screen-thumb=""
+        className="relative shrink-0 overflow-hidden rounded-[3px] border border-neutral-200 bg-neutral-100"
+        style={{ width: SET_WISH_SCREEN_THUMB_PX.width, height: SET_WISH_SCREEN_THUMB_PX.height }}
+      >
         {line.imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element -- bucket público, sem otimizador (mesma regra das demais miniaturas)
-          <img src={line.imageUrl} alt="" width={40} height={56} loading={eager ? "eager" : "lazy"} decoding="async" className="h-full w-full object-cover" />
+          <img src={line.imageUrl} alt="" width={62} height={86} loading={eager ? "eager" : "lazy"} decoding="async" className="absolute inset-0 h-full w-full object-cover" />
         ) : null}
       </span>
       <WishDetails line={line} />
@@ -150,20 +164,25 @@ function ScreenCard({ line, eager }: { line: WishReportLine; eager: boolean }) {
 }
 
 function WishDetails({ line, print = false }: { line: WishReportLine; print?: boolean }) {
+  // Altura fixa por linha (tela em px, impressão em mm) para a miniatura ter exatamente a altura do bloco.
+  const row = print ? "h-[3.8mm] leading-[3.8mm] truncate" : "h-[14px] leading-[14px] truncate";
+  const variant = `${wishVariantText(line) || "Variante"}${line.variantAvailable ? "" : " · Indisponível no catálogo"}`;
   return (
-    <span className="block min-w-0 flex-1 leading-snug">
-      <span className={`block tabular-nums text-neutral-500 ${print ? "text-[9.5px] font-medium uppercase tracking-wide" : "text-[10px]"}`}>Nº {wishCollectorText(line)}</span>
-      <span className={`block font-semibold text-neutral-900 ${print ? "text-[12.5px]" : "text-[12px]"}`}>{line.cardName}</span>
-      <span className="block text-[10.5px] text-neutral-700">
+    <span className="block min-w-0 flex-1">
+      <span className={`block tabular-nums text-neutral-500 ${print ? "h-[3.6mm] truncate text-[9.5px] font-medium uppercase leading-[3.6mm] tracking-wide" : `text-[10px] ${row}`}`}>Nº {wishCollectorText(line)}</span>
+      <span className={`block font-semibold text-neutral-900 ${print ? "h-[4.6mm] truncate text-[12.5px] leading-[4.6mm]" : "h-[16px] truncate text-[12px] leading-[16px]"}`} title={print ? undefined : line.cardName}>
+        {line.cardName}
+      </span>
+      <span className={`block text-[10.5px] text-neutral-700 ${row}`} title={print ? undefined : variant}>
         {wishVariantText(line) || "Variante"}
         {line.variantAvailable ? null : <span className="font-medium text-neutral-900"> · Indisponível no catálogo</span>}
       </span>
-      <span className="block text-[10.5px] text-neutral-700">{wishOwnershipText(line.ownership)}</span>
-      <span className="block text-[10.5px] text-neutral-900">
+      <span className={`block text-[10.5px] text-neutral-700 ${row}`}>{wishOwnershipText(line.ownership)}</span>
+      <span className={`block text-[10.5px] text-neutral-900 ${row}`}>
         <span className="font-semibold">Referência NM: </span>
         <span className={line.reference.kind === "priced" ? "tabular-nums" : "italic text-neutral-500"}>{referenceText(line)}</span>
       </span>
-      <span className="block text-[10px] text-neutral-500">Desejado em {wishedAtText(line.wishedAt)}</span>
+      <span className={`block text-[10px] text-neutral-500 ${row}`}>Desejado em {wishedAtText(line.wishedAt)}</span>
     </span>
   );
 }
@@ -201,7 +220,7 @@ function PrintCard({ line }: { line: WishReportLine }) {
       >
         {line.imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element -- bucket público, sem otimizador (mesma regra das demais miniaturas)
-          <img src={line.imageUrl} alt="" width={120} height={168} loading="lazy" decoding="async" className="h-full w-full object-cover" />
+          <img src={line.imageUrl} alt="" width={168} height={234} loading="lazy" decoding="async" className="h-full w-full object-cover" />
         ) : (
           <span className="flex h-full w-full items-center justify-center px-0.5 text-center text-[6.5px] leading-tight text-neutral-500">Sem imagem no catálogo</span>
         )}
