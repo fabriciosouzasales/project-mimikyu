@@ -1,5 +1,5 @@
 /**
- * V1-14 R1-B/R1-C/R1-D/R1-E/R1-F/R1-G/R1-H — Relatórios do Meu acervo: catálogo aprovado (9 relatórios independentes, cada um
+ * V1-14 R1-B/R1-C/R1-D/R1-E/R1-F/R1-G/R1-H — Relatórios do Meu acervo: catálogo aprovado (8 relatórios independentes, cada um
  * com finalidade, tela e folha próprias) e utilitários compartilhados pelas folhas de relatório
  * do acervo e de Minhas coleções. Sem banco, sem rede.
  *
@@ -23,8 +23,7 @@ export type AcervoReportId =
   | "wishlist"
   | "top"
   | "duplicates"
-  | "distribution"
-  | "coverage";
+  | "distribution";
 
 export type AcervoReportEntry = {
   id: AcervoReportId;
@@ -33,7 +32,13 @@ export type AcervoReportEntry = {
   implemented: boolean;
 };
 
-/** Catálogo aprovado (ordem do contrato D7 §4b). Só `implemented` abre; o resto é "em preparação". */
+/**
+ * Catálogo aprovado (ordem do contrato D7 §4b). Só `implemented` abre; o resto é "em preparação".
+ * Encerrado em oito relatórios públicos (2026-11-07, decisão do proprietário): a R1-I "Cobertura de
+ * preços" saiu do catálogo do colecionador e virou iniciativa administrativa separada (Painel
+ * Administrativo de Qualidade da Precificação, ROADMAP "Later"). Os relatórios financeiros seguem
+ * mostrando sem cotação, desatualizada, parcial e cobertura — a retirada não oculta nada.
+ */
 export const ACERVO_REPORT_CATALOG: readonly AcervoReportEntry[] = [
   {
     id: "inventory-summary",
@@ -83,7 +88,6 @@ export const ACERVO_REPORT_CATALOG: readonly AcervoReportEntry[] = [
     purpose: "Como os exemplares do acervo se dividem por Card Set, raridade e idioma, com o valor estimado cotado.",
     implemented: true,
   },
-  { id: "coverage", title: "Cobertura de preços", purpose: "Exemplares com e sem cotação.", implemented: false },
 ];
 
 export function acervoReport(id: AcervoReportId): AcervoReportEntry {

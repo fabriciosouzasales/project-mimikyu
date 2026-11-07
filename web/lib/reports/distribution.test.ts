@@ -335,11 +335,11 @@ test("5355: contrato da resposta (code inválido ou repetido, nome em branco, or
   assert.deepEqual(await readRarityCatalog({ rpc: async () => ({ data: [row, row], error: null }) }), { status: "unavailable" });
 });
 
-test("integração: 8º relatório; leitura única simultânea; folha institucional; 1 em preparação", () => {
+test("integração: 8º relatório (último do catálogo); leitura única simultânea; folha institucional", () => {
   const items = acervoReportMenuItems({ totalCopies: 3 });
   assert.equal(items[7]?.id, "distribution");
   assert.equal(items[7]?.icon, "distribution");
-  assert.equal(items[8]?.label, "1 relatório em preparação");
+  assert.equal(items.length, 8); // catálogo público encerrado em oito (R1-I retirada)
   const overlay = read("../../components/reports/acervo-report-overlay.tsx");
   assert.match(overlay, /const readDistributionOnce = shareInFlight\(\(\) => readDistributionReport\(\)\);/);
   assert.match(overlay, /if \(report === "distribution"\) \{\s*return readDistributionOnce\(\)\.then/);

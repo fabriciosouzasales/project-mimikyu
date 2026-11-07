@@ -1,4 +1,4 @@
-// V1-14 R1-B — Relatórios do Meu acervo: catálogo (9 independentes), menu com os dois
+// V1-14 R1-B — Relatórios do Meu acervo: catálogo (8 independentes), menu com os dois
 // inventários por Card Set, relatório 01 "Inventário resumido por Card Set" (regras, leitura com
 // cliente falso), posição do menu (barra de rolagem/bordas) e checagens estáticas da integração.
 // O 02 ("Inventário detalhado por Card Set") é coberto em acervo-set-inventory.test.ts; a
@@ -16,7 +16,7 @@ import { MENU_PANEL_WIDTH, MENU_VIEWPORT_GUTTER, placeReportMenu } from "./menu-
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 const id = (n: number) => `00000000-0000-4000-8000-${n.toString(16).padStart(12, "0")}`;
 
-test("catálogo: nove relatórios independentes, na ordem aprovada; oito implementados (inventários, valor, favoritas, desejos, Top 10, repetidas e distribuição)", () => {
+test("catálogo: oito relatórios públicos, todos implementados, na ordem aprovada (R1-I retirada)", () => {
   assert.deepEqual(
     ACERVO_REPORT_CATALOG.map((e) => e.title),
     [
@@ -28,10 +28,11 @@ test("catálogo: nove relatórios independentes, na ordem aprovada; oito impleme
       "Top 10 cartas mais valiosas",
       "Cartas repetidas",
       "Distribuição por Set, raridade e idioma",
-      "Cobertura de preços",
     ],
   );
-  assert.equal(new Set(ACERVO_REPORT_CATALOG.map((e) => e.id)).size, 9);
+  assert.equal(new Set(ACERVO_REPORT_CATALOG.map((e) => e.id)).size, 8);
+  assert.ok(ACERVO_REPORT_CATALOG.every((e) => e.implemented)); // oito públicos, nenhum em preparação
+  assert.ok(!ACERVO_REPORT_CATALOG.some((e) => /cobertura de preços/i.test(e.title))); // R1-I retirada (iniciativa administrativa)
   assert.deepEqual(ACERVO_REPORT_CATALOG.filter((e) => e.implemented).map((e) => e.id), ["inventory-summary", "inventory-sets", "value", "favorites", "wishlist", "top", "duplicates", "distribution"]);
   assert.ok(ACERVO_REPORT_CATALOG.every((e) => !/coleção/i.test(e.title))); // análise por coleção mora em Minhas coleções
 });
@@ -49,7 +50,6 @@ test("menu do acervo: inventários por Card Set, Valor estimado total, Minhas fa
       ["top", "Top 10 cartas mais valiosas", "top"],
       ["duplicates", "Cartas repetidas", "duplicates"],
       ["distribution", "Distribuição por Set, raridade e idioma", "distribution"],
-      ["upcoming", "1 relatório em preparação", "upcoming"],
     ],
   );
   assert.equal(items[0]?.disabledReason, null);
@@ -60,8 +60,8 @@ test("menu do acervo: inventários por Card Set, Valor estimado total, Minhas fa
   assert.equal(items[5]?.disabledReason, null);
   assert.equal(items[6]?.disabledReason, null);
   assert.equal(items[7]?.disabledReason, null);
-  assert.ok(items[8]?.disabledReason);
-  assert.equal(items[8]?.disabledReason, "Cobertura de preços.");
+  assert.equal(items.length, 8); // sem linha "em preparação"
+  assert.ok(!items.some((i) => i.id === "upcoming"));
   assert.equal(acervoReportMenuItems({ totalCopies: 0 })[7]?.disabledReason, "Adicione cartas ao acervo para gerar o relatório."); // distribuição exige exemplares
   const empty = acervoReportMenuItems({ totalCopies: 0 }); // acervo vazio
   assert.ok(empty[0]?.disabledReason && empty[1]?.disabledReason && empty[2]?.disabledReason);
