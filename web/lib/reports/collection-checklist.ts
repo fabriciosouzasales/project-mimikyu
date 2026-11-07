@@ -42,6 +42,14 @@ export type ChecklistRow = {
   copies: number;
   /** Falta na coleção, mas há exemplar livre no acervo. */
   inAcervo: boolean;
+  /**
+   * R2-B (Cartas faltantes) — campos só de leitura, já devolvidos por 5169/5198, sem efeito no
+   * Checklist: carta da posição, exemplares livres no acervo que atendem ESTA posição
+   * (`copies_available`) e frente da carta (`image_path`).
+   */
+  cardId?: string;
+  available?: number;
+  imagePath?: string | null;
 };
 
 type RawPosition = {
@@ -54,6 +62,7 @@ type RawPosition = {
   copies_in_collection?: unknown;
   copies_available?: unknown;
   total_count?: unknown;
+  image_path?: unknown;
 };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -88,6 +97,9 @@ export function parseChecklistRows(kind: ChecklistKind, data: unknown): { rows: 
       owned,
       copies: count(raw.copies_in_collection),
       inAcervo: !owned && count(raw.copies_available) > 0,
+      cardId,
+      available: count(raw.copies_available),
+      imagePath: typeof raw.image_path === "string" && raw.image_path.length > 0 ? raw.image_path : null,
     });
     total = Math.max(total, count(raw.total_count));
   }
@@ -253,8 +265,9 @@ export type ReportMenuItem = {
 };
 
 /**
- * Relatórios da coleção para o menu de Relatórios da cápsula (R1-A: só o Checklist). Um único
- * item real; nenhum botão fictício. Coleção sem checklist nesta fase mostra o motivo.
+ * Relatórios da coleção para o menu de Relatórios da cápsula: Checklist de completude (R1-A ≡
+ * R2-A) e Cartas faltantes (R2-B). Nenhum botão fictício. Coleção fora de Set padrão/Master Set
+ * mostra os itens indisponíveis, com o motivo.
  */
 export function collectionReportItems(input: {
   collectionId: string;
@@ -271,6 +284,14 @@ export function collectionReportItems(input: {
       icon: "checklist",
       href: kind ? checklistHref(input.collectionId) : null,
       metric: kind && summary.total > 0 ? summary.percentText : null,
+      disabledReason: kind ? null : "Para coleções de Set padrão e Master Set.",
+    },
+    {
+      id: "missing",
+      label: "Cartas faltantes",
+      icon: "missing",
+      href: null,
+      metric: kind && summary.total > 0 ? (summary.missing === 0 ? "Completa" : `${new Intl.NumberFormat("pt-BR").format(summary.missing)} faltam`) : null,
       disabledReason: kind ? null : "Para coleções de Set padrão e Master Set.",
     },
   ];

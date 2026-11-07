@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { BarChart3 } from "lucide-react";
 import type { ReportMenuItem } from "@/lib/reports/collection-checklist";
 import { CollectionReportOverlay } from "./collection-report-overlay";
+import { MissingCardsOverlay } from "./missing-cards-overlay";
 import { ReportMenu } from "./report-menu";
 
 /**
@@ -12,7 +13,8 @@ import { ReportMenu } from "./report-menu";
  * Gatilho → menu compacto (`ReportMenu`) → o relatório escolhido abre em SOBREPOSIÇÃO sobre a
  * coleção (`CollectionReportOverlay`, casca do Fichário digital): a página de origem fica
  * montada atrás, com rolagem e estado intactos, e volta exatamente como estava ao fechar.
- * A rota `/relatorios/checklist` continua existindo só como acesso direto.
+ * A rota `/relatorios/checklist` continua existindo só como acesso direto. R2-B: "Cartas faltantes"
+ * (`MissingCardsOverlay`) abre na casca única dos relatórios contextuais.
  */
 export function CollectionReportsAction({
   collectionId,
@@ -57,6 +59,7 @@ export function CollectionReportsAction({
         onSelect={setReport}
       />
       {report === "checklist" ? <CollectionReportOverlay collectionId={collectionId} onClose={() => setReport(null)} /> : null}
+      {report === "missing" ? <MissingCardsOverlay collectionId={collectionId} onClose={() => setReport(null)} /> : null}
     </>
   );
 }
