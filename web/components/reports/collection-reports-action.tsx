@@ -5,6 +5,7 @@ import { BarChart3 } from "lucide-react";
 import type { ReportMenuItem } from "@/lib/reports/collection-checklist";
 import { CollectionReportOverlay } from "./collection-report-overlay";
 import { MissingCardsOverlay } from "./missing-cards-overlay";
+import { SetWishlistOverlay } from "./set-wishlist-overlay";
 import { ReportMenu } from "./report-menu";
 
 /**
@@ -60,6 +61,7 @@ export function CollectionReportsAction({
       />
       {report === "checklist" ? <CollectionReportOverlay collectionId={collectionId} onClose={() => setReport(null)} /> : null}
       {report === "missing" ? <MissingCardsOverlay collectionId={collectionId} onClose={() => setReport(null)} /> : null}
+      {report === "set-wishlist" ? <SetWishlistOverlay collectionId={collectionId} onClose={() => setReport(null)} /> : null}
     </>
   );
 }

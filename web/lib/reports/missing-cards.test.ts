@@ -117,7 +117,7 @@ test("Pokédex e coleção livre: itens visíveis no menu e indisponíveis com o
     assert.equal(missing?.disabledReason, "Para coleções de Set padrão e Master Set.");
   }
   const set = collectionReportItems({ collectionId: c, completionPolicy: "STANDARD_SET", totalPositions: 100, satisfiedPositions: 62 });
-  assert.deepEqual(set.map((i) => i.id), ["checklist", "missing"]);
+  assert.deepEqual(set.map((i) => i.id).slice(0, 2), ["checklist", "missing"]); // R2-C entra depois (set-wishlist.test.ts)
   assert.equal(set[1]?.metric, "38 faltam");
   assert.equal(set[1]?.disabledReason, null);
   assert.equal(collectionReportItems({ collectionId: c, completionPolicy: "MASTER_SET", totalPositions: 10, satisfiedPositions: 10 })[1]?.metric, "Completa");

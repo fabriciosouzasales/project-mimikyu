@@ -33,6 +33,11 @@ export type CollectionSummary = {
   lifecycleStatus: string;
   cardSetCode: string | null;
   cardSetName: string | null;
+  /**
+   * Card Set de referência (5332/5182 já devolvem `card_set_id`) — R2-C: único Card Set aceito
+   * para ler a Lista de Desejos da coleção, sempre vindo da coleção autorizada no servidor.
+   */
+  cardSetId?: string | null;
   /** Logo do Set (bucket privado `card-set-logo`); só vira imagem se a sessão puder assiná-la. */
   cardSetLogoPath: string | null;
   /** Imagem enviada pelo colecionador para a placa (Coleção livre); `null` sem imagem ou antes de 5177. */
@@ -88,6 +93,7 @@ function toSummary(row: CollectionRow): CollectionSummary {
     lifecycleStatus: row.lifecycle_status,
     cardSetCode: row.card_set_code,
     cardSetName: row.card_set_name,
+    cardSetId: typeof row.card_set_id === "string" && /^[0-9a-f-]{36}$/i.test(row.card_set_id) ? row.card_set_id.toLowerCase() : null,
     cardSetLogoPath: row.card_set_logo_path,
     coverLogoPath: null,
     coverCode: null,

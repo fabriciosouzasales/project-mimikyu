@@ -3,6 +3,7 @@
 import { isCollectionId } from "@/lib/colecoes/colecoes";
 import { type ChecklistReportData, prepareChecklistReport } from "@/lib/reports/checklist-queries";
 import { type MissingCardsReportData, prepareMissingCardsReport } from "@/lib/reports/missing-cards-queries";
+import { type SetWishlistReportData, prepareSetWishlistReport } from "@/lib/reports/set-wishlist-queries";
 import { parseChecklistFilter } from "@/lib/reports/collection-checklist";
 import { createClient } from "@/lib/supabase/server";
 import { getCachedUser } from "@/lib/supabase/request-auth-cache";
@@ -58,6 +59,35 @@ export async function readMissingCardsReport(input: { collectionId: string }): P
     return { ok: false, reason: result.status };
   } catch (error) {
     console.error("[reports] readMissingCardsReport falhou", { message: error instanceof Error ? error.message : "unknown" });
+    return { ok: false, reason: "error" };
+  }
+}
+
+export type SetWishlistReportResult =
+  | { ok: true; data: SetWishlistReportData }
+  | { ok: false; reason: "not_found" | "unavailable" | "error" };
+
+/**
+ * V1-14 R2-C — "Cartas desejadas do Card Set" para a sobreposição da coleção: coleção autorizada
+ * primeiro (5332), depois os desejos do Card Set DELA (5351) e as referências NM (3989) —
+ * `prepareSetWishlistReport`. Só o titular; nenhum Card Set nem identificador vindo do cliente
+ * (só o id da coleção, validado); somente leitura.
+ */
+export async function readSetWishlistReport(input: { collectionId: string }): Promise<SetWishlistReportResult> {
+  if (!isCollectionId(input?.collectionId)) return { ok: false, reason: "not_found" };
+  const {
+    data: { user },
+  } = await getCachedUser();
+  if (!user) return { ok: false, reason: "not_found" };
+  const supabase = await createClient();
+  try {
+    // Miniaturas: mesma origem pública da Lista de desejos (bucket `card-front`, síncrono, sem transformação).
+    const imageUrl = (path: string) => supabase.storage.from("card-front").getPublicUrl(path).data.publicUrl ?? null;
+    const result = await prepareSetWishlistReport(supabase, input.collectionId.toLowerCase(), imageUrl);
+    if (result.status === "ready") return { ok: true, data: result.data };
+    return { ok: false, reason: result.status };
+  } catch (error) {
+    console.error("[reports] readSetWishlistReport falhou", { message: error instanceof Error ? error.message : "unknown" });
     return { ok: false, reason: "error" };
   }
 }

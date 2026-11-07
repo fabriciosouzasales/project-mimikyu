@@ -20,16 +20,22 @@ const PAGE_PARALLEL = 4;
 /**
  * Argumentos da lista INTEIRA (decisão G: os filtros da página não se aplicam), na ordem
  * "Set e número" da 5351 — os mesmos da página Lista de desejos, via `wishlistFilterArgs`.
+ * `cardSetId` (R2-C): só o Card Set de uma coleção JÁ AUTORIZADA no servidor; R1-E passa `null`.
  */
-function pageArgs(offset: number) {
-  return { p_limit: WISHLIST_REPORT_PAGE, p_offset: offset, ...wishlistFilterArgs({ ...NO_WISHLIST_FILTERS, sort: "set" }) };
+function pageArgs(offset: number, cardSetId: string | null) {
+  return { p_limit: WISHLIST_REPORT_PAGE, p_offset: offset, ...wishlistFilterArgs({ ...NO_WISHLIST_FILTERS, cardSetId, sort: "set" }) };
 }
 
 type Fail = { status: "error"; stage: string; code?: string };
 
-/** Todos os desejos do titular: a 1ª página dá o total; as demais em paralelo, até o teto. */
-async function readAllWishes(supabase: Rpc): Promise<{ status: "ok"; entries: WishReportEntryInput[]; totalCount: number; withinLimit: boolean } | Fail> {
-  const first = await supabase.rpc("get_my_wishlist_filtered", pageArgs(0));
+export type WishesRead = { status: "ok"; entries: WishReportEntryInput[]; totalCount: number; withinLimit: boolean } | Fail;
+
+/**
+ * Todos os desejos do titular (ou só os de um Card Set — R2-C): a 1ª página dá o total; as demais
+ * em paralelo, até o teto. Mesma leitura, páginas, teto e validação estrita da R1-E.
+ */
+export async function readAllWishes(supabase: Rpc, cardSetId: string | null = null): Promise<WishesRead> {
+  const first = await supabase.rpc("get_my_wishlist_filtered", pageArgs(0, cardSetId));
   if (first.error) return { status: "error", stage: "wishlist", code: first.error.code };
   const firstPage = parseWishlistReportPage(first.data);
   if (!firstPage) return { status: "error", stage: "wishlist" };
@@ -38,7 +44,7 @@ async function readAllWishes(supabase: Rpc): Promise<{ status: "ok"; entries: Wi
   const offsets: number[] = [];
   for (let offset = WISHLIST_REPORT_PAGE; offset < readable; offset += WISHLIST_REPORT_PAGE) offsets.push(offset);
   const pages = await inBatches(
-    offsets.map((offset) => () => supabase.rpc("get_my_wishlist_filtered", pageArgs(offset))),
+    offsets.map((offset) => () => supabase.rpc("get_my_wishlist_filtered", pageArgs(offset, cardSetId))),
     PAGE_PARALLEL,
   );
   const entries = [...firstPage.entries];

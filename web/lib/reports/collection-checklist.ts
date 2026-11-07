@@ -266,7 +266,7 @@ export type ReportMenuItem = {
 
 /**
  * Relatórios da coleção para o menu de Relatórios da cápsula: Checklist de completude (R1-A ≡
- * R2-A) e Cartas faltantes (R2-B). Nenhum botão fictício. Coleção fora de Set padrão/Master Set
+ * R2-A), Cartas faltantes (R2-B) e Cartas desejadas do Card Set (R2-C). Nenhum botão fictício. Coleção fora de Set padrão/Master Set
  * mostra os itens indisponíveis, com o motivo.
  */
 export function collectionReportItems(input: {
@@ -292,6 +292,14 @@ export function collectionReportItems(input: {
       icon: "missing",
       href: null,
       metric: kind && summary.total > 0 ? (summary.missing === 0 ? "Completa" : `${new Intl.NumberFormat("pt-BR").format(summary.missing)} faltam`) : null,
+      disabledReason: kind ? null : "Para coleções de Set padrão e Master Set.",
+    },
+    {
+      id: "set-wishlist",
+      label: "Cartas desejadas do Card Set",
+      icon: "wish",
+      href: null,
+      metric: null,
       disabledReason: kind ? null : "Para coleções de Set padrão e Master Set.",
     },
   ];
