@@ -3,6 +3,7 @@
 import { Library } from "lucide-react";
 import {
   readAcervoValueReport,
+  readDistributionReport,
   readDuplicatesReport,
   readFavoritesReport,
   readSetInventoryReport,
@@ -13,11 +14,13 @@ import {
 import { type AcervoReportId, acervoReport } from "@/lib/reports/acervo-reports";
 import { setInventoryIncompleteText } from "@/lib/reports/acervo-set-inventory";
 import { setSummaryIncompleteText } from "@/lib/reports/acervo-set-summary";
+import { distributionIncompleteText } from "@/lib/reports/distribution";
 import { duplicatesIncompleteText } from "@/lib/reports/duplicates";
 import { favoritesIncompleteText } from "@/lib/reports/favorites-report";
 import { topCardsIncompleteText } from "@/lib/reports/top-cards";
 import { wishlistIncompleteText } from "@/lib/reports/wishlist-report";
 import { AcervoValueSheet } from "./acervo-value-report";
+import { DistributionSheet } from "./distribution-report";
 import { DuplicatesSheet } from "./duplicates-report";
 import { preparePrintImages } from "./print-image-gate";
 import { FavoritesReportSheet } from "./favorites-report";
@@ -34,6 +37,8 @@ import { shareInFlight } from "@/lib/reports/in-flight";
  * depois que ela termina (cada abertura lê de novo).
  */
 const readDuplicatesOnce = shareInFlight(() => readDuplicatesReport());
+/** R1-H: mesma proteção — uma leitura da Distribuição por vez, sem cache depois. */
+const readDistributionOnce = shareInFlight(() => readDistributionReport());
 
 /** Cada relatório do Meu acervo tem leitura e folha próprias; a casca é a mesma. */
 function loadReport(report: AcervoReportId): Promise<ReportSheetEntry> {
@@ -83,6 +88,17 @@ function loadReport(report: AcervoReportId): Promise<ReportSheetEntry> {
         : { status: "error" },
     );
   }
+  if (report === "distribution") {
+    return readDistributionOnce().then((r) =>
+      r.status === "ready"
+        ? {
+            status: "ready",
+            incomplete: distributionIncompleteText(r.data.report.incompleteReason),
+            sheet: <DistributionSheet report={r.data.report} issuedAt={r.data.issuedAt} />,
+          }
+        : { status: "error" },
+    );
+  }
   if (report === "top") {
     return readTopCardsReport().then((r) =>
       r.status === "ready"
@@ -124,7 +140,8 @@ function loadReport(report: AcervoReportId): Promise<ReportSheetEntry> {
  * 5336 + referência por carta + posse) e 05 "Minha Lista de Desejos" (R1-E, `readWishlistReport`:
  * 5350/5351 + 3989 por variante distinta) e 06 "Top 10 cartas mais valiosas" (R1-F, `readTopCardsReport`:
  * 5160/5159 + 3989, mesma base do 03) e 07 "Cartas repetidas" (R1-G, `readDuplicatesReport`: mesma
- * leitura, grupos com 2+ exemplares) — só o titular, somente leitura. Casca, cabeçalho
+ * leitura, grupos com 2+ exemplares) e 08 "Distribuição por Set, raridade e idioma" (R1-H,
+ * `readDistributionReport`: mesma leitura + 5355) — só o titular, somente leitura. Casca, cabeçalho
  * funcional e impressão: `ReportSheetOverlay`.
  */
 export function AcervoReportOverlay({ report, onClose }: { report: AcervoReportId; onClose: () => void }) {

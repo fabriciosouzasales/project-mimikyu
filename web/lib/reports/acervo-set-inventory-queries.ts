@@ -58,6 +58,7 @@ function toItem(row: Record<string, unknown>): SetInventoryItemInput | null {
     copies,
     languageName: str(row.language_name),
     imagePath: str(row.image_path),
+    rarityCode: str(row.rarity_code),
   };
 }
 

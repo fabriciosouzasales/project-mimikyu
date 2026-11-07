@@ -28,6 +28,8 @@ export type SetInventoryItemInput = {
   languageName?: string | null;
   /** Frente da carta no bucket público `card-front` (5159) — miniatura do Top 10 (R1-F). */
   imagePath?: string | null;
+  /** `rarity.code` da CARTA (5159/5261) — Distribuição por raridade (R1-H); `null` = carta sem raridade. */
+  rarityCode?: string | null;
 };
 
 /** Referência NM unitária válida (> 0) por variante; ausente = sem cotação. */

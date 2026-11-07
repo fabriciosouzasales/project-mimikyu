@@ -1,5 +1,5 @@
 /**
- * V1-14 R1-B/R1-C/R1-D/R1-E/R1-F/R1-G — Relatórios do Meu acervo: catálogo aprovado (9 relatórios independentes, cada um
+ * V1-14 R1-B/R1-C/R1-D/R1-E/R1-F/R1-G/R1-H — Relatórios do Meu acervo: catálogo aprovado (9 relatórios independentes, cada um
  * com finalidade, tela e folha próprias) e utilitários compartilhados pelas folhas de relatório
  * do acervo e de Minhas coleções. Sem banco, sem rede.
  *
@@ -10,7 +10,7 @@
  * `collection-distribution.ts`). "Minhas favoritas" (R1-D, `favorites-report.ts`) é o 4º
  * relatório deste menu (localização definitiva: `REPORT LOCATION CORRECTION-01`); "Minha Lista de
  * Desejos" (R1-E, `wishlist-report.ts`) é o 5º, "Top 10 cartas mais valiosas" (R1-F, `top-cards.ts`), o 6º e "Cartas repetidas"
- * (R1-G, `duplicates.ts`), o 7º. Favorito e desejo não dependem de posse, por isso
+ * (R1-G, `duplicates.ts`), o 7º e "Distribuição por Set, raridade e idioma" (R1-H, `distribution.ts`), o 8º. Favorito e desejo não dependem de posse, por isso
  * os dois abrem mesmo com o acervo vazio.
  */
 import type { ReportMenuIcon, ReportMenuItem } from "./collection-checklist.ts";
@@ -77,7 +77,12 @@ export const ACERVO_REPORT_CATALOG: readonly AcervoReportEntry[] = [
     purpose: "Itens (variante e idioma) com mais de um exemplar e o valor das cópias adicionais.",
     implemented: true,
   },
-  { id: "distribution", title: "Distribuição por Set, raridade e idioma", purpose: "Como o acervo se divide.", implemented: false },
+  {
+    id: "distribution",
+    title: "Distribuição por Set, raridade e idioma",
+    purpose: "Como os exemplares do acervo se dividem por Card Set, raridade e idioma, com o valor estimado cotado.",
+    implemented: true,
+  },
   { id: "coverage", title: "Cobertura de preços", purpose: "Exemplares com e sem cotação.", implemented: false },
 ];
 
@@ -85,7 +90,7 @@ export function acervoReport(id: AcervoReportId): AcervoReportEntry {
   return ACERVO_REPORT_CATALOG.find((entry) => entry.id === id)!;
 }
 
-const MENU_ICON: Partial<Record<AcervoReportId, ReportMenuIcon>> = { "inventory-sets": "inventory-sets", value: "value", favorites: "favorite", wishlist: "wish", top: "top", duplicates: "duplicates" };
+const MENU_ICON: Partial<Record<AcervoReportId, ReportMenuIcon>> = { "inventory-sets": "inventory-sets", value: "value", favorites: "favorite", wishlist: "wish", top: "top", duplicates: "duplicates", distribution: "distribution" };
 
 /**
  * Menu "Do acervo": os relatórios implementados abrem; os aprovados ainda não implementados
@@ -106,11 +111,11 @@ export function acervoReportMenuItems(input: { totalCopies: number }): ReportMen
   if (upcoming.length > 0) {
     items.push({
       id: "upcoming",
-      label: `${upcoming.length} relatórios em preparação`,
+      label: plural(upcoming.length, "relatório em preparação", "relatórios em preparação"),
       icon: "upcoming",
       href: null,
       metric: null,
-      disabledReason: "Distribuição e cobertura.",
+      disabledReason: upcoming.map((entry) => entry.title).join(" · ") + ".",
     });
   }
   return items;

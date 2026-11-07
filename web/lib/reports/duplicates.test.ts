@@ -301,11 +301,11 @@ test("leitura: acervo inteiro (5160 + 5159), preços por variante (máx. 2), con
   assert.equal(big.status === "ready" && big.data.report.incompleteReason, "too_large");
 });
 
-test("integração: 7º relatório; folha institucional; miniaturas preparadas para impressão; 2 em preparação", () => {
+test("integração: 7º relatório; folha institucional; miniaturas preparadas para impressão; 1 em preparação", () => {
   const items = acervoReportMenuItems({ totalCopies: 3 });
   assert.equal(items[6]?.id, "duplicates");
   assert.equal(items[6]?.icon, "duplicates");
-  assert.equal(items[7]?.label, "2 relatórios em preparação");
+  assert.equal(items[8]?.label, "1 relatório em preparação");
   assert.ok(acervoReportMenuItems({ totalCopies: 0 })[6]?.disabledReason); // acervo vazio → desabilitado
   const overlay = read("../../components/reports/acervo-report-overlay.tsx");
   assert.match(overlay, /if \(report === "duplicates"\) \{\s*return readDuplicatesOnce\(\)/);

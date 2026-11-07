@@ -9,6 +9,7 @@ import {
   getSetSummaryReport,
 } from "@/lib/reports/acervo-set-inventory-queries";
 import { type FavoritesReportLoad, getFavoritesReport } from "@/lib/reports/favorites-report-queries";
+import { type DistributionReportLoad, getDistributionReport } from "@/lib/reports/distribution-queries";
 import { type DuplicatesReportLoad, getDuplicatesReport } from "@/lib/reports/duplicates-queries";
 import { type TopCardsReportLoad, getTopCardsReport } from "@/lib/reports/top-cards-queries";
 import { type WishlistReportLoad, getWishlistReport } from "@/lib/reports/wishlist-report-queries";
@@ -156,6 +157,26 @@ export async function readDuplicatesReport(): Promise<DuplicatesReportLoad> {
     return await getDuplicatesReport(supabase, new Date(), imageUrl);
   } catch (error) {
     console.error("[reports] readDuplicatesReport falhou", { message: error instanceof Error ? error.message : "unknown" });
+    return { status: "error" };
+  }
+}
+
+/**
+ * V1-14 R1-H — "Distribuição por Set, raridade e idioma" (8º do Meu acervo): leitura compartilhada
+ * do acervo (5160/5159) em paralelo com a 5355 (catálogo de raridades) + 3989 por variante
+ * (Pricing Resilience), mesma base monetária do Valor estimado total. Só o titular (as RPCs
+ * resolvem o dono por `auth.uid()`), nenhum identificador do cliente, somente leitura.
+ */
+export async function readDistributionReport(): Promise<DistributionReportLoad> {
+  const {
+    data: { user },
+  } = await getCachedUser();
+  if (!user) return { status: "error" };
+  const supabase = await createClient();
+  try {
+    return await getDistributionReport(supabase);
+  } catch (error) {
+    console.error("[reports] readDistributionReport falhou", { message: error instanceof Error ? error.message : "unknown" });
     return { status: "error" };
   }
 }
