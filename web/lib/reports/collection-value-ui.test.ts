@@ -35,8 +35,9 @@ const shell = read("components/reports/report-sheet-overlay.tsx");
 test("menu: cinco relatórios na ordem, os quatro publicados intactos; R2-E só em Set padrão e Master Set", () => {
   for (const policy of ["STANDARD_SET", "MASTER_SET"]) {
     const items = collectionReportItems({ collectionId: "c", completionPolicy: policy, totalPositions: 100, satisfiedPositions: 62 });
-    assert.deepEqual(items.map((item) => item.id), ["checklist", "missing", "set-wishlist", "set-favorites", "collection-value"]);
-    assert.deepEqual(items.map((item) => item.label), ["Checklist de completude", "Cartas faltantes", "Cartas desejadas do Card Set", "Cartas favoritas do Card Set", "Valor estimado"]);
+    // R2-F acrescentou um 6º item (Evolução da completude) depois destes; os cinco não mudam.
+    assert.deepEqual(items.slice(0, 5).map((item) => item.id), ["checklist", "missing", "set-wishlist", "set-favorites", "collection-value"]);
+    assert.deepEqual(items.slice(0, 5).map((item) => item.label), ["Checklist de completude", "Cartas faltantes", "Cartas desejadas do Card Set", "Cartas favoritas do Card Set", "Valor estimado"]);
     const value = items[4];
     assert.equal(value?.icon, "value");
     assert.equal(value?.disabledReason, null);
@@ -46,7 +47,7 @@ test("menu: cinco relatórios na ordem, os quatro publicados intactos; R2-E só 
   }
   for (const policy of ["POKEDEX", "REFERENCE_POSITION", "NONE"]) {
     const items = collectionReportItems({ collectionId: "c", completionPolicy: policy, totalPositions: 10, satisfiedPositions: 1 });
-    assert.equal(items.length, 5);
+    assert.equal(items.length, 6);
     assert.ok(items.every((item) => item.disabledReason === "Para coleções de Set padrão e Master Set."));
   }
 });

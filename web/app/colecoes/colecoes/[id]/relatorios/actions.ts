@@ -3,6 +3,7 @@
 import { isCollectionId } from "@/lib/colecoes/colecoes";
 import { type ChecklistReportData, prepareChecklistReport } from "@/lib/reports/checklist-queries";
 import { type CollectionValueReportData, prepareCollectionValueReport } from "@/lib/reports/collection-value-queries";
+import { type CompletionHistoryReportData, prepareCompletionHistoryReport } from "@/lib/reports/completion-history-queries";
 import { type MissingCardsReportData, prepareMissingCardsReport } from "@/lib/reports/missing-cards-queries";
 import { type SetFavoritesReportData, prepareSetFavoritesReport } from "@/lib/reports/set-favorites-queries";
 import { type SetWishlistReportData, prepareSetWishlistReport } from "@/lib/reports/set-wishlist-queries";
@@ -149,6 +150,34 @@ export async function readCollectionValueReport(input: { collectionId: string })
     return { ok: false, reason: result.status };
   } catch (error) {
     console.error("[reports] readCollectionValueReport falhou", { message: error instanceof Error ? error.message : "unknown" });
+    return { ok: false, reason: "error" };
+  }
+}
+
+export type CompletionHistoryReportResult =
+  | { ok: true; data: CompletionHistoryReportData }
+  | { ok: false; reason: "not_found" | "unavailable" | "error" };
+
+/**
+ * V1-14 R2-F (B2) — "Evolução da completude" para a sobreposição da coleção (D7 §4n): coleção
+ * autorizada primeiro (5332, com a completude atual canônica da 5188), depois o histórico do titular
+ * (5358 `get_my_collection_completion_history`, com o id da coleção autorizada) —
+ * `prepareCompletionHistoryReport`. Só o titular; coleção alheia, compartilhada com você ou
+ * inexistente → `not_found`, sem distinguir; somente leitura.
+ */
+export async function readCompletionHistoryReport(input: { collectionId: string }): Promise<CompletionHistoryReportResult> {
+  if (!isCollectionId(input?.collectionId)) return { ok: false, reason: "not_found" };
+  const {
+    data: { user },
+  } = await getCachedUser();
+  if (!user) return { ok: false, reason: "not_found" };
+  const supabase = await createClient();
+  try {
+    const result = await prepareCompletionHistoryReport(supabase, input.collectionId.toLowerCase());
+    if (result.status === "ready") return { ok: true, data: result.data };
+    return { ok: false, reason: result.status };
+  } catch (error) {
+    console.error("[reports] readCompletionHistoryReport falhou", { message: error instanceof Error ? error.message : "unknown" });
     return { ok: false, reason: "error" };
   }
 }
