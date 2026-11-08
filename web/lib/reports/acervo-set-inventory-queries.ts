@@ -37,8 +37,8 @@ function str(value: unknown): string | null {
   return typeof value === "string" && value.length > 0 ? value : null;
 }
 
-/** Linha da 5159 → item; `null` = fora do contrato. */
-function toItem(row: Record<string, unknown>): SetInventoryItemInput | null {
+/** Linha da 5159 → item; `null` = fora do contrato. Exportada (só visibilidade) para a R2-E. */
+export function toItem(row: Record<string, unknown>): SetInventoryItemInput | null {
   const copies = n(row.copies_count);
   const id = str(row.card_variant_id);
   const language = str(row.language_code);

@@ -331,7 +331,8 @@ test("impressão A4: cartões em duas colunas, miniatura 14 × 19,6 mm, SEM caix
 test("menu da coleção e regressão: R1-D, R2-A, R2-B e R2-C preservados", () => {
   const c = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
   const set = collectionReportItems({ collectionId: c, completionPolicy: "STANDARD_SET", totalPositions: 100, satisfiedPositions: 62 });
-  assert.deepEqual(set.map((i) => i.id), ["checklist", "missing", "set-wishlist", "set-favorites"]);
+  // R2-E acrescentou um 5º item (Valor estimado) depois destes; a posição e os dados dos quatro não mudam.
+  assert.deepEqual(set.slice(0, 4).map((i) => i.id), ["checklist", "missing", "set-wishlist", "set-favorites"]);
   assert.equal(set[3]?.label, "Cartas favoritas do Card Set");
   assert.equal(set[3]?.icon, "favorite");
   assert.equal(set[3]?.disabledReason, null);

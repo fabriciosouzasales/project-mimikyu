@@ -2,6 +2,7 @@
 
 import { isCollectionId } from "@/lib/colecoes/colecoes";
 import { type ChecklistReportData, prepareChecklistReport } from "@/lib/reports/checklist-queries";
+import { type CollectionValueReportData, prepareCollectionValueReport } from "@/lib/reports/collection-value-queries";
 import { type MissingCardsReportData, prepareMissingCardsReport } from "@/lib/reports/missing-cards-queries";
 import { type SetFavoritesReportData, prepareSetFavoritesReport } from "@/lib/reports/set-favorites-queries";
 import { type SetWishlistReportData, prepareSetWishlistReport } from "@/lib/reports/set-wishlist-queries";
@@ -118,6 +119,36 @@ export async function readSetFavoritesReport(input: { collectionId: string }): P
     return { ok: false, reason: result.status };
   } catch (error) {
     console.error("[reports] readSetFavoritesReport falhou", { message: error instanceof Error ? error.message : "unknown" });
+    return { ok: false, reason: "error" };
+  }
+}
+
+export type CollectionValueReportResult =
+  | { ok: true; data: CollectionValueReportData }
+  | { ok: false; reason: "not_found" | "unavailable" | "error" };
+
+/**
+ * V1-14 R2-E — "Valor estimado dos exemplares alocados" para a sobreposição da coleção (D7 §4m):
+ * coleção autorizada primeiro (5332), depois os exemplares ALOCADOS a ela (5159 com o id da coleção
+ * autorizada, páginas em sequência) e a referência NM por variante (3989, concorrência 2) —
+ * `prepareCollectionValueReport`. Só o titular; nenhum identificador do cliente além do id da
+ * coleção, validado; somente leitura; cálculo financeiro só no servidor.
+ */
+export async function readCollectionValueReport(input: { collectionId: string }): Promise<CollectionValueReportResult> {
+  if (!isCollectionId(input?.collectionId)) return { ok: false, reason: "not_found" };
+  const {
+    data: { user },
+  } = await getCachedUser();
+  if (!user) return { ok: false, reason: "not_found" };
+  const supabase = await createClient();
+  try {
+    // Miniaturas: mesma origem pública dos demais relatórios (bucket `card-front`, sem transformação).
+    const imageUrl = (path: string) => supabase.storage.from("card-front").getPublicUrl(path).data.publicUrl ?? null;
+    const result = await prepareCollectionValueReport(supabase, input.collectionId.toLowerCase(), imageUrl);
+    if (result.status === "ready") return { ok: true, data: result.data };
+    return { ok: false, reason: result.status };
+  } catch (error) {
+    console.error("[reports] readCollectionValueReport falhou", { message: error instanceof Error ? error.message : "unknown" });
     return { ok: false, reason: "error" };
   }
 }
