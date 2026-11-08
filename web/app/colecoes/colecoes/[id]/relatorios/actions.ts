@@ -4,6 +4,7 @@ import { isCollectionId } from "@/lib/colecoes/colecoes";
 import { type ChecklistReportData, prepareChecklistReport } from "@/lib/reports/checklist-queries";
 import { type CollectionValueReportData, prepareCollectionValueReport } from "@/lib/reports/collection-value-queries";
 import { type CompletionHistoryReportData, prepareCompletionHistoryReport } from "@/lib/reports/completion-history-queries";
+import { type RarityDistributionReportData, prepareRarityDistributionReport } from "@/lib/reports/rarity-distribution-queries";
 import { type MissingCardsReportData, prepareMissingCardsReport } from "@/lib/reports/missing-cards-queries";
 import { type SetFavoritesReportData, prepareSetFavoritesReport } from "@/lib/reports/set-favorites-queries";
 import { type SetWishlistReportData, prepareSetWishlistReport } from "@/lib/reports/set-wishlist-queries";
@@ -178,6 +179,33 @@ export async function readCompletionHistoryReport(input: { collectionId: string 
     return { ok: false, reason: result.status };
   } catch (error) {
     console.error("[reports] readCompletionHistoryReport falhou", { message: error instanceof Error ? error.message : "unknown" });
+    return { ok: false, reason: "error" };
+  }
+}
+
+export type RarityDistributionReportResult =
+  | { ok: true; data: RarityDistributionReportData }
+  | { ok: false; reason: "not_found" | "unavailable" | "error" };
+
+/**
+ * V1-14 R2-G — "Distribuição por raridade" para a sobreposição da coleção (D7 §4o): coleção
+ * autorizada primeiro (5332), depois posições do Checklist (5169 ou 5189/5198), raridade das cartas
+ * do Set DELA (`search_cards`) e catálogo 5355 — `prepareRarityDistributionReport`. Só o titular;
+ * coleção alheia, compartilhada com você ou inexistente → `not_found`, sem distinguir; somente leitura.
+ */
+export async function readRarityDistributionReport(input: { collectionId: string }): Promise<RarityDistributionReportResult> {
+  if (!isCollectionId(input?.collectionId)) return { ok: false, reason: "not_found" };
+  const {
+    data: { user },
+  } = await getCachedUser();
+  if (!user) return { ok: false, reason: "not_found" };
+  const supabase = await createClient();
+  try {
+    const result = await prepareRarityDistributionReport(supabase, input.collectionId.toLowerCase());
+    if (result.status === "ready") return { ok: true, data: result.data };
+    return { ok: false, reason: result.status };
+  } catch (error) {
+    console.error("[reports] readRarityDistributionReport falhou", { message: error instanceof Error ? error.message : "unknown" });
     return { ok: false, reason: "error" };
   }
 }

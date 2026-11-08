@@ -315,7 +315,8 @@ test("gráfico: eixo adaptado ao período; 'agora' separado; teto acima do total
 test("menu: 'Evolução da completude' é o 6º item; Set padrão e Master Set; indisponível com motivo nos demais", () => {
   for (const policy of ["STANDARD_SET", "MASTER_SET"]) {
     const items = collectionReportItems({ collectionId: "c", completionPolicy: policy, totalPositions: 100, satisfiedPositions: 62 });
-    assert.deepEqual(items.map((i) => i.id), ["checklist", "missing", "set-wishlist", "set-favorites", "collection-value", "completion-history"]);
+    // R2-G acrescentou um 7º item depois destes; os seis não mudam.
+    assert.deepEqual(items.slice(0, 6).map((i) => i.id), ["checklist", "missing", "set-wishlist", "set-favorites", "collection-value", "completion-history"]);
     assert.equal(items[5]?.label, "Evolução da completude");
     assert.equal(items[5]?.icon, "evolution");
     assert.equal(items[5]?.disabledReason, null);

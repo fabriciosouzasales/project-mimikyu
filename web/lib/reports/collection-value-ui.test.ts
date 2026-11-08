@@ -47,7 +47,7 @@ test("menu: cinco relatórios na ordem, os quatro publicados intactos; R2-E só 
   }
   for (const policy of ["POKEDEX", "REFERENCE_POSITION", "NONE"]) {
     const items = collectionReportItems({ collectionId: "c", completionPolicy: policy, totalPositions: 10, satisfiedPositions: 1 });
-    assert.equal(items.length, 6);
+    assert.equal(items.length, 7); // R2-F e R2-G acrescentaram itens depois do Valor estimado
     assert.ok(items.every((item) => item.disabledReason === "Para coleções de Set padrão e Master Set."));
   }
 });
