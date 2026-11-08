@@ -1,0 +1,30 @@
+EVIDÊNCIA — 5357-V2.4 (catálogo dos índices de public.card_asset)
+Rodada.......: BINDER VALUE — B2 V2.4 INDEX DIAGNOSIS EXECUTION-01 (2026-11-08)
+Projeto......: mimikyu-core (qjfutqujxrbzgrtkpgkg), PostgreSQL 17.6.1.147
+Bloco........: V2.4 de 5357_V2_4_CARD_ASSET_INDEX_CATALOG_READONLY.sql v0.1
+               (md5 do arquivo 991716be9049caf2c9c21f6fc1a00abb; md5 do trecho
+               do bloco aad7c30412a31aa9754ec56cca457dde), enviado sem alteração
+               pelo conector do Supabase (execute_sql)
+Transação....: BEGIN READ ONLY (repeatable read); statement_timeout 5s;
+               lock_timeout 2s; idle_in_transaction_session_timeout 30s; ROLLBACK
+Leitura......: só catálogo (pg_index, pg_class, pg_namespace, pg_get_indexdef,
+               pg_get_expr); nenhuma linha de card_asset ou de usuários
+Status.......: sucesso, sem SQLSTATE de erro; 15 linhas
+Resultado integral (valores como devolvidos; "null" = nulo):
+
+indice | existe_no_banco | declarado_na_180 | definicao | chaves | predicado | unico | valido | pronto | serve_busca_por_card_id | igual_ao_versionado
+card_asset_pkey | true | false | CREATE UNIQUE INDEX card_asset_pkey ON public.card_asset USING btree (id) | id | null | true | true | true | false | null
+ix_card_asset_asset_type_id | true | false | CREATE INDEX ix_card_asset_asset_type_id ON public.card_asset USING btree (asset_type_id) | asset_type_id | null | false | true | true | false | null
+ix_card_asset_bucket_language | true | false | CREATE INDEX ix_card_asset_bucket_language ON public.card_asset USING btree (storage_bucket_id, language_id) | storage_bucket_id, language_id | null | false | true | true | false | null
+ix_card_asset_card_bucket | true | false | CREATE INDEX ix_card_asset_card_bucket ON public.card_asset USING btree (card_id, storage_bucket_id) | card_id, storage_bucket_id | null | false | true | true | true | null
+ix_card_asset_card_id | true | true | CREATE INDEX ix_card_asset_card_id ON public.card_asset USING btree (card_id) | card_id | null | false | true | true | true | true
+ix_card_asset_card_language_type | true | false | CREATE INDEX ix_card_asset_card_language_type ON public.card_asset USING btree (card_id, language_id, asset_type_id) | card_id, language_id, asset_type_id | null | false | true | true | true | null
+ix_card_asset_is_active | true | false | CREATE INDEX ix_card_asset_is_active ON public.card_asset USING btree (is_active) | is_active | null | false | true | true | false | null
+ix_card_asset_language_id | true | false | CREATE INDEX ix_card_asset_language_id ON public.card_asset USING btree (language_id) | language_id | null | false | true | true | false | null
+ix_card_asset_source_code | true | false | CREATE INDEX ix_card_asset_source_code ON public.card_asset USING btree (source_code) | source_code | null | false | true | true | false | null
+ix_card_asset_storage_bucket_id | true | false | CREATE INDEX ix_card_asset_storage_bucket_id ON public.card_asset USING btree (storage_bucket_id) | storage_bucket_id | null | false | true | true | false | null
+uq_card_asset_card_type_external_url | true | true | CREATE UNIQUE INDEX uq_card_asset_card_type_external_url ON public.card_asset USING btree (card_id, asset_type_id, external_url) | card_id, asset_type_id, external_url | null | true | true | true | true | false
+uq_card_asset_card_type_language_order | true | false | CREATE UNIQUE INDEX uq_card_asset_card_type_language_order ON public.card_asset USING btree (card_id, asset_type_id, language_id, asset_order) | card_id, asset_type_id, language_id, asset_order | null | true | true | true | true | null
+uq_card_asset_card_type_storage_path | true | true | CREATE UNIQUE INDEX uq_card_asset_card_type_storage_path ON public.card_asset USING btree (card_id, asset_type_id, storage_path) | card_id, asset_type_id, storage_path | null | true | true | true | true | false
+uq_card_asset_one_primary_per_card_type | false | true | null | null | null | null | null | null | null | null
+ux_card_asset_primary_per_card_type_language | true | false | CREATE UNIQUE INDEX ux_card_asset_primary_per_card_type_language ON public.card_asset USING btree (card_id, asset_type_id, language_id) WHERE (is_primary = true) | card_id, asset_type_id, language_id | (is_primary = true) | true | true | true | true | null
