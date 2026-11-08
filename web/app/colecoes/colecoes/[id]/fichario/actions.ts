@@ -149,6 +149,8 @@ import {
 import { collectionHref, isCollectionId } from "@/lib/colecoes/colecoes";
 import { getMyCollectionsByIds } from "@/lib/colecoes/colecoes-queries";
 import { createClient } from "@/lib/supabase/server";
+import { prepareBinderValue } from "@/lib/colecoes/binder-value-queries";
+import type { BinderValueSummary } from "@/lib/colecoes/binder-value";
 
 /**
  * Fichário Digital (P2-B) — ações do servidor. Só os contratos LIVE da 5223
@@ -1519,4 +1521,26 @@ export async function applyAutoArrange(input: { collectionId: string; planToken:
     revalidatePath(binderHref(input.collectionId));
     revalidatePath(collectionHref(input.collectionId));
   });
+}
+
+export type BinderValueResult = { ok: true; summary: BinderValueSummary } | { ok: false; reason: "not_found" | "no_binder" | "error" };
+
+/**
+ * Valor do Fichário (BINDER-VALUE, 05d v2.74) para o Centro de Controle: só o
+ * titular (5223/5252 e 5357 conferem `auth.uid()`; coleção alheia, compartilhada
+ * com você ou inexistente → `not_found`, sem distinguir). O cliente informa só
+ * o id da coleção aberta, validado. Somente leitura; o cálculo financeiro (R2-E)
+ * roda aqui, e ao navegador vai só o resumo do cartão — sem linhas nem ids.
+ */
+export async function readBinderValue(input: { collectionId: string }): Promise<BinderValueResult> {
+  if (!isCollectionId(input?.collectionId)) return { ok: false, reason: "not_found" };
+  const supabase = await createClient();
+  try {
+    const result = await prepareBinderValue(supabase, input.collectionId.toLowerCase());
+    if (result.status === "ready") return { ok: true, summary: result.summary };
+    return { ok: false, reason: result.status };
+  } catch (error) {
+    console.error("[binder] readBinderValue falhou", { message: error instanceof Error ? error.message : "unknown" });
+    return { ok: false, reason: "error" };
+  }
 }

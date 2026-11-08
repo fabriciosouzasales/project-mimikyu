@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Roadmap |
 | **Arquivo** | `docs/ROADMAP.md` |
-| **Versão** | 3.22 |
+| **Versão** | 3.23 |
 | **Status** | Aprovado |
 | **Objetivo** | Consolidar, em uma única fonte de verdade, a trajetória macro do Project Mimikyu — o que já foi concluído, o que está em andamento e o que é direção futura provável, mas ainda não comprometida. |
 | **Escopo** | Marcos de alto nível (Fases/Sub-Fases/Blocos). Não substitui `docs/README.md` (estado atual detalhado), `05-modelo-de-dados.md` (execução física) nem `06-pipeline-importacao.md` (estratégia de importação). |
@@ -35,7 +35,7 @@ Criado em 2026-07-24, junto com a reativação da manutenção de `adr/ADR-INDEX
 > |---|---|---|---|
 > | V1-01 | Acervo: registrar cartas e Set inteiro, cópias, remover, busca e filtros, locais | C-03, C-47/48, NS Fluxos 2/5 | Entregue |
 > | V1-02 | Coleções de Set, livre e Pokédex; Master Set; Biblioteca; renomear e capa; vincular exemplares | C-01–C-37, C-187–C-190, NS-16/17 | Entregue |
-> | V1-03 | Fichário Digital atual (montagem, bolsos, imagens, identidade, compartilhado entre coleções do mesmo dono, referências, novidades, histórico) | C-38–C-46, C-191–C-209 | Entregue; publicação da S7 (P3-B) a confirmar. **Valor do Fichário (`BINDER-VALUE`): contrato funcional aprovado (2026-11-07, `05d`), não implementado** — seção "Valor do Fichário" no Centro de Controle, só do titular; implementação em incremento próprio **após o fechamento e a publicação da R2-E**; leitura agregada dos bolsos ainda sem SQL aprovada |
+> | V1-03 | Fichário Digital atual (montagem, bolsos, imagens, identidade, compartilhado entre coleções do mesmo dono, referências, novidades, histórico) | C-38–C-46, C-191–C-209 | Entregue; publicação da S7 (P3-B) a confirmar. **Valor do Fichário (`BINDER-VALUE`): implementado e homologado (2026-11-08, `05d` v2.75), publicação pendente** — seção "Valor do Fichário" no Centro de Controle, só do titular; leitura agregada `5357` aplicada no LIVE e canônica; cálculo da R2-E |
 > | V1-04 | Arquivar, reativar e excluir coleção | C-06, C-13, C-30, C-37; N26 | **Concluído e homologado** (confirmação do proprietário, 2026-10-31). Backend no LIVE (`5037`–`5039`) |
 > | V1-05 | Desmontar e excluir fichário; transferir a âncora (E19/E19b/E20) | C-194, C-197 | **Concluído e homologado** (confirmação do proprietário, 2026-10-31). Backend no LIVE (`5242`/`5294`, `5293`, `5254`/`5292`); interface em "Gerenciar fichário" (Centro de Controle e fichário sem páginas) |
 > | V1-06 | Adicionar cartas e Set inteiro **a partir da coleção** e continuidade após a criação (Fluxos 1.6, 2 e 5) | NS §2 (normativo) | **Concluído e homologado** (confirmação do proprietário, 2026-10-31). Envelopes `5150`/`5157` com alocação; "Cartas novas" na coleção + continuidade na criação |
@@ -924,3 +924,4 @@ Itens reais, já identificados em auditoria ou por decisão explícita de adiame
 | 3.20 | **V1-03 — Valor do Fichário com contrato aprovado (2026-11-07, `BINDER VALUE — FUNCTIONAL CONTRACT REFINEMENT-01`).** Linha V1-03: entrega futura registrada (após a publicação da R2-E; SQL da leitura agregada pendente de auditoria e autorização). Matriz e sequência aprovada inalteradas. |
 | 3.21 | **V1-14 — R2-E implementada (2026-11-07, `E5 FINAL VALIDATION & RELEASE PREPARATION-01`).** Linha V1-14: R2-E implementada (E1–E4) e homologada no cenário apresentado; pendentes a prévia multipágina e a revisão no celular; não publicada (contrato D7 v1.60 §4m). |
 | 3.22 | **V1-14 — R2-E: impressão multipágina homologada (2026-11-07, `R2-E — FINAL DOCUMENTATION CORRECTION-01`).** Linha V1-14: impressão A4 multipágina PASS, confirmada pelo proprietário; revisão no celular pendente; não publicada (contrato D7 v1.61 §4m). |
+| 3.23 | **V1-03 — Valor do Fichário implementado e homologado (2026-11-08, `B3 — FINAL CLOSEOUT & COMMIT-01`).** Linha V1-03: seção no Centro de Controle implementada e homologada (desktop e celular), leitura `5357` aplicada e canônica; publicação pendente (`05d` v2.75). Matriz e sequência aprovada inalteradas. |

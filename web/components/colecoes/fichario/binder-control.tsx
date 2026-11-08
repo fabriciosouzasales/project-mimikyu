@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useId, useRef, useState, useTransition } from "react";
-import { ArrowRight, ChevronDown, History, Info, LayoutGrid, LibraryBig, PawPrint, PenLine, Settings2, X } from "lucide-react";
+import { ArrowRight, ChevronDown, Coins, History, Info, LayoutGrid, LibraryBig, PawPrint, PenLine, Settings2, X } from "lucide-react";
 import { readBinderCollections, readBinderOccupancy, saveBinderIdentity } from "@/app/colecoes/colecoes/[id]/fichario/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,6 +29,7 @@ import { cn } from "@/lib/utils";
 import { InsideCoverFace, insideCoverSurface } from "./binder-chrome";
 import { BinderHistory } from "./binder-history";
 import { BinderLifecycleSection } from "./binder-lifecycle";
+import { BinderValueSection } from "./binder-value";
 import styles from "./binder-control.module.css";
 
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -74,6 +75,7 @@ export function BinderControlPanel({
   editable = false,
   participantCount = 1,
   ownerCollectionName = null,
+  value = null,
 }: {
   mode: "docked" | "sheet";
   collectionId: string;
@@ -108,6 +110,12 @@ export function BinderControlPanel({
   /** Coleções que usam o fichário (dona + convidadas). */
   participantCount?: number;
   ownerCollectionName?: string | null;
+  /**
+   * Valor do Fichário (BINDER-VALUE, 05d v2.74): só no espaço do titular. `setKey`
+   * muda quando o conjunto de cartas nos bolsos pode ter mudado; `enabled` =
+   * "Exibir preços" ligado e lido. `null` = seção ausente.
+   */
+  value?: { setKey: string; enabled: boolean } | null;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
@@ -149,6 +157,7 @@ export function BinderControlPanel({
 
   const infoOpen = !collapsed.has("info");
   const historyOpen = !collapsed.has("history");
+  const valueOpen = !collapsed.has("value");
 
   return (
     <>
@@ -219,6 +228,19 @@ export function BinderControlPanel({
             </div>
             <p className={cn(styles.hint, "mt-2")}>Compartilhar o fichário com outras coleções fica em Ajustes da coleção. Transferir e desmontar ficam em Gerenciar fichário, no fim deste painel.</p>
           </Section>
+
+          {value ? (
+            <Section id="value" title="Valor do Fichário" icon={Coins} collapsed={collapsed} onToggle={onToggleSection}>
+              {valueOpen ? (
+                <BinderValueSection
+                  collectionId={collectionId}
+                  setKey={value.setKey}
+                  enabled={value.enabled}
+                  onShowPrices={prices ? () => prices.onSetVisible(true) : undefined}
+                />
+              ) : null}
+            </Section>
+          ) : null}
 
           <Section id="info" title="Informações" icon={Info} collapsed={collapsed} onToggle={onToggleSection}>
             {infoOpen ? (

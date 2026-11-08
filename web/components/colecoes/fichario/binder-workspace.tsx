@@ -90,6 +90,7 @@ import { canMergeRight, mergeCheckMessage, pocketsFromPages, regionCells, region
 import { type BinderIdentity, CONTROL_PANEL_STORAGE_KEY, type ControlSection, type ResolvedIdentity, parseControlPanelPrefs, resolveIdentity } from "@/lib/colecoes/binder-identity";
 import { type SpeciesReferenceState, speciesFailureMessage } from "@/lib/colecoes/binder-species";
 import { BINDER_PRICES_STORAGE_KEY, parseBinderPricesPref, serializeBinderPricesPref } from "@/lib/colecoes/binder-price-pref";
+import { binderValueSetKey } from "@/lib/colecoes/binder-value";
 import { useVariantPrices } from "@/lib/pricing/variant-pricing-client";
 import { type CatalogApplyResult, type CatalogNoveltyState, applyResultMessage, noveltyBadgeCount } from "@/lib/colecoes/binder-catalog";
 import {
@@ -465,6 +466,11 @@ export function BinderWorkspace({
   const [confirm, setConfirm] = useState<Confirm>(null);
   const [busy, setBusy] = useState(false);
   const [filled, setFilled] = useState(filledCount);
+  // Valor do Fichário (D4): muda a cada escrita que possa ter colocado, retirado
+  // ou substituído carta nos bolsos (mover/trocar de bolso não muda). Junto com
+  // `filled`, forma a chave do conjunto — o Centro de Controle relê o valor só quando ela muda.
+  const [pocketSetVersion, setPocketSetVersion] = useState(0);
+  const bumpPocketSet = useCallback(() => setPocketSetVersion((v) => v + 1), []);
   const trayIds = useMemo(() => new Set(tray.map((item) => item.slotId)), [tray]);
   const selectionActive = selected.size > 0;
 
@@ -846,11 +852,14 @@ export function BinderWorkspace({
       if (plan.availableDelta !== 0) setAvailable((prev) => ({ ...prev, total: Math.max(0, prev.total + plan.availableDelta) }));
       if (plan.reloadAvailable) void loadAvailable(0);
       // Relê só as páginas afetadas (a página à vista não muda) e avisa o Histórico (activityVersion).
+      if (plan.filledDelta !== 0 || plan.availableDelta !== 0 || plan.reloadAvailable) bumpPocketSet();
       if (plan.pages.length > 0) await refreshPages(plan.pages);
       return;
     }
+    // Resultado incerto ou recusado: na dúvida, o conjunto dos bolsos é tratado como mudado.
+    bumpPocketSet();
     if (failureFollowUp(next).read === "now") await revalidateArrange(next);
-  }, [busy, collectionId, loadAvailable, refreshPages, revalidateArrange, setApplyFlow]);
+  }, [busy, bumpPocketSet, collectionId, loadAvailable, refreshPages, revalidateArrange, setApplyFlow]);
   /** 55P03 / 40P01 / 57014: nova tentativa controlada — começa SEMPRE por revalidação. */
   const retryArrange = useCallback(() => {
     if (failureFollowUp(flowRef.current).read === "on_request") void revalidateArrange(flowRef.current);
@@ -991,6 +1000,7 @@ export function BinderWorkspace({
       }
       generation.current += 1;
       pending.current.clear();
+      bumpPocketSet();
       setTotalPages(result.totalAfter);
       setFailed(new Set());
       setCache((prev) => cacheAfterPageRemoval(prev, page.pageNumber));
@@ -998,7 +1008,7 @@ export function BinderWorkspace({
       setRemoveDialog(null);
       setToast({ tone: "success", text: pageRemovedMessage(page.pageNumber, result.totalBefore) });
     },
-    [collectionId, editable, refreshPages, removingPage],
+    [bumpPocketSet, collectionId, editable, refreshPages, removingPage],
   );
 
   /**
@@ -1011,6 +1021,7 @@ export function BinderWorkspace({
     async (result: CatalogApplyResult, pages: number[]) => {
       setCatalogOpen(false);
       if (result.outcome === "APPLIED") {
+        bumpPocketSet();
         if (result.pagesAdded > 0) {
           const last = Math.max(totalPages, ...result.addedPageNumbers);
           setTotalPages(last);
@@ -1022,7 +1033,7 @@ export function BinderWorkspace({
       const reread = await readCatalogNovelties({ collectionId }).catch(() => null);
       if (reread && reread.ok) setCatalogState(reread.state);
     },
-    [collectionId, refreshPages, totalPages],
+    [bumpPocketSet, collectionId, refreshPages, totalPages],
   );
 
   /** Posicionar um exemplar disponível (5250, pelo exemplar). Só bolso vazio e solto — nunca substitui outra carta. */
@@ -1054,6 +1065,7 @@ export function BinderWorkspace({
       setBusy(true);
       const result = await placeAvailableCard({ collectionId, slotId: toId, physicalCardId: card.physicalCardId });
       setBusy(false);
+      bumpPocketSet();
       if (result.ok) {
         setFilled((value) => value + 1);
         setToast({ tone: "success", text: `${card.cardName} foi para a página ${to.page}.` });
@@ -1067,7 +1079,7 @@ export function BinderWorkspace({
       }
       await refreshPages([to.page]);
     },
-    [busy, collectionId, editable, fail, loadAvailable, patchSlots, refreshPages, slotIndex],
+    [busy, bumpPocketSet, collectionId, editable, fail, loadAvailable, patchSlots, refreshPages, slotIndex],
   );
 
   // ---- cadastro pelo fichário (V1-06 COMPLETE-01) ----
@@ -1139,6 +1151,7 @@ export function BinderWorkspace({
         return { tone: "warning", text: `A carta foi cadastrada, mas aquele bolso não está mais livre. ${leftover}` };
       }
       const placed = await placeAvailableCard({ collectionId, slotId: slot.slotId, physicalCardId });
+      bumpPocketSet();
       await refreshPages([slot.page]);
       void loadAvailable(0);
       if (placed.ok) {
@@ -1148,7 +1161,7 @@ export function BinderWorkspace({
       }
       return { tone: "warning", text: `A carta foi cadastrada, mas não entrou no bolso: ${slotFailureMessage(placed.reason)} ${leftover}` };
     },
-    [collectionId, loadAvailable, refreshPages],
+    [bumpPocketSet, collectionId, loadAvailable, refreshPages],
   );
 
   // ---- imagem personalizada do bolso (C-198) ----
@@ -1543,6 +1556,7 @@ export function BinderWorkspace({
       setBusy(true);
       const result = await removeSlots({ collectionId, slotIds: targets.map(({ slot }) => slot.slotId) });
       setBusy(false);
+      bumpPocketSet();
       if (result.ok) {
         setFilled((value) => Math.max(0, value - result.count));
         setToast({
@@ -1558,7 +1572,7 @@ export function BinderWorkspace({
       void loadAvailable(0);
       await refreshPages(targets.map(({ page }) => page));
     },
-    [busy, collectionId, editable, entriesFor, fail, loadAvailable, patchSlots, refreshPages, trayIds],
+    [busy, bumpPocketSet, collectionId, editable, entriesFor, fail, loadAvailable, patchSlots, refreshPages, trayIds],
   );
 
   const runUndo = useCallback(
@@ -1579,6 +1593,7 @@ export function BinderWorkspace({
         restoredIds.add(item.physicalCardId);
       }
       setBusy(false);
+      bumpPocketSet();
       setFilled((value) => value + restored);
       // As cartas que voltaram ao bolso deixam de estar disponíveis (mesma regra de placeAvailableCard).
       if (restoredIds.size > 0) {
@@ -1598,7 +1613,7 @@ export function BinderWorkspace({
       else setToast({ tone: "success", text: restored === 1 ? "A carta voltou ao bolso." : `${restored} cartas voltaram aos bolsos.` });
       await refreshPages(items.map((item) => slotIndex.get(item.slotId)?.page ?? 0));
     },
-    [busy, collectionId, fail, loadAvailable, refreshPages, slotIndex],
+    [busy, bumpPocketSet, collectionId, fail, loadAvailable, refreshPages, slotIndex],
   );
 
   // ---- gestos nos bolsos ----
@@ -2176,6 +2191,7 @@ export function BinderWorkspace({
             participantCount={participantCount}
             ownerCollectionName={ownerCollectionName}
             prices={{ visible: pricesVisible, onSetVisible: setPricesVisible }}
+            value={{ setKey: binderValueSetKey(filled, pocketSetVersion), enabled: pricesEnabled }}
             species={
               speciesReferences && speciesState !== null && speciesState.isPokedexOwner
                 ? {
