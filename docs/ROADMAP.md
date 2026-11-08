@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Roadmap |
 | **Arquivo** | `docs/ROADMAP.md` |
-| **Versão** | 3.19 |
+| **Versão** | 3.20 |
 | **Status** | Aprovado |
 | **Objetivo** | Consolidar, em uma única fonte de verdade, a trajetória macro do Project Mimikyu — o que já foi concluído, o que está em andamento e o que é direção futura provável, mas ainda não comprometida. |
 | **Escopo** | Marcos de alto nível (Fases/Sub-Fases/Blocos). Não substitui `docs/README.md` (estado atual detalhado), `05-modelo-de-dados.md` (execução física) nem `06-pipeline-importacao.md` (estratégia de importação). |
@@ -35,7 +35,7 @@ Criado em 2026-07-24, junto com a reativação da manutenção de `adr/ADR-INDEX
 > |---|---|---|---|
 > | V1-01 | Acervo: registrar cartas e Set inteiro, cópias, remover, busca e filtros, locais | C-03, C-47/48, NS Fluxos 2/5 | Entregue |
 > | V1-02 | Coleções de Set, livre e Pokédex; Master Set; Biblioteca; renomear e capa; vincular exemplares | C-01–C-37, C-187–C-190, NS-16/17 | Entregue |
-> | V1-03 | Fichário Digital atual (montagem, bolsos, imagens, identidade, compartilhado entre coleções do mesmo dono, referências, novidades, histórico) | C-38–C-46, C-191–C-209 | Entregue; publicação da S7 (P3-B) a confirmar |
+> | V1-03 | Fichário Digital atual (montagem, bolsos, imagens, identidade, compartilhado entre coleções do mesmo dono, referências, novidades, histórico) | C-38–C-46, C-191–C-209 | Entregue; publicação da S7 (P3-B) a confirmar. **Valor do Fichário (`BINDER-VALUE`): contrato funcional aprovado (2026-11-07, `05d`), não implementado** — seção "Valor do Fichário" no Centro de Controle, só do titular; implementação em incremento próprio **após o fechamento e a publicação da R2-E**; leitura agregada dos bolsos ainda sem SQL aprovada |
 > | V1-04 | Arquivar, reativar e excluir coleção | C-06, C-13, C-30, C-37; N26 | **Concluído e homologado** (confirmação do proprietário, 2026-10-31). Backend no LIVE (`5037`–`5039`) |
 > | V1-05 | Desmontar e excluir fichário; transferir a âncora (E19/E19b/E20) | C-194, C-197 | **Concluído e homologado** (confirmação do proprietário, 2026-10-31). Backend no LIVE (`5242`/`5294`, `5293`, `5254`/`5292`); interface em "Gerenciar fichário" (Centro de Controle e fichário sem páginas) |
 > | V1-06 | Adicionar cartas e Set inteiro **a partir da coleção** e continuidade após a criação (Fluxos 1.6, 2 e 5) | NS §2 (normativo) | **Concluído e homologado** (confirmação do proprietário, 2026-10-31). Envelopes `5150`/`5157` com alocação; "Cartas novas" na coleção + continuidade na criação |
@@ -921,3 +921,4 @@ Itens reais, já identificados em auditoria ou por decisão explícita de adiame
 | 3.17 | **V1-14 — R2-D implementada e homologada (2026-11-07).** Linha V1-14: R2-D — Cartas favoritas do Card Set implementada e homologada, aguardando publicação (contrato D7 v1.57 §4l; Query 5356 aplicada e validada no LIVE). Matriz V1-01 a V1-15 e sequência aprovada inalteradas. |
 | 3.18 | **V1-14 — R2-E com contrato aprovado (2026-11-07).** Linha V1-14: R2-B, R2-C e R2-D publicadas; R2-E — Valor estimado dos exemplares alocados com contrato funcional aprovado e ainda não implementado (contrato D7 v1.59 §4m); R2-E2 só como oportunidade. Matriz V1-01 a V1-15 e sequência aprovada inalteradas. |
 | 3.19 | **V1-14 — sequência dos Relatórios de Coleções (2026-11-07, `R2-E — CONTRACT DOCUMENTATION CLOSEOUT-01`).** Linha V1-14: Fase 1 (Set padrão e Master Set: R2-A–R2-D publicadas, R2-E com contrato aprovado, R2-F, R2-G e Caderno de Cartas pendentes) e Fase 2 (Pokédex e Coleções Livres após a homologação da Fase 1; contratos a definir; R2-E2 sem implementação autorizada). Matriz V1-01 a V1-15 inalterada. |
+| 3.20 | **V1-03 — Valor do Fichário com contrato aprovado (2026-11-07, `BINDER VALUE — FUNCTIONAL CONTRACT REFINEMENT-01`).** Linha V1-03: entrega futura registrada (após a publicação da R2-E; SQL da leitura agregada pendente de auditoria e autorização). Matriz e sequência aprovada inalteradas. |
