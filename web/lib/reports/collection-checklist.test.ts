@@ -374,8 +374,9 @@ test("coleção: Relatórios, Compartilhar e Ajustes na mesma cápsula (Relatór
   assert.match(view, /<ActionCapsule label="Ações da coleção">\s*\{reportsAction\}\s*<CollectionShareButton/);
   assert.match(view, /<ActionCapsule label="Ações da coleção">\{reportsAction\}<\/ActionCapsule>\s*<ReactivateCollectionButton/);
   assert.doesNotMatch(view, /ReportLens/);
+  // F2-1 (D7 §4q): Pokédex e Coleção livre passaram a ter Relatórios na mesma cápsula, na mesma posição.
   for (const path of ["../../components/colecoes/colecoes/free-collection-view.tsx", "../../components/colecoes/colecoes/pokedex-collection-view.tsx"]) {
-    assert.match(read(path), /<ActionCapsule label="Ações da coleção">\s*<CollectionShareButton/);
+    assert.match(read(path), /<ActionCapsule label="Ações da coleção">\s*\{reportsAction\}\s*<CollectionShareButton/);
   }
 });
 

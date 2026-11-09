@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { CollectionShareButton } from "@/components/colecoes/sharing/share-panel";
+import { CollectionReportsAction } from "@/components/reports/collection-reports-action";
 import { ActionCapsule } from "@/components/ui/action-capsule";
+import { freeCollectionReportItems } from "@/lib/reports/collection-checklist";
 import capsuleStyles from "@/components/ui/action-capsule.module.css";
 import { BinderCoverLink, BinderEntry } from "@/components/colecoes/fichario/binder-entry";
 import { type BinderHeader, binderEntryVisible } from "@/lib/colecoes/binder";
@@ -108,6 +110,16 @@ export function FreeCollectionView({
   const pages = items ? freeTotalPages(items.totalGroups) : 1;
 
   const canManage = COLLECTION_MANAGE_ENABLED && active;
+  // Relatórios (D7 §4q, F2-1): mesmo menu e mesma sobreposição da página de Set; só o titular chega
+  // aqui e cada relatório confere a titularidade de novo no servidor. Também na coleção arquivada.
+  const reportsAction = (
+    <CollectionReportsAction
+      collectionId={collection.id}
+      items={freeCollectionReportItems()}
+      className={capsuleStyles.item}
+      labelClassName={capsuleStyles.label}
+    />
+  );
   const launcher = (showCount: boolean) => (active ? <FreePickerButton available={available} showCount={showCount} /> : null);
   const addTarget = { collectionId: collection.id, collectionName: collection.name, kind: "free" as const, cardSet: null };
 
@@ -138,6 +150,7 @@ export function FreeCollectionView({
             <div className={manageStyles.heroBarActions}>
               <ReactivatedStatus collectionId={collection.id} />
               <ActionCapsule label="Ações da coleção">
+                {reportsAction}
                 <CollectionShareButton
                   collectionId={collection.id}
                   collectionName={collection.name}
@@ -162,8 +175,13 @@ export function FreeCollectionView({
               </ActionCapsule>
             </div>
           ) : !active ? (
-            <ReactivateCollectionButton collectionId={collection.id} collectionName={collection.name} />
-          ) : null}
+            <div className={manageStyles.heroBarActions}>
+              <ActionCapsule label="Ações da coleção">{reportsAction}</ActionCapsule>
+              <ReactivateCollectionButton collectionId={collection.id} collectionName={collection.name} />
+            </div>
+          ) : (
+            <ActionCapsule label="Ações da coleção">{reportsAction}</ActionCapsule>
+          )}
         </div>
         <div className={heroStyles.stage}>
           <div className={heroStyles.text}>

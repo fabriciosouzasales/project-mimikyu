@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { CollectionShareButton } from "@/components/colecoes/sharing/share-panel";
+import { CollectionReportsAction } from "@/components/reports/collection-reports-action";
 import { ActionCapsule } from "@/components/ui/action-capsule";
+import { pokedexReportItems } from "@/lib/reports/collection-checklist";
 import capsuleStyles from "@/components/ui/action-capsule.module.css";
 import { BinderCoverLink, BinderEntry } from "@/components/colecoes/fichario/binder-entry";
 import { type BinderHeader, binderEntryVisible } from "@/lib/colecoes/binder";
@@ -99,6 +101,16 @@ export function PokedexCollectionView({
 }) {
   const active = collection.lifecycleStatus === "ACTIVE";
   const canManage = COLLECTION_MANAGE_ENABLED && active;
+  // Relatórios (D7 §4q, F2-1): mesmo menu e mesma sobreposição da página de Set; só o titular chega
+  // aqui e cada relatório confere a titularidade de novo no servidor. Também na coleção arquivada.
+  const reportsAction = (
+    <CollectionReportsAction
+      collectionId={collection.id}
+      items={pokedexReportItems()}
+      className={capsuleStyles.item}
+      labelClassName={capsuleStyles.label}
+    />
+  );
   // Capa e código próprios, como na Coleção livre (5178/5180 ampliados pela 5206/5207).
   const coverUpload = FREE_COVER_UPLOAD_ENABLED && POKEDEX_COLLECTION_ENABLED && active && userId !== null;
   const codeEditable = FREE_COVER_CODE_ENABLED && POKEDEX_COLLECTION_ENABLED;
@@ -151,6 +163,7 @@ export function PokedexCollectionView({
             <div className={manageStyles.heroBarActions}>
               <ReactivatedStatus collectionId={collection.id} />
               <ActionCapsule label="Ações da coleção">
+                {reportsAction}
                 <CollectionShareButton
                   collectionId={collection.id}
                   collectionName={collection.name}
@@ -175,8 +188,13 @@ export function PokedexCollectionView({
               </ActionCapsule>
             </div>
           ) : !active ? (
-            <ReactivateCollectionButton collectionId={collection.id} collectionName={collection.name} />
-          ) : null}
+            <div className={manageStyles.heroBarActions}>
+              <ActionCapsule label="Ações da coleção">{reportsAction}</ActionCapsule>
+              <ReactivateCollectionButton collectionId={collection.id} collectionName={collection.name} />
+            </div>
+          ) : (
+            <ActionCapsule label="Ações da coleção">{reportsAction}</ActionCapsule>
+          )}
         </div>
         <div className={`${heroStyles.stage} ${pkxStyles.heroStage}`}>
           <div className={heroStyles.text}>

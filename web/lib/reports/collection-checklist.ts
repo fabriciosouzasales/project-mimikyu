@@ -349,3 +349,32 @@ export function collectionReportItems(input: {
     },
   ];
 }
+
+/** Fase 2 (D7 §4q): motivo dos relatórios aprovados que ainda não foram entregues. */
+export const PHASE2_UPCOMING_REASON = "Em preparação.";
+
+/**
+ * Relatórios do menu da coleção Pokédex (D7 §4q, F2-1). Só o que é aplicável à modalidade: Valor
+ * estimado disponível; Checklist e Espécies faltantes (F2-2) e Composição da coleção (F2-3)
+ * visíveis e indisponíveis até serem entregues. Sem Caderno, desejadas, favoritas nem evolução.
+ */
+export function pokedexReportItems(): ReportMenuItem[] {
+  return [
+    { id: "pokedex-checklist", label: "Checklist da Pokédex", icon: "checklist", href: null, metric: null, disabledReason: PHASE2_UPCOMING_REASON },
+    { id: "pokedex-missing", label: "Espécies faltantes", icon: "missing", href: null, metric: null, disabledReason: PHASE2_UPCOMING_REASON },
+    { id: "collection-value", label: "Valor estimado", icon: "value", href: null, metric: null, disabledReason: null },
+    { id: "collection-composition", label: "Composição da coleção", icon: "distribution", href: null, metric: null, disabledReason: PHASE2_UPCOMING_REASON },
+  ];
+}
+
+/**
+ * Relatórios do menu da Coleção livre (D7 §4q, F2-1). Sem objetivo de completude: nada de checklist,
+ * faltantes ou percentuais. Valor estimado disponível; Composição da coleção (F2-3) indisponível até
+ * ser entregue.
+ */
+export function freeCollectionReportItems(): ReportMenuItem[] {
+  return [
+    { id: "collection-value", label: "Valor estimado", icon: "value", href: null, metric: null, disabledReason: null },
+    { id: "collection-composition", label: "Composição da coleção", icon: "distribution", href: null, metric: null, disabledReason: PHASE2_UPCOMING_REASON },
+  ];
+}

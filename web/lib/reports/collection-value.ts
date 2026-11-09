@@ -307,14 +307,29 @@ export const COLLECTION_VALUE_PROVISIONAL_TEXT =
   "Algumas referências de preço não puderam ser lidas agora. O valor é parcial e a impressão fica indisponível — tente novamente em instantes.";
 
 /** Nota metodológica obrigatória (D12; D5 só no Master Set). */
-export function collectionValueNotes(input: { masterSet: boolean; observedFrom: string | null; observedTo: string | null }): string[] {
+export function collectionValueNotes(input: {
+  masterSet: boolean;
+  /** Pokédex (F2-1): o valor é dos exemplares, nunca das espécies ou posições. */
+  pokedex?: boolean;
+  /** Coleção livre (F2-1): sem objetivo de completude. */
+  free?: boolean;
+  observedFrom: string | null;
+  observedTo: string | null;
+}): string[] {
   const notes = [
     "Valor estimado = quantidade alocada × referência NM unitária de cada variante. Só entram exemplares alocados a esta coleção; um exemplar nunca é contado em duas coleções.",
     "A referência é de mercado na condição NM (Near Mint). A condição física dos seus exemplares não é registrada — o valor não reflete desgaste.",
-    "Não é garantia de revenda nem valor de liquidação, nem custo de aquisição. Não tem relação com o percentual de completude da coleção.",
+    input.free
+      ? "Não é garantia de revenda nem valor de liquidação, nem custo de aquisição."
+      : "Não é garantia de revenda nem valor de liquidação, nem custo de aquisição. Não tem relação com o percentual de completude da coleção.",
     "Itens sem cotação ficam fora da soma (nunca valem zero). \"Preço geral da carta\" indica referência da carta, não da variante; \"Desatualizada\", observação com mais de 14 dias.",
   ];
   if (input.masterSet) notes.push("No Master Set, todos os exemplares alocados entram no valor, inclusive os que não atendem às posições atuais do objetivo.");
+  if (input.pokedex)
+    notes.push(
+      "Na Pokédex, o valor é dos exemplares físicos alocados à coleção — não das espécies nem das posições. Espécie sem exemplar não entra; várias cópias da mesma espécie entram todas.",
+    );
+  if (input.free) notes.push("Coleção livre: sem objetivo de completude; o valor considera os exemplares que você alocou a ela.");
   const from = formatObservedDate(input.observedFrom);
   const to = formatObservedDate(input.observedTo);
   if (from && to) notes.push(from === to ? `Referências observadas em ${from}, convertidas para reais pela PTAX.` : `Referências observadas entre ${from} e ${to}, convertidas para reais pela PTAX.`);

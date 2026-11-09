@@ -395,12 +395,12 @@ test("E1: ordem 5332 → 5159 (só a coleção autorizada, SET_NUMBER, 96 por p�
   }
 });
 
-test("E1: coleção alheia/inexistente, objetivo não suportado e falha da coleção → zero leituras financeiras", async () => {
+test("E1: coleção alheia/inexistente, modalidade não suportada e falha da coleção → zero leituras financeiras", async () => {
+  // F2-1 (D7 §4q): Pokédex (REFERENCE_POSITION) e Coleção livre (NONE) passaram a ser suportadas — ver o teste F2-1 abaixo.
   for (const [options, expected] of [
     [{ collection: "missing" as const }, "not_found"],
     [{ collection: "error" as const }, "error"],
-    [{ policy: "REFERENCE_POSITION" }, "unavailable"],
-    [{ policy: "NONE" }, "unavailable"],
+    [{ policy: "UNKNOWN_POLICY" }, "unavailable"],
   ] as const) {
     const fake = fakeClient(groupsOf(5), options);
     const result = await prepareCollectionValueReport(fake.client as never, COLLECTION);
@@ -485,4 +485,27 @@ test("E1: falha da 5159 → erro; falha de um bloco de preço → provisório co
     assert.deepEqual([r.pricedGroups, r.unpricedGroups, r.unavailableGroups], [2, 2, 0]);
     assert.equal(r.printable, true);
   }
+});
+
+test("F2-1: Pokédex e Coleção livre — mesma base (só exemplares ALOCADOS a esta coleção), mesmo cálculo, sem leitura de posições", async () => {
+  for (const [policy, kind] of [["REFERENCE_POSITION", "POKEDEX"], ["NONE", "FREE"]] as const) {
+    const fake = fakeClient([{ variant: 1, copies: 2 }, { variant: 2, copies: 1 }], { policy });
+    const result = await prepareCollectionValueReport(fake.client as never, COLLECTION, undefined, new Date(NOW));
+    assert.equal(result.status, "ready", policy);
+    if (result.status === "ready") {
+      assert.equal(result.data.kind, kind);
+      assert.equal(result.data.report.copies, 3, "exemplares, nunca espécies ou posições");
+      assert.equal(result.data.report.totalCents, 100 * 2 + 200 * 1, "mesma regra financeira da R2-E");
+    }
+    const items = fake.calls.filter((c) => c.fn === "get_my_inventory_items");
+    assert.ok(items.length > 0 && items.every((c) => c.args.p_collection_id === COLLECTION && c.args.p_without_collection === false), "só a coleção autorizada");
+    assert.ok(!fake.calls.some((c) => /pokedex|positions|master_set/.test(c.fn)), "nenhuma leitura de espécies/posições");
+    assert.deepEqual([...new Set(fake.calls.map((c) => c.fn))].sort(), ["get_card_variants_pricing_summary", "get_my_collection", "get_my_inventory_items"]);
+  }
+  const empty = fakeClient([], { policy: "NONE", copiesCount: 0 });
+  const emptyResult = await prepareCollectionValueReport(empty.client as never, COLLECTION);
+  assert.equal(emptyResult.status === "ready" ? emptyResult.data.report.state : null, "empty", "sem exemplares alocados → vazio, sem leituras financeiras");
+  assert.deepEqual(empty.calls.map((c) => c.fn), ["get_my_collection"]);
+  const partial = await prepareCollectionValueReport(fakeClient(groupsOf(150), { policy: "REFERENCE_POSITION", failPricesFor: 120 }).client as never, COLLECTION, undefined, new Date(NOW));
+  assert.equal(partial.status === "ready" ? partial.data.report.provisional : null, true, "preço indisponível → provisório, como na R2-E");
 });

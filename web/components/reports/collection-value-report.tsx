@@ -4,7 +4,6 @@ import { RelatorioCabecalho } from "@/components/catalogo/relatorio-cabecalho";
 import { RelatorioFolha } from "@/components/catalogo/relatorio-folha";
 import { RelatorioRodape } from "@/components/catalogo/relatorio-rodape";
 import { DataTableHeadCell, DataTableHeadRow } from "@/components/ui/data-table";
-import type { ChecklistKind } from "@/lib/reports/collection-checklist";
 import {
   type CollectionValueLine,
   type CollectionValueReport,
@@ -21,10 +20,16 @@ import {
   collectionValueUnpricedText,
   collectionValueVariantText,
 } from "@/lib/reports/collection-value";
-import type { CollectionValueCollection } from "@/lib/reports/collection-value-queries";
+import type { CollectionValueCollection, CollectionValueKind } from "@/lib/reports/collection-value-queries";
 import { PrintImageGate } from "./print-image-gate";
 
 export const COLLECTION_VALUE_TITLE = "Valor estimado";
+const COLLECTION_VALUE_KIND_TEXT: Record<CollectionValueKind, string> = {
+  STANDARD_SET: "Set padrão",
+  MASTER_SET: "Master Set",
+  POKEDEX: "Pokédex",
+  FREE: "Coleção livre",
+};
 /** Miniaturas imediatas até este nº de linhas na tela; acima, sob demanda. */
 const EAGER_IMAGES_MAX = 60;
 const COLUMNS = 4;
@@ -64,13 +69,15 @@ export function CollectionValueSheet({
   issuedAt,
 }: {
   collection: CollectionValueCollection;
-  kind: ChecklistKind;
+  kind: CollectionValueKind;
   report: CollectionValueReport;
   logoUrl: string | null;
   issuedAt: string;
 }) {
   const identity = collection.cardSetCode ? `${collection.cardSetCode} · ${collection.cardSetName ?? collection.name}` : collection.name;
-  const kindText = kind === "MASTER_SET" ? "Master Set" : "Set padrão";
+  const kindText = COLLECTION_VALUE_KIND_TEXT[kind];
+  // Pokédex e Coleção livre reúnem vários Card Sets (F2-1): a ordem é por Set e, dentro dele, pelo número.
+  const orderText = kind === "POKEDEX" || kind === "FREE" ? "na ordem dos Sets" : "na ordem do Set";
   const cabecalho = (
     <RelatorioCabecalho
       titulo="Valor estimado dos exemplares alocados"
@@ -87,7 +94,13 @@ export function CollectionValueSheet({
   const totalText = collectionValueTotalText(report);
   // Total incompleto nunca aparece como definitivo.
   const qualifier = !report.complete ? "não definitivo — relatório incompleto" : report.provisional ? "parcial — preço indisponível em parte dos itens" : null;
-  const notes = collectionValueNotes({ masterSet: kind === "MASTER_SET", observedFrom: report.observedFrom, observedTo: report.observedTo });
+  const notes = collectionValueNotes({
+    masterSet: kind === "MASTER_SET",
+    pokedex: kind === "POKEDEX",
+    free: kind === "FREE",
+    observedFrom: report.observedFrom,
+    observedTo: report.observedTo,
+  });
 
   return (
     <RelatorioFolha>
@@ -147,7 +160,7 @@ export function CollectionValueSheet({
                               <>
                                 <tr>
                                   <td colSpan={COLUMNS} className="border-t border-neutral-200 bg-neutral-50 px-2 py-1.5 text-[10px] font-semibold text-neutral-700">
-                                    Fora da soma · {plural(outside.length, "item", "itens")} sem cotação ou com preço indisponível, na ordem do Set
+                                    Fora da soma · {plural(outside.length, "item", "itens")} sem cotação ou com preço indisponível, {orderText}
                                   </td>
                                 </tr>
                                 {outside.map((line, index) => (
@@ -195,7 +208,7 @@ export function CollectionValueSheet({
                         {/* Impressão: tabela própria (miniaturas preparadas pelo mecanismo da R1-G; com pendência, Ctrl+P imprime só o aviso). */}
                         <div className="hidden print:block">
                           <PrintImageGate>
-                            <PrintTable priced={priced} outside={outside} copies={report.copies} totalText={totalText} coverage={collectionValueCoverageText(report)} />
+                            <PrintTable priced={priced} outside={outside} copies={report.copies} totalText={totalText} coverage={collectionValueCoverageText(report)} orderText={orderText} />
                           </PrintImageGate>
                         </div>
                       </>
@@ -229,12 +242,14 @@ function PrintTable({
   copies,
   totalText,
   coverage,
+  orderText,
 }: {
   priced: readonly CollectionValueLine[];
   outside: readonly CollectionValueLine[];
   copies: number;
   totalText: string;
   coverage: string;
+  orderText: string;
 }) {
   return (
     <table className="w-full text-left text-[9px]" style={{ borderCollapse: "collapse", tableLayout: "fixed" }} data-collection-value-print-table="">
@@ -259,7 +274,7 @@ function PrintTable({
         {outside.length > 0 ? (
           <tr style={{ breakInside: "avoid", breakAfter: "avoid" }} data-collection-value-print-outside="">
             <td colSpan={COLUMNS} className="border-t border-neutral-200 bg-neutral-50 px-1.5 py-1 text-[9px] font-semibold text-neutral-700">
-              Fora da soma · {plural(outside.length, "item", "itens")} sem cotação ou com preço indisponível, na ordem do Set
+              Fora da soma · {plural(outside.length, "item", "itens")} sem cotação ou com preço indisponível, {orderText}
             </td>
           </tr>
         ) : null}

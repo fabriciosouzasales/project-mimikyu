@@ -205,3 +205,36 @@ test("elegibilidade (cenários): todas cotadas e ausência legítima de cotaçã
   // Master Set: a impressão não depende do objetivo (a única diferença é a nota do Master Set, testada no núcleo).
   assert.ok(!/MASTER_SET/.test(code(overlay)));
 });
+
+test("F2-1: menus da Pokédex e da Coleção livre — Valor estimado disponível; o restante só o aplicável, indisponível até ser entregue", async () => {
+  const { pokedexReportItems, freeCollectionReportItems, PHASE2_UPCOMING_REASON } = await import("./collection-checklist.ts");
+  const pkx = pokedexReportItems();
+  assert.deepEqual(pkx.map((i) => i.id), ["pokedex-checklist", "pokedex-missing", "collection-value", "collection-composition"]);
+  assert.deepEqual(pkx.filter((i) => i.disabledReason === null).map((i) => i.id), ["collection-value"]);
+  assert.ok(pkx.filter((i) => i.disabledReason !== null).every((i) => i.disabledReason === PHASE2_UPCOMING_REASON));
+  const free = freeCollectionReportItems();
+  assert.deepEqual(free.map((i) => i.id), ["collection-value", "collection-composition"]);
+  assert.ok(!free.some((i) => /checklist|missing|completion|rarity|booklet/.test(i.id)), "livre: nada de completude");
+  assert.ok(![...pkx, ...free].some((i) => i.id === "card-booklet"), "Caderno só em Set padrão e Master Set");
+  for (const [file, fn] of [["components/colecoes/colecoes/pokedex-collection-view.tsx", "pokedexReportItems()"], ["components/colecoes/colecoes/free-collection-view.tsx", "freeCollectionReportItems()"]] as const) {
+    const view = code(read(file));
+    assert.ok(view.includes(`items={${fn}}`), file);
+    assert.ok(view.includes("{reportsAction}"), `${file}: no menu da cápsula`);
+    assert.ok(view.includes('<ActionCapsule label="Ações da coleção">{reportsAction}</ActionCapsule>'), `${file}: também em arquivada/sem gestão`);
+  }
+  // A página de Set continua com o menu homologado.
+  assert.ok(code(read("components/colecoes/colecoes/collection-view.tsx")).includes("items={collectionReportItems({"));
+});
+
+test("F2-1: folha — modalidade, ordem por Sets e notas que separam exemplares de espécies e de completude", async () => {
+  const { collectionValueNotes } = await import("./collection-value.ts");
+  const pkx = collectionValueNotes({ masterSet: false, pokedex: true, observedFrom: null, observedTo: null });
+  assert.ok(pkx.some((n) => /não das espécies nem das posições/.test(n)));
+  const free = collectionValueNotes({ masterSet: false, free: true, observedFrom: null, observedTo: null });
+  assert.ok(!free.some((n) => /completude da coleção\./.test(n)) && free.some((n) => /sem objetivo de completude/.test(n)));
+  const set = collectionValueNotes({ masterSet: false, observedFrom: null, observedTo: null });
+  assert.ok(set.some((n) => /percentual de completude/.test(n)) && !set.some((n) => /Pokédex|Coleção livre/.test(n)), "Set inalterado");
+  assert.ok(sheet.includes('POKEDEX: "Pokédex"') && sheet.includes('FREE: "Coleção livre"'));
+  assert.ok(sheet.includes('kind === "POKEDEX" || kind === "FREE" ? "na ordem dos Sets" : "na ordem do Set"'));
+  assert.ok(code(overlay).includes("O Valor estimado existe para coleções de Set padrão, Master Set, Pokédex e coleções livres."));
+});

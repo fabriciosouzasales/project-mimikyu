@@ -48,8 +48,8 @@ export function collectionValueEntry(result: CollectionValueReportResult): Repor
   return result.reason === "unavailable"
     ? {
         status: "ready",
-        incomplete: "O Valor estimado existe para coleções de Set padrão e Master Set.",
-        sheet: unavailableSheet("Relatório indisponível para esta coleção", "Nesta etapa, o relatório existe para coleções de Set padrão e Master Set."),
+        incomplete: "O Valor estimado não está disponível para esta coleção.",
+        sheet: unavailableSheet("Relatório indisponível para esta coleção", "O Valor estimado existe para coleções de Set padrão, Master Set, Pokédex e coleções livres."),
       }
     : { status: "ready", incomplete: "Este relatório não está disponível.", sheet: unavailableSheet("Este relatório não está disponível", "Nada foi alterado na sua coleção.") };
 }

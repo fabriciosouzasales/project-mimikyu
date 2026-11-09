@@ -14,9 +14,23 @@ import {
 
 export type CollectionValueCollection = { id: string; name: string; cardSetCode: string | null; cardSetName: string | null };
 
+/**
+ * Modalidade da coleção no Valor estimado: Set padrão e Master Set (R2-E) e, na Fase 2 (D7 §4q, F2-1),
+ * Pokédex e Coleção livre (R2-E2). A base é a mesma nas quatro — exemplares alocados à coleção.
+ */
+export type CollectionValueKind = ChecklistKind | "POKEDEX" | "FREE";
+
+export function collectionValueKindOf(completionPolicy: string | null | undefined): CollectionValueKind | null {
+  const set = checklistKindOf(completionPolicy);
+  if (set) return set;
+  if (completionPolicy === "REFERENCE_POSITION") return "POKEDEX";
+  if (completionPolicy === "NONE") return "FREE";
+  return null;
+}
+
 export type CollectionValueReportData = {
   collection: CollectionValueCollection;
-  kind: ChecklistKind;
+  kind: CollectionValueKind;
   report: CollectionValueReport;
   logoUrl: string | null;
   issuedAt: string;
@@ -104,7 +118,8 @@ export async function readAllocatedGroups(supabase: Rpc, collectionId: string): 
 /**
  * V1-14 R2-E — preparação de "Valor estimado dos exemplares alocados" (D7 §4m), em SEQUÊNCIA:
  *  1. 5332 `get_my_collection` — titularidade (alheia/compartilhada/inexistente → `not_found`, sem
- *     distinguir), objetivo (Set padrão ou Master Set; senão `unavailable`) e `copies_count`.
+ *     distinguir), modalidade (Set padrão, Master Set, Pokédex ou Coleção livre — D7 §4q F2-1; outra →
+ *     `unavailable`) e `copies_count`. Em todas, só os exemplares ALOCADOS a esta coleção.
  *     Nada financeiro é lido antes disso nem para coleção não suportada;
  *  2. 5159 com `p_collection_id` = o id DESSA coleção autorizada (nunca do navegador), páginas
  *     em sequência; coleção sem alocações (`copies_count` = 0) → vazio, sem 5159 nem preços;
@@ -125,7 +140,7 @@ export async function prepareCollectionValueReport(
   const collection = await getMyCollection(supabase, collectionId);
   if (collection === undefined) return { status: "not_found" };
   if (collection === null) return { status: "error" };
-  const kind = checklistKindOf(collection.completionPolicy);
+  const kind = collectionValueKindOf(collection.completionPolicy);
   if (kind === null) return { status: "unavailable", name: collection.name };
   const authorizedId = collection.id.toLowerCase();
   const collectionCopies = collection.copiesCount;
