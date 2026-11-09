@@ -170,7 +170,8 @@ test("textos e barra: regra de percentual do produto; leitura acessível", () =>
 test("menu: 'Distribuição por raridade' é o 7º item; indisponível com motivo fora de Set padrão/Master Set", () => {
   for (const policy of ["STANDARD_SET", "MASTER_SET"]) {
     const items = collectionReportItems({ collectionId: "c", completionPolicy: policy, totalPositions: 100, satisfiedPositions: 62 });
-    assert.deepEqual(items.map((i) => i.id), ["checklist", "missing", "set-wishlist", "set-favorites", "collection-value", "completion-history", "rarity-distribution"]);
+    // O Caderno de Cartas entra depois (8º); os sete não mudam.
+    assert.deepEqual(items.slice(0, 7).map((i) => i.id), ["checklist", "missing", "set-wishlist", "set-favorites", "collection-value", "completion-history", "rarity-distribution"]);
     assert.equal(items[6]?.label, "Distribuição por raridade");
     assert.equal(items[6]?.icon, "rarity");
     assert.equal(items[6]?.disabledReason, null);

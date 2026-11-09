@@ -1,0 +1,847 @@
+/*
+ * Caderno de Cartas da Coleção (D7 §4p) — peça EDITORIAL, fora do padrão de folha dos relatórios.
+ *
+ * Três expressões da mesma peça:
+ *   - tema claro: papel marfim, tinta grafite, dourado MMKYU;
+ *   - tema escuro: papel grafite profundo, tinta marfim, dourado mais luminoso;
+ *   - impressão: papel BRANCO A4 (página nomeada `mmkyu-caderno`, margem zero, 12 mm de respiro
+ *     desenhado dentro da página), cartas 5 × 4 por página com medidas fixas em mm.
+ * Tudo por variáveis do caderno (`--bk-*`); os tokens do produto usados pelo símbolo de raridade são
+ * re-declarados para o papel na impressão. Movimento: nenhum (peça de leitura).
+ */
+
+.booklet {
+  --bk-paper: #fbf8f1;
+  --bk-paper-2: #f4efe3;
+  --bk-ink: #1d1a16;
+  --bk-muted: #6f675c;
+  --bk-soft: #9a9184;
+  --bk-line: rgb(29 26 22 / 0.12);
+  --bk-gold: #d9a043;
+  --bk-gold-ink: #8c5d1d;
+  --bk-frame: rgb(29 26 22 / 0.14);
+  --bk-shadow: 0 1px 2px rgb(29 26 22 / 0.06), 0 24px 60px -36px rgb(29 26 22 / 0.45);
+  --bk-card-shadow: 0 1px 1px rgb(29 26 22 / 0.12), 0 6px 14px -8px rgb(29 26 22 / 0.35);
+
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  margin: 0 auto;
+  max-width: 210mm;
+  color: var(--bk-ink);
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+:global(.dark) .booklet {
+  --bk-paper: #18150f;
+  --bk-paper-2: #211c15;
+  --bk-ink: #f1ebdf;
+  --bk-muted: #b3a998;
+  --bk-soft: #82796b;
+  --bk-line: rgb(241 235 223 / 0.12);
+  --bk-gold: #e3b05a;
+  --bk-gold-ink: #ecc27a;
+  --bk-frame: rgb(241 235 223 / 0.16);
+  --bk-shadow: 0 1px 2px rgb(0 0 0 / 0.5), 0 28px 70px -36px rgb(0 0 0 / 0.95);
+  --bk-card-shadow: 0 1px 1px rgb(0 0 0 / 0.4), 0 8px 18px -10px rgb(0 0 0 / 0.8);
+}
+
+/* ---------------------------------------------------------------- página */
+
+.page {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  border-radius: 1.1rem;
+  background: var(--bk-paper);
+  box-shadow: var(--bk-shadow);
+  border: 1px solid var(--bk-line);
+  padding: clamp(1.25rem, 4vw, 2.75rem);
+}
+
+.field {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  pointer-events: none;
+}
+
+.pageInner {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+/* Capa, abertura e encerramento: proporção de folha a partir do tablet. */
+.cover,
+.opening,
+.closing {
+  display: flex;
+  flex-direction: column;
+}
+
+@media (min-width: 640px) {
+  .cover,
+  .opening,
+  .closing {
+    aspect-ratio: 210 / 297;
+  }
+}
+
+/* ---------------------------------------------------------------- capa */
+
+.coverTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.brandLogo {
+  height: clamp(1.25rem, 3.4vw, 1.75rem);
+  width: auto;
+}
+
+.brandLogoDark {
+  display: none;
+}
+
+:global(.dark) .brandLogoLight {
+  display: none;
+}
+
+:global(.dark) .brandLogoDark {
+  display: block;
+}
+
+.eyebrow {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--bk-muted);
+}
+
+.coverCenter {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: clamp(0.9rem, 2.4vw, 1.4rem);
+  padding: clamp(2.5rem, 8vw, 4rem) 0 clamp(1.5rem, 5vw, 2.5rem);
+}
+
+.setLogo {
+  max-height: clamp(4.5rem, 16vw, 8.5rem);
+  max-width: 78%;
+  width: auto;
+  object-fit: contain;
+  object-position: left center;
+}
+
+.monogram {
+  font-family: var(--font-heading);
+  font-size: clamp(3.5rem, 15vw, 7.5rem);
+  font-weight: 800;
+  line-height: 0.9;
+  letter-spacing: -0.03em;
+  color: transparent;
+  -webkit-text-stroke: 1.5px var(--bk-ink);
+}
+
+.kicker {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--bk-gold-ink);
+}
+
+.kickerMark {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: none;
+}
+
+.coverTitle {
+  font-family: var(--font-heading);
+  font-size: clamp(2.2rem, 7.5vw, 3.6rem);
+  font-weight: 800;
+  line-height: 0.98;
+  letter-spacing: -0.025em;
+  margin: 0;
+  text-wrap: balance;
+}
+
+.coverSubtitle {
+  font-size: clamp(0.95rem, 2.4vw, 1.1rem);
+  color: var(--bk-muted);
+  margin: 0;
+  max-width: 34ch;
+  text-wrap: pretty;
+}
+
+.coverMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid var(--bk-line);
+  border-radius: 999px;
+  padding: 0.28rem 0.7rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--bk-ink);
+  background: color-mix(in srgb, var(--bk-paper) 70%, transparent);
+}
+
+.chipGold {
+  border-color: color-mix(in srgb, var(--bk-gold) 55%, transparent);
+  color: var(--bk-gold-ink);
+}
+
+.coverBottom {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--bk-line);
+}
+
+.coverFacts {
+  display: grid;
+  gap: 0.15rem;
+  font-size: 0.75rem;
+  color: var(--bk-muted);
+}
+
+.coverFacts strong {
+  color: var(--bk-ink);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Selo de completude (secundário): anel por `conic-gradient`. */
+.seal {
+  --p: 0;
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 4.25rem;
+  height: 4.25rem;
+  flex: none;
+  border-radius: 50%;
+  background: conic-gradient(var(--bk-gold) calc(var(--p) * 1%), var(--bk-line) 0);
+}
+
+.seal::before {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  border-radius: 50%;
+  background: var(--bk-paper);
+}
+
+.sealText {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  line-height: 1;
+}
+
+.sealValue {
+  font-family: var(--font-heading);
+  font-size: 0.95rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.sealLabel {
+  margin-top: 0.2rem;
+  font-size: 0.5rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--bk-muted);
+}
+
+/* ---------------------------------------------------------------- abertura e encerramento */
+
+.sectionTitle {
+  font-family: var(--font-heading);
+  font-size: clamp(1.6rem, 5vw, 2.4rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.02;
+  margin: 0.4rem 0 0;
+}
+
+.lede {
+  margin: 0.9rem 0 0;
+  max-width: 52ch;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: var(--bk-muted);
+  text-wrap: pretty;
+}
+
+.rule {
+  display: block;
+  width: 6.5rem;
+  height: 1.1rem;
+  margin: 1.6rem 0 1.2rem;
+  color: var(--bk-gold);
+}
+
+.openingGrid {
+  display: grid;
+  gap: 1.75rem;
+  margin-top: 0.25rem;
+}
+
+@media (min-width: 640px) {
+  .openingGrid {
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem 2.5rem;
+  }
+}
+
+.blockTitle {
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--bk-muted);
+  margin: 0 0 0.8rem;
+}
+
+.legendList,
+.rarityList,
+.factList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  font-size: 0.82rem;
+}
+
+.legendItem small {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--bk-muted);
+}
+
+.rarityItem {
+  display: grid;
+  grid-template-columns: 2.25rem 1fr auto;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+  padding-bottom: 0.45rem;
+  border-bottom: 1px dashed var(--bk-line);
+}
+
+.raritySymbolCell {
+  display: flex;
+  justify-content: center;
+}
+
+.rarityCount {
+  font-variant-numeric: tabular-nums;
+  color: var(--bk-muted);
+  font-size: 0.75rem;
+}
+
+.factItem {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.82rem;
+  padding-bottom: 0.45rem;
+  border-bottom: 1px dashed var(--bk-line);
+}
+
+.factItem span:first-child {
+  color: var(--bk-muted);
+}
+
+.factItem span:last-child {
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.finishLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.9rem;
+  margin-top: 0.75rem;
+  font-size: 0.72rem;
+  color: var(--bk-muted);
+}
+
+.finishLegend b {
+  color: var(--bk-ink);
+  font-weight: 700;
+  margin-right: 0.25rem;
+}
+
+.pushEnd {
+  margin-top: auto;
+}
+
+.closingCenter {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.closingStats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.25rem 2rem;
+  margin-top: 1.75rem;
+  max-width: 28rem;
+}
+
+.stat {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.statValue {
+  font-family: var(--font-heading);
+  font-size: clamp(1.6rem, 5vw, 2.25rem);
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.statLabel {
+  font-size: 0.7rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--bk-muted);
+}
+
+.signOff {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--bk-line);
+  font-size: 0.72rem;
+  color: var(--bk-muted);
+}
+
+/* ---------------------------------------------------------------- páginas de cartas */
+
+.running {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 0.75rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--bk-line);
+  font-size: 0.7rem;
+  color: var(--bk-muted);
+}
+
+.runningSet {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.runningSet strong {
+  color: var(--bk-ink);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.runningSet span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.runningMark {
+  width: 0.95rem;
+  height: 0.95rem;
+  flex: none;
+}
+
+.runningRange {
+  flex: none;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+}
+
+.grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.1rem 0.85rem;
+}
+
+@media (min-width: 480px) {
+  .grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 680px) {
+  .grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 900px) {
+  .grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 1.25rem 0.9rem;
+  }
+}
+
+.tile {
+  min-width: 0;
+}
+
+.frame {
+  position: relative;
+  aspect-ratio: 63 / 88;
+  border-radius: 4.2% / 3%;
+  overflow: visible;
+}
+
+.art {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 4.2% / 3%;
+  box-shadow: var(--bk-card-shadow);
+  background: var(--bk-paper-2);
+}
+
+.artEmpty {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 4.2% / 3%;
+  border: 1px dashed var(--bk-frame);
+  background: var(--bk-paper-2);
+  color: var(--bk-soft);
+  font-size: 0.68rem;
+  text-align: center;
+  padding: 0.5rem;
+}
+
+/* Selo de posse: discreto, no canto, nunca sobre o nome. */
+.mark {
+  position: absolute;
+  top: -0.35rem;
+  right: -0.35rem;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 0 0 2px var(--bk-paper);
+}
+
+.mark svg {
+  width: 0.7rem;
+  height: 0.7rem;
+}
+
+.markOwned {
+  background: var(--bk-gold);
+  color: #1d1a16;
+}
+
+.markMissing {
+  background: var(--bk-paper);
+  border: 1.5px solid var(--bk-soft);
+}
+
+.markPartial {
+  background: conic-gradient(var(--bk-gold) 0 50%, var(--bk-paper) 0);
+  border: 1.5px solid var(--bk-gold);
+}
+
+.caption {
+  display: grid;
+  gap: 0.1rem;
+  padding-top: 0.5rem;
+}
+
+.captionTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+  font-size: 0.66rem;
+  color: var(--bk-muted);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.03em;
+}
+
+.name {
+  font-size: 0.8rem;
+  font-weight: 650;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.finishes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem;
+  margin-top: 0.2rem;
+}
+
+.finish {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  border-radius: 999px;
+  padding: 0.05rem 0.38rem 0.05rem 0.28rem;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  border: 1px solid var(--bk-line);
+  color: var(--bk-muted);
+}
+
+.finish::before {
+  content: "";
+  width: 0.38rem;
+  height: 0.38rem;
+  border-radius: 50%;
+  border: 1.2px solid var(--bk-soft);
+}
+
+.finishOwned {
+  color: var(--bk-ink);
+  border-color: color-mix(in srgb, var(--bk-gold) 60%, transparent);
+}
+
+.finishOwned::before {
+  background: var(--bk-gold);
+  border-color: var(--bk-gold);
+}
+
+.pageFoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: auto;
+  padding-top: 1.25rem;
+  font-size: 0.66rem;
+  color: var(--bk-soft);
+  letter-spacing: 0.04em;
+}
+
+.pageFoot b {
+  color: var(--bk-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.cardsPage .pageInner {
+  min-height: 0;
+}
+
+/* ---------------------------------------------------------------- impressão: papel A4 de verdade */
+
+@media print {
+  .booklet,
+  :global(.dark) .booklet {
+    --bk-paper: #ffffff;
+    --bk-paper-2: #f5f2ea;
+    --bk-ink: #141210;
+    --bk-muted: #5f584e;
+    --bk-soft: #8f877a;
+    --bk-line: rgb(20 18 16 / 0.16);
+    --bk-gold: #d39a3c;
+    --bk-gold-ink: #7c5118;
+    --bk-frame: rgb(20 18 16 / 0.22);
+    --bk-shadow: none;
+    --bk-card-shadow: none;
+    /* Tokens do produto usados pelo símbolo de raridade: valores de papel claro. */
+    --foreground: 36 10% 10%;
+    --muted-foreground: 40 8% 42%;
+    --primary-ink: 35 66% 33%;
+    display: block;
+    max-width: none;
+    gap: 0;
+  }
+
+  :global(.dark) .brandLogoLight {
+    display: block;
+  }
+
+  :global(.dark) .brandLogoDark {
+    display: none;
+  }
+
+  .page {
+    page: mmkyu-caderno;
+    width: 210mm;
+    height: 297mm;
+    padding: 12mm 12mm 10mm;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    break-after: page;
+    page-break-after: always;
+    break-inside: avoid;
+  }
+
+  .page:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+
+  .cover,
+  .opening,
+  .closing {
+    aspect-ratio: auto;
+  }
+
+  .pageInner {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .cardsPage .pageInner {
+    height: 100%;
+  }
+
+  .coverCenter {
+    padding: 0;
+  }
+
+  .coverTitle {
+    font-size: 30pt;
+  }
+
+  .setLogo {
+    max-height: 38mm;
+  }
+
+  .monogram {
+    font-size: 64pt;
+  }
+
+  .running {
+    margin-bottom: 5mm;
+    padding-bottom: 2.5mm;
+    font-size: 7.5pt;
+  }
+
+  .grid {
+    grid-template-columns: repeat(5, 34mm);
+    column-gap: 4mm;
+    row-gap: 5mm;
+    justify-content: space-between;
+  }
+
+  .frame {
+    width: 34mm;
+    height: 47.5mm;
+  }
+
+  .art {
+    border: 0.2mm solid var(--bk-frame);
+  }
+
+  .mark {
+    width: 4mm;
+    height: 4mm;
+    top: -1.2mm;
+    right: -1.2mm;
+    box-shadow: 0 0 0 0.6mm #fff;
+  }
+
+  .mark svg {
+    width: 2.6mm;
+    height: 2.6mm;
+  }
+
+  .caption {
+    padding-top: 1.6mm;
+  }
+
+  .captionTop {
+    font-size: 6.5pt;
+  }
+
+  .name {
+    font-size: 7.5pt;
+  }
+
+  .finish {
+    font-size: 5.5pt;
+    padding: 0 1.2mm 0 0.9mm;
+  }
+
+  .finishes {
+    gap: 0.6mm;
+    margin-top: 0.6mm;
+  }
+
+  .pageFoot {
+    font-size: 7pt;
+    padding-top: 0;
+  }
+
+  .lede {
+    font-size: 10pt;
+  }
+
+  .openingGrid {
+    grid-template-columns: 1fr 1fr;
+    gap: 8mm 10mm;
+  }
+
+  .legendItem,
+  .rarityItem,
+  .factItem {
+    font-size: 9pt;
+  }
+}

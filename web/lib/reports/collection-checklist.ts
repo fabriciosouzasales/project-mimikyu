@@ -250,7 +250,7 @@ export function issuedAtLabel(now: Date): string {
   return now.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
 }
 
-export type ReportMenuIcon = "checklist" | "missing" | "value" | "wish" | "favorite" | "top" | "duplicates" | "distribution" | "inventory" | "inventory-sets" | "collections" | "upcoming" | "evolution" | "rarity";
+export type ReportMenuIcon = "checklist" | "missing" | "value" | "wish" | "favorite" | "top" | "duplicates" | "distribution" | "inventory" | "inventory-sets" | "collections" | "upcoming" | "evolution" | "rarity" | "booklet";
 
 export type ReportMenuItem = {
   id: string;
@@ -267,7 +267,7 @@ export type ReportMenuItem = {
 /**
  * Relatórios da coleção para o menu de Relatórios da cápsula: Checklist de completude (R1-A ≡
  * R2-A), Cartas faltantes (R2-B), Cartas desejadas do Card Set (R2-C), Cartas favoritas do Card Set
- * (R2-D), Valor estimado (R2-E), Evolução da completude (R2-F) e Distribuição por raridade (R2-G). Nenhum botão fictício. Coleção fora de Set padrão/Master Set
+ * (R2-D), Valor estimado (R2-E), Evolução da completude (R2-F), Distribuição por raridade (R2-G) e o Caderno de Cartas. Nenhum botão fictício. Coleção fora de Set padrão/Master Set
  * mostra os itens indisponíveis, com o motivo.
  */
 export function collectionReportItems(input: {
@@ -334,6 +334,15 @@ export function collectionReportItems(input: {
       id: "rarity-distribution",
       label: "Distribuição por raridade",
       icon: "rarity",
+      href: null,
+      metric: null,
+      disabledReason: kind ? null : "Para coleções de Set padrão e Master Set.",
+    },
+    {
+      // Caderno de Cartas (D7 §4p): peça editorial do Card Set completo.
+      id: "card-booklet",
+      label: "Caderno de Cartas",
+      icon: "booklet",
       href: null,
       metric: null,
       disabledReason: kind ? null : "Para coleções de Set padrão e Master Set.",

@@ -610,6 +610,24 @@
 }
 
 /*
+ * Caderno de Cartas da Coleção (V1-14, D7 §4p) — página impressa própria: A4, margem ZERO (o respiro
+ * de 12 mm é desenhado dentro de cada página do caderno, com capa, cabeçalho corrido e numeração
+ * próprios). Sem as caixas de margem do rodapé institucional (`mmkyu-relatorio`): a peça é editorial
+ * e numera as próprias páginas. No modo alternativo, o rodapé fixo genérico também não aparece.
+ */
+@page mmkyu-caderno {
+  size: A4;
+  margin: 0;
+}
+
+@media print {
+  /* Especificidade acima da regra do modo alternativo (`html:not(...) [scope] [fallback]`). */
+  html [data-print-footer-scope]:has([data-card-booklet]) [data-print-footer-fallback][data-print-footer-fallback] {
+    display: none !important;
+  }
+}
+
+/*
  * Rodapé institucional de impressão dos relatórios contextuais (V1-14, INSTITUTIONAL PRINT FOOTER
  * STANDARD-01; contrato D7 §2). Em toda página: data/hora da impressão (esquerda) · "Gerado por
  * MMKYU Collector" (centro) · "Página X de Y" (direita), com a paginação REAL do navegador.

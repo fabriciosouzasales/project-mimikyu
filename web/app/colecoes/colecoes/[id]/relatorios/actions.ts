@@ -5,6 +5,7 @@ import { type ChecklistReportData, prepareChecklistReport } from "@/lib/reports/
 import { type CollectionValueReportData, prepareCollectionValueReport } from "@/lib/reports/collection-value-queries";
 import { type CompletionHistoryReportData, prepareCompletionHistoryReport } from "@/lib/reports/completion-history-queries";
 import { type RarityDistributionReportData, prepareRarityDistributionReport } from "@/lib/reports/rarity-distribution-queries";
+import { type CardBookletData, prepareCardBooklet } from "@/lib/reports/card-booklet-queries";
 import { type MissingCardsReportData, prepareMissingCardsReport } from "@/lib/reports/missing-cards-queries";
 import { type SetFavoritesReportData, prepareSetFavoritesReport } from "@/lib/reports/set-favorites-queries";
 import { type SetWishlistReportData, prepareSetWishlistReport } from "@/lib/reports/set-wishlist-queries";
@@ -206,6 +207,31 @@ export async function readRarityDistributionReport(input: { collectionId: string
     return { ok: false, reason: result.status };
   } catch (error) {
     console.error("[reports] readRarityDistributionReport falhou", { message: error instanceof Error ? error.message : "unknown" });
+    return { ok: false, reason: "error" };
+  }
+}
+
+export type CardBookletResult = { ok: true; data: CardBookletData } | { ok: false; reason: "not_found" | "unavailable" | "error" };
+
+/**
+ * V1-14 — Caderno de Cartas da Coleção (D7 §4p): coleção autorizada primeiro (5332), depois as cartas
+ * do Set DELA (`search_cards`), as posições do Checklist (5169 ou 5189/5198) e o catálogo 5355 —
+ * `prepareCardBooklet`. Só o titular; coleção alheia, compartilhada com você ou inexistente →
+ * `not_found`, sem distinguir; somente leitura.
+ */
+export async function readCardBooklet(input: { collectionId: string }): Promise<CardBookletResult> {
+  if (!isCollectionId(input?.collectionId)) return { ok: false, reason: "not_found" };
+  const {
+    data: { user },
+  } = await getCachedUser();
+  if (!user) return { ok: false, reason: "not_found" };
+  const supabase = await createClient();
+  try {
+    const result = await prepareCardBooklet(supabase, input.collectionId.toLowerCase());
+    if (result.status === "ready") return { ok: true, data: result.data };
+    return { ok: false, reason: result.status };
+  } catch (error) {
+    console.error("[reports] readCardBooklet falhou", { message: error instanceof Error ? error.message : "unknown" });
     return { ok: false, reason: "error" };
   }
 }
