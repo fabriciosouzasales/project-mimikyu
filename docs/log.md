@@ -3565,3 +3565,5 @@ Após auditoria pós-implementação independente (GATE 8) com resultado PASS, a
 ## [2026-11-09] feature | Organização automática do fichário estendida à Pokédex: 5360 CONFIRMADO EXECUTADO no LIVE (representante da espécie no bolso; motivo NOT_REPRESENTATIVE; Set/Master Set idênticos); frontend com a ação na Pokédex; contrato binder-auto-arrange v1.6; sem commit.
 ## [2026-11-09] docs | Homologação: Pokédex — captura (05d v2.76) e organização automática do fichário na Pokédex (5360; contrato v1.6; 05d v2.77) homologadas por Fabrício
 ## [2026-11-09] docs | ROADMAP v3.33: captura da Pokédex e organização automática na Pokédex homologadas
+## [2026-11-09] feature | V1-14 F2-3 — Composição da coleção (Pokédex e livre) implementada localmente: exemplar alocado como unidade, leitura do Valor estimado da coleção + 5355, motor da R1-H sem preços; D7 v1.77 §4q, ROADMAP v3.34; sem SQL nova; sem commit
+## [2026-11-09] docs | V1-14 F2-3 homologado (Pokédex e livre; ordenação dos Sets aprovada); escopo inicial da Fase 2 dos relatórios concluído com a publicação; D7 v1.78, ROADMAP v3.35

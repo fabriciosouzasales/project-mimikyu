@@ -213,11 +213,10 @@ test("textos: número nacional, geração e a semântica de 'sem exemplar no ace
   for (const label of ['label="Faltantes"', 'label="Disponíveis para vincular"', 'label="Em outras coleções"', 'label="Sem exemplar no acervo"', 'label="Completude"', 'label="Espécies no objetivo"', 'label="Atendidas"', 'label="Pendentes"']) assert.ok(sheet.includes(label), label);
 });
 
-test("menu e sobreposição: Checklist e Faltantes da Pokédex habilitados; Composição em preparação; livre inalterada", () => {
+test("menu e sobreposição: Checklist e Faltantes da Pokédex habilitados (Composição: F2-3); livre só Valor e Composição", () => {
   const items = pokedexReportItems();
-  assert.deepEqual(items.filter((i) => i.disabledReason === null).map((i) => i.id), ["pokedex-checklist", "pokedex-missing", "collection-value"]);
-  assert.equal(items.find((i) => i.id === "collection-composition")?.disabledReason, "Em preparação.");
-  assert.deepEqual(freeCollectionReportItems().map((i) => [i.id, i.disabledReason]), [["collection-value", null], ["collection-composition", "Em preparação."]]);
+  assert.deepEqual(items.filter((i) => i.disabledReason === null).map((i) => i.id), ["pokedex-checklist", "pokedex-missing", "collection-value", "collection-composition"]);
+  assert.deepEqual(freeCollectionReportItems().map((i) => [i.id, i.disabledReason]), [["collection-value", null], ["collection-composition", null]]);
   const action = code(read("components/reports/collection-reports-action.tsx"));
   assert.ok(action.includes('report === "pokedex-checklist" ? <PokedexSpeciesOverlay collectionId={collectionId} mode="checklist"'));
   assert.ok(action.includes('report === "pokedex-missing" ? <PokedexSpeciesOverlay collectionId={collectionId} mode="missing"'));

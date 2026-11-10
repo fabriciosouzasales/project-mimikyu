@@ -3,6 +3,7 @@
 import { isCollectionId } from "@/lib/colecoes/colecoes";
 import { type ChecklistReportData, prepareChecklistReport } from "@/lib/reports/checklist-queries";
 import { type CollectionValueReportData, prepareCollectionValueReport } from "@/lib/reports/collection-value-queries";
+import { type CollectionCompositionData, prepareCollectionComposition } from "@/lib/reports/collection-composition-queries";
 import { type CompletionHistoryReportData, prepareCompletionHistoryReport } from "@/lib/reports/completion-history-queries";
 import { type RarityDistributionReportData, prepareRarityDistributionReport } from "@/lib/reports/rarity-distribution-queries";
 import { type CardBookletData, prepareCardBooklet } from "@/lib/reports/card-booklet-queries";
@@ -258,6 +259,31 @@ export async function readPokedexSpeciesReport(input: { collectionId: string }):
     return { ok: false, reason: result.status };
   } catch (error) {
     console.error("[reports] readPokedexSpeciesReport falhou", { message: error instanceof Error ? error.message : "unknown" });
+    return { ok: false, reason: "error" };
+  }
+}
+
+export type CollectionCompositionResult = { ok: true; data: CollectionCompositionData } | { ok: false; reason: "not_found" | "unavailable" | "error" };
+
+/**
+ * F2-3 (D7 §4q) — "Composição da coleção" (Pokédex e Coleção livre): coleção autorizada primeiro (5332),
+ * depois os exemplares alocados a ela (5159 com a coleção) e o catálogo de raridades (5355) —
+ * `prepareCollectionComposition`. Só o titular; coleção alheia, compartilhada com você ou inexistente →
+ * `not_found`, sem distinguir; somente leitura.
+ */
+export async function readCollectionComposition(input: { collectionId: string }): Promise<CollectionCompositionResult> {
+  if (!isCollectionId(input?.collectionId)) return { ok: false, reason: "not_found" };
+  const {
+    data: { user },
+  } = await getCachedUser();
+  if (!user) return { ok: false, reason: "not_found" };
+  const supabase = await createClient();
+  try {
+    const result = await prepareCollectionComposition(supabase, input.collectionId.toLowerCase());
+    if (result.status === "ready") return { ok: true, data: result.data };
+    return { ok: false, reason: result.status };
+  } catch (error) {
+    console.error("[reports] readCollectionComposition falhou", { message: error instanceof Error ? error.message : "unknown" });
     return { ok: false, reason: "error" };
   }
 }

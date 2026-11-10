@@ -7,6 +7,7 @@ import { PokedexSpeciesOverlay } from "./pokedex-species-overlay";
 import type { ReportMenuItem } from "@/lib/reports/collection-checklist";
 import { CollectionReportOverlay } from "./collection-report-overlay";
 import { CollectionValueOverlay } from "./collection-value-overlay";
+import { CollectionCompositionOverlay } from "./collection-composition-overlay";
 import { CompletionHistoryOverlay } from "./completion-history-overlay";
 import { RarityDistributionOverlay } from "./rarity-distribution-overlay";
 import { MissingCardsOverlay } from "./missing-cards-overlay";
@@ -75,6 +76,7 @@ export function CollectionReportsAction({
       {report === "card-booklet" ? <CardBookletOverlay collectionId={collectionId} onClose={() => setReport(null)} /> : null}
       {report === "pokedex-checklist" ? <PokedexSpeciesOverlay collectionId={collectionId} mode="checklist" onClose={() => setReport(null)} /> : null}
       {report === "pokedex-missing" ? <PokedexSpeciesOverlay collectionId={collectionId} mode="missing" onClose={() => setReport(null)} /> : null}
+      {report === "collection-composition" ? <CollectionCompositionOverlay collectionId={collectionId} onClose={() => setReport(null)} /> : null}
     </>
   );
 }

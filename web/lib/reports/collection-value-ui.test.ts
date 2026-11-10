@@ -206,15 +206,15 @@ test("elegibilidade (cenários): todas cotadas e ausência legítima de cotaçã
   assert.ok(!/MASTER_SET/.test(code(overlay)));
 });
 
-test("F2-1: menus da Pokédex e da Coleção livre — Valor estimado disponível; o restante só o aplicável, indisponível até ser entregue", async () => {
-  const { pokedexReportItems, freeCollectionReportItems, PHASE2_UPCOMING_REASON } = await import("./collection-checklist.ts");
+test("F2-1/F2-3: menus da Pokédex e da Coleção livre — só o aplicável, tudo disponível", async () => {
+  const { pokedexReportItems, freeCollectionReportItems } = await import("./collection-checklist.ts");
   const pkx = pokedexReportItems();
   assert.deepEqual(pkx.map((i) => i.id), ["pokedex-checklist", "pokedex-missing", "collection-value", "collection-composition"]);
-  // F2-2 habilitou Checklist e Espécies faltantes; Composição segue em preparação.
-  assert.deepEqual(pkx.filter((i) => i.disabledReason === null).map((i) => i.id), ["pokedex-checklist", "pokedex-missing", "collection-value"]);
-  assert.ok(pkx.filter((i) => i.disabledReason !== null).every((i) => i.disabledReason === PHASE2_UPCOMING_REASON));
+  // F2-2 habilitou Checklist e Espécies faltantes; F2-3, a Composição da coleção.
+  assert.ok(pkx.every((i) => i.disabledReason === null));
   const free = freeCollectionReportItems();
   assert.deepEqual(free.map((i) => i.id), ["collection-value", "collection-composition"]);
+  assert.ok(free.every((i) => i.disabledReason === null));
   assert.ok(!free.some((i) => /checklist|missing|completion|rarity|booklet/.test(i.id)), "livre: nada de completude");
   assert.ok(![...pkx, ...free].some((i) => i.id === "card-booklet"), "Caderno só em Set padrão e Master Set");
   for (const [file, fn] of [["components/colecoes/colecoes/pokedex-collection-view.tsx", "pokedexReportItems()"], ["components/colecoes/colecoes/free-collection-view.tsx", "freeCollectionReportItems()"]] as const) {

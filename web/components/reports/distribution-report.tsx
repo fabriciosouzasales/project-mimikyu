@@ -129,7 +129,7 @@ export function DistributionSheet({ report, issuedAt }: { report: DistributionRe
 }
 
 /** Resumo visual da composição por Card Set: Top 10 + Demais numa única barra (sem repetir a tabela); só com mais de 10 Sets. */
-function SetComposition({ report }: { report: DistributionReport }) {
+export function SetComposition({ report }: { report: Pick<DistributionReport, "sets" | "setSummary" | "totalCopies"> }) {
   if (!distributionShowsSetComposition(report)) return null;
   const { top, othersCopies } = report.setSummary;
   const segments: { key: string; label: string; share: number; tone: string }[] = top.map((band, index) => ({
