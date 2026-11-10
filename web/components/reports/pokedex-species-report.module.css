@@ -1,0 +1,225 @@
+/*
+ * F2-2 (D7 §4q) — grade de espécies dos relatórios da Pokédex, dentro da folha branca dos relatórios
+ * (`RelatorioFolha`, papel também no tema escuro). Cores neutras fixas + dourado MMKYU; atendida =
+ * arte em cor e selo dourado; pendente = arte em cinza esmaecida e anel vazio (legível sem cor).
+ * Impressão: 10 colunas fixas, espécie nunca partida, cabeçalho da geração preso à grade.
+ */
+
+.group {
+  padding-top: 0.9rem;
+}
+
+.groupHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 0.35rem;
+  margin-bottom: 0.6rem;
+  border-bottom: 1px solid #e5e5e5;
+  break-after: avoid;
+  page-break-after: avoid;
+}
+
+.groupTitle {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #171717;
+}
+
+.groupMeta {
+  font-size: 0.7rem;
+  color: #737373;
+  font-variant-numeric: tabular-nums;
+}
+
+.groupHint {
+  margin: -0.25rem 0 0.6rem;
+  font-size: 0.7rem;
+  color: #525252;
+  break-after: avoid;
+}
+
+.grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(5.6rem, 1fr));
+  gap: 0.6rem 0.5rem;
+}
+
+@media (max-width: 480px) {
+  .grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.tile {
+  min-width: 0;
+  display: grid;
+  justify-items: center;
+  text-align: center;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.art {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 0.6rem;
+  background: #f7f5ed;
+  display: grid;
+  place-items: center;
+}
+
+.art img {
+  width: 86%;
+  height: 86%;
+  object-fit: contain;
+}
+
+/* Checklist: pendente em cinza esmaecido; atendida e faltantes em cor. */
+.tile[data-pending] .art img {
+  filter: grayscale(1);
+  opacity: 0.45;
+}
+
+.noArt {
+  font-size: 0.65rem;
+  color: #a3a3a3;
+}
+
+.mark {
+  position: absolute;
+  top: 0.2rem;
+  right: 0.2rem;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #ffffff;
+  border: 1.5px solid #a3a3a3;
+}
+
+.mark[data-done] {
+  background: #dca54b;
+  border-color: #dca54b;
+  color: #1d1a16;
+}
+
+.mark svg {
+  width: 0.6rem;
+  height: 0.6rem;
+}
+
+.number {
+  margin-top: 0.3rem;
+  font-size: 0.62rem;
+  color: #737373;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.name {
+  max-width: 100%;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #171717;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.state {
+  margin-top: 0.1rem;
+  font-size: 0.6rem;
+  line-height: 1.2;
+  color: #525252;
+}
+
+.state[data-state="AVAILABLE"] {
+  color: #7c5118;
+  font-weight: 600;
+}
+
+.legendMark {
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 50%;
+  border: 1.5px solid #a3a3a3;
+  background: #ffffff;
+  display: inline-grid;
+  place-items: center;
+}
+
+.legendDone {
+  background: #dca54b;
+  border-color: #dca54b;
+  color: #1d1a16;
+}
+
+.legendMark svg {
+  width: 0.5rem;
+  height: 0.5rem;
+}
+
+@media print {
+  /* Filtro CSS no PDF vira bitmap pesado: no papel, pendente só esmaecida (+ anel vazio). */
+  .tile[data-pending] .art img {
+    filter: none;
+    opacity: 0.32;
+  }
+
+  .grid {
+    grid-template-columns: repeat(10, minmax(0, 1fr));
+    gap: 2.2mm 1.6mm;
+  }
+
+  .group {
+    padding-top: 3mm;
+  }
+
+  .groupTitle {
+    font-size: 9pt;
+  }
+
+  .groupMeta,
+  .groupHint {
+    font-size: 7pt;
+  }
+
+  .art {
+    border-radius: 1.6mm;
+  }
+
+  .mark {
+    width: 3.4mm;
+    height: 3.4mm;
+    top: 0.6mm;
+    right: 0.6mm;
+  }
+
+  .mark svg {
+    width: 2.2mm;
+    height: 2.2mm;
+  }
+
+  .number {
+    margin-top: 0.6mm;
+    font-size: 6pt;
+  }
+
+  .name {
+    font-size: 6.8pt;
+  }
+
+  .state {
+    font-size: 5.6pt;
+  }
+}

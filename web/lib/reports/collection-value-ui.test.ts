@@ -210,7 +210,8 @@ test("F2-1: menus da Pokédex e da Coleção livre — Valor estimado disponíve
   const { pokedexReportItems, freeCollectionReportItems, PHASE2_UPCOMING_REASON } = await import("./collection-checklist.ts");
   const pkx = pokedexReportItems();
   assert.deepEqual(pkx.map((i) => i.id), ["pokedex-checklist", "pokedex-missing", "collection-value", "collection-composition"]);
-  assert.deepEqual(pkx.filter((i) => i.disabledReason === null).map((i) => i.id), ["collection-value"]);
+  // F2-2 habilitou Checklist e Espécies faltantes; Composição segue em preparação.
+  assert.deepEqual(pkx.filter((i) => i.disabledReason === null).map((i) => i.id), ["pokedex-checklist", "pokedex-missing", "collection-value"]);
   assert.ok(pkx.filter((i) => i.disabledReason !== null).every((i) => i.disabledReason === PHASE2_UPCOMING_REASON));
   const free = freeCollectionReportItems();
   assert.deepEqual(free.map((i) => i.id), ["collection-value", "collection-composition"]);

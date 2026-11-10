@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { BarChart3 } from "lucide-react";
 import { CardBookletOverlay } from "./card-booklet-overlay";
+import { PokedexSpeciesOverlay } from "./pokedex-species-overlay";
 import type { ReportMenuItem } from "@/lib/reports/collection-checklist";
 import { CollectionReportOverlay } from "./collection-report-overlay";
 import { CollectionValueOverlay } from "./collection-value-overlay";
@@ -72,6 +73,8 @@ export function CollectionReportsAction({
       {report === "completion-history" ? <CompletionHistoryOverlay collectionId={collectionId} onClose={() => setReport(null)} /> : null}
       {report === "rarity-distribution" ? <RarityDistributionOverlay collectionId={collectionId} onClose={() => setReport(null)} /> : null}
       {report === "card-booklet" ? <CardBookletOverlay collectionId={collectionId} onClose={() => setReport(null)} /> : null}
+      {report === "pokedex-checklist" ? <PokedexSpeciesOverlay collectionId={collectionId} mode="checklist" onClose={() => setReport(null)} /> : null}
+      {report === "pokedex-missing" ? <PokedexSpeciesOverlay collectionId={collectionId} mode="missing" onClose={() => setReport(null)} /> : null}
     </>
   );
 }

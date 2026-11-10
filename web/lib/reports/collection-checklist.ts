@@ -354,14 +354,14 @@ export function collectionReportItems(input: {
 export const PHASE2_UPCOMING_REASON = "Em preparação.";
 
 /**
- * Relatórios do menu da coleção Pokédex (D7 §4q, F2-1). Só o que é aplicável à modalidade: Valor
- * estimado disponível; Checklist e Espécies faltantes (F2-2) e Composição da coleção (F2-3)
- * visíveis e indisponíveis até serem entregues. Sem Caderno, desejadas, favoritas nem evolução.
+ * Relatórios do menu da coleção Pokédex (D7 §4q). Só o que é aplicável à modalidade: Checklist da
+ * Pokédex e Espécies faltantes (F2-2) e Valor estimado (F2-1) disponíveis; Composição da coleção
+ * (F2-3) visível e indisponível até ser entregue. Sem Caderno, desejadas, favoritas nem evolução.
  */
 export function pokedexReportItems(): ReportMenuItem[] {
   return [
-    { id: "pokedex-checklist", label: "Checklist da Pokédex", icon: "checklist", href: null, metric: null, disabledReason: PHASE2_UPCOMING_REASON },
-    { id: "pokedex-missing", label: "Espécies faltantes", icon: "missing", href: null, metric: null, disabledReason: PHASE2_UPCOMING_REASON },
+    { id: "pokedex-checklist", label: "Checklist da Pokédex", icon: "checklist", href: null, metric: null, disabledReason: null },
+    { id: "pokedex-missing", label: "Espécies faltantes", icon: "missing", href: null, metric: null, disabledReason: null },
     { id: "collection-value", label: "Valor estimado", icon: "value", href: null, metric: null, disabledReason: null },
     { id: "collection-composition", label: "Composição da coleção", icon: "distribution", href: null, metric: null, disabledReason: PHASE2_UPCOMING_REASON },
   ];

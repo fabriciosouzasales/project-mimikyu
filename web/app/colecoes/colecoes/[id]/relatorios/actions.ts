@@ -6,6 +6,7 @@ import { type CollectionValueReportData, prepareCollectionValueReport } from "@/
 import { type CompletionHistoryReportData, prepareCompletionHistoryReport } from "@/lib/reports/completion-history-queries";
 import { type RarityDistributionReportData, prepareRarityDistributionReport } from "@/lib/reports/rarity-distribution-queries";
 import { type CardBookletData, prepareCardBooklet } from "@/lib/reports/card-booklet-queries";
+import { type PokedexSpeciesReportData, preparePokedexSpeciesReport } from "@/lib/reports/pokedex-species-report-queries";
 import { type MissingCardsReportData, prepareMissingCardsReport } from "@/lib/reports/missing-cards-queries";
 import { type SetFavoritesReportData, prepareSetFavoritesReport } from "@/lib/reports/set-favorites-queries";
 import { type SetWishlistReportData, prepareSetWishlistReport } from "@/lib/reports/set-wishlist-queries";
@@ -232,6 +233,31 @@ export async function readCardBooklet(input: { collectionId: string }): Promise<
     return { ok: false, reason: result.status };
   } catch (error) {
     console.error("[reports] readCardBooklet falhou", { message: error instanceof Error ? error.message : "unknown" });
+    return { ok: false, reason: "error" };
+  }
+}
+
+export type PokedexSpeciesReportResult = { ok: true; data: PokedexSpeciesReportData } | { ok: false; reason: "not_found" | "unavailable" | "error" };
+
+/**
+ * F2-2 (D7 §4q) — "Checklist da Pokédex" e "Espécies faltantes": coleção autorizada primeiro (5332),
+ * depois as gerações (5201) e a grade inteira do objetivo (5204) — `preparePokedexSpeciesReport`. Só o
+ * titular; coleção alheia, compartilhada com você ou inexistente → `not_found`, sem distinguir;
+ * somente leitura.
+ */
+export async function readPokedexSpeciesReport(input: { collectionId: string }): Promise<PokedexSpeciesReportResult> {
+  if (!isCollectionId(input?.collectionId)) return { ok: false, reason: "not_found" };
+  const {
+    data: { user },
+  } = await getCachedUser();
+  if (!user) return { ok: false, reason: "not_found" };
+  const supabase = await createClient();
+  try {
+    const result = await preparePokedexSpeciesReport(supabase, input.collectionId.toLowerCase());
+    if (result.status === "ready") return { ok: true, data: result.data };
+    return { ok: false, reason: result.status };
+  } catch (error) {
+    console.error("[reports] readPokedexSpeciesReport falhou", { message: error instanceof Error ? error.message : "unknown" });
     return { ok: false, reason: "error" };
   }
 }
