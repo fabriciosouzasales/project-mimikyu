@@ -250,7 +250,7 @@ export function issuedAtLabel(now: Date): string {
   return now.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
 }
 
-export type ReportMenuIcon = "checklist" | "missing" | "value" | "wish" | "favorite" | "top" | "duplicates" | "distribution" | "inventory" | "inventory-sets" | "collections" | "upcoming" | "evolution" | "rarity" | "booklet";
+export type ReportMenuIcon = "checklist" | "missing" | "value" | "wish" | "favorite" | "top" | "duplicates" | "distribution" | "inventory" | "inventory-sets" | "collections" | "upcoming" | "evolution" | "rarity" | "booklet" | "placeholders";
 
 export type ReportMenuItem = {
   id: string;
@@ -355,11 +355,12 @@ export const PHASE2_UPCOMING_REASON = "Em preparação.";
 
 /**
  * Relatórios do menu da coleção Pokédex (D7 §4q). Só o que é aplicável à modalidade: Checklist da
- * Pokédex e Espécies faltantes (F2-2), Valor estimado (F2-1) e Composição da coleção (F2-3)
- * disponíveis. Sem Caderno, desejadas, favoritas nem evolução.
+ * Pokédex e Espécies faltantes (F2-2), Valor estimado (F2-1), Composição da coleção (F2-3) e o kit
+ * de fichário "Placeholders da Pokédex" (só Pokédex; primeiro item do menu, decisão do proprietário). Sem Caderno, desejadas, favoritas nem evolução.
  */
 export function pokedexReportItems(): ReportMenuItem[] {
   return [
+    { id: "pokedex-placeholders", label: "Placeholders da Pokédex", icon: "placeholders", href: null, metric: null, disabledReason: null },
     { id: "pokedex-checklist", label: "Checklist da Pokédex", icon: "checklist", href: null, metric: null, disabledReason: null },
     { id: "pokedex-missing", label: "Espécies faltantes", icon: "missing", href: null, metric: null, disabledReason: null },
     { id: "collection-value", label: "Valor estimado", icon: "value", href: null, metric: null, disabledReason: null },

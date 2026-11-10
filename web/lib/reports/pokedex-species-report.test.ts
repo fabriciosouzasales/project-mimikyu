@@ -215,7 +215,7 @@ test("textos: número nacional, geração e a semântica de 'sem exemplar no ace
 
 test("menu e sobreposição: Checklist e Faltantes da Pokédex habilitados (Composição: F2-3); livre só Valor e Composição", () => {
   const items = pokedexReportItems();
-  assert.deepEqual(items.filter((i) => i.disabledReason === null).map((i) => i.id), ["pokedex-checklist", "pokedex-missing", "collection-value", "collection-composition"]);
+  assert.deepEqual(items.filter((i) => i.disabledReason === null).map((i) => i.id), ["pokedex-placeholders", "pokedex-checklist", "pokedex-missing", "collection-value", "collection-composition"]);
   assert.deepEqual(freeCollectionReportItems().map((i) => [i.id, i.disabledReason]), [["collection-value", null], ["collection-composition", null]]);
   const action = code(read("components/reports/collection-reports-action.tsx"));
   assert.ok(action.includes('report === "pokedex-checklist" ? <PokedexSpeciesOverlay collectionId={collectionId} mode="checklist"'));

@@ -241,6 +241,7 @@ test("exclusão de exemplares externos: total da coleção (5332) diferente da l
 
 test("menus: Composição habilitada na Pokédex e na livre; demais preservados; Set/Master Set sem mudança", () => {
   assert.deepEqual(pokedexReportItems().map((i) => [i.id, i.disabledReason]), [
+    ["pokedex-placeholders", null],
     ["pokedex-checklist", null],
     ["pokedex-missing", null],
     ["collection-value", null],

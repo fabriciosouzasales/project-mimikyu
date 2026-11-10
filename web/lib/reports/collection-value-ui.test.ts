@@ -209,7 +209,7 @@ test("elegibilidade (cenários): todas cotadas e ausência legítima de cotaçã
 test("F2-1/F2-3: menus da Pokédex e da Coleção livre — só o aplicável, tudo disponível", async () => {
   const { pokedexReportItems, freeCollectionReportItems } = await import("./collection-checklist.ts");
   const pkx = pokedexReportItems();
-  assert.deepEqual(pkx.map((i) => i.id), ["pokedex-checklist", "pokedex-missing", "collection-value", "collection-composition"]);
+  assert.deepEqual(pkx.map((i) => i.id), ["pokedex-placeholders", "pokedex-checklist", "pokedex-missing", "collection-value", "collection-composition"]);
   // F2-2 habilitou Checklist e Espécies faltantes; F2-3, a Composição da coleção.
   assert.ok(pkx.every((i) => i.disabledReason === null));
   const free = freeCollectionReportItems();

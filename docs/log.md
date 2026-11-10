@@ -3567,3 +3567,9 @@ Após auditoria pós-implementação independente (GATE 8) com resultado PASS, a
 ## [2026-11-09] docs | ROADMAP v3.33: captura da Pokédex e organização automática na Pokédex homologadas
 ## [2026-11-09] feature | V1-14 F2-3 — Composição da coleção (Pokédex e livre) implementada localmente: exemplar alocado como unidade, leitura do Valor estimado da coleção + 5355, motor da R1-H sem preços; D7 v1.77 §4q, ROADMAP v3.34; sem SQL nova; sem commit
 ## [2026-11-09] docs | V1-14 F2-3 homologado (Pokédex e livre; ordenação dos Sets aprovada); escopo inicial da Fase 2 dos relatórios concluído com a publicação; D7 v1.78, ROADMAP v3.35
+## [2026-11-09] feature | V1-14 — Placeholders da Pokédex (kit de fichário imprimível, 63 × 88 mm, 3 × 3 por A4, ordem nacional, capa e marca MMKYU) implementados localmente; D7 v1.79 §4q, ROADMAP v3.36; sem SQL nova; sem commit
+## [2026-11-09] feature | Placeholders da Pokédex — abertura editorial em duas páginas (capa + orientações/descoberta do MMKYU; Nacional = 116 páginas, folhas inalteradas); QR pronto e sem endereço oficial documentado (dependência do proprietário); D7 v1.80 §4q; sem commit
+## [2026-11-09] feature | Placeholders da Pokédex — capa: leque com os iniciais de Kanto (#0001, #0004, #0007), a pedido de Fabrício; D7 §4q; sem commit
+## [2026-11-09] feature | Placeholders da Pokédex passam a ser o primeiro item do menu Relatórios da Pokédex, a pedido de Fabrício; D7 §4q; sem commit
+## [2026-11-09] feature | Placeholders da Pokédex — QR Code e endereço público provisório https://mmkyu.vercel.app/ (aprovado por Fabrício; não definitivo) na página de orientações; leitura conferida por decodificador; D7 v1.81 §4q; sem commit
+## [2026-11-09] docs | Placeholders da Pokédex homologados (capa, orientações com QR provisório mmkyu.vercel.app, folhas 63 × 88 mm); D7 v1.82 §4q, ROADMAP v3.37; publicação pendente

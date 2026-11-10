@@ -628,6 +628,22 @@
 }
 
 /*
+ * Placeholders da Pokédex (D7 §4q) — kit de fichário: A4 com margem ZERO; a folha desenha as próprias
+ * margens (grade 3 × 3 de 63 × 88 mm centralizada, marcas de corte, cabeçalho e rodapé da marca). Sem o
+ * rodapé institucional dos relatórios, como o Caderno de Cartas. Impressão em escala 100%.
+ */
+@page mmkyu-placeholders {
+  size: A4;
+  margin: 0;
+}
+
+@media print {
+  html [data-print-footer-scope]:has([data-pokedex-placeholders]) [data-print-footer-fallback][data-print-footer-fallback] {
+    display: none !important;
+  }
+}
+
+/*
  * Rodapé institucional de impressão dos relatórios contextuais (V1-14, INSTITUTIONAL PRINT FOOTER
  * STANDARD-01; contrato D7 §2). Em toda página: data/hora da impressão (esquerda) · "Gerado por
  * MMKYU Collector" (centro) · "Página X de Y" (direita), com a paginação REAL do navegador.

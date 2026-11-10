@@ -1,0 +1,692 @@
+/*
+ * Placeholders da Pokédex — kit de fichário imprimível (D7 §4q).
+ *
+ * Cada folha é um A4 desenhado em milímetros reais: na tela, a folha é um contêiner (`container-type`)
+ * e `--mm` = 1/210 da sua largura, então a mesma geometria vale reduzida na tela e em 1:1 no papel.
+ * Placeholders de 63 × 88 mm (a carta), 3 × 3 por folha, encostados (um corte serve aos dois lados),
+ * linhas de corte tracejadas finas e marcas de corte nas margens. Papel branco nos dois temas, só
+ * traços finos e a arte — pouca tinta. Marca MMKYU em camadas: marca d'água do rabisco atrás da arte,
+ * acento dourado (hachura) e zigue-zague, assinatura discreta, capa e rodapé da folha.
+ */
+
+.kit {
+  --ph-paper: #ffffff;
+  --ph-ink: #16130f;
+  --ph-muted: #5f584e;
+  --ph-soft: #9a9182;
+  --ph-line: #e6dfd1;
+  --ph-cut: #c9c1b2;
+  --ph-gold: #d39a3c;
+  --ph-gold-soft: #ead2a4;
+  --ph-gold-ink: #7c5118;
+  /* Nomes usados pelos traços da marca decomposta (`booklet-brand.tsx`). */
+  --bk-ink: var(--ph-ink);
+  --bk-gold: var(--ph-gold);
+
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  margin: 0 auto;
+  max-width: 210mm;
+  color: var(--ph-ink);
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.sheet {
+  position: relative;
+  container-type: inline-size;
+  width: 100%;
+  aspect-ratio: 210 / 297;
+  overflow: hidden;
+  isolation: isolate;
+  background: var(--ph-paper);
+  border-radius: 0.6rem;
+  box-shadow: 0 1px 2px rgb(22 19 15 / 0.08), 0 24px 60px -36px rgb(22 19 15 / 0.5);
+}
+
+:global(.dark) .sheet {
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.5), 0 28px 70px -36px rgb(0 0 0 / 0.95);
+}
+
+.mm {
+  --mm: calc(100cqw / 210);
+}
+
+.layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* ------------------------------------------------- abertura: capa e orientações */
+
+/*
+ * Duas páginas editoriais antes das folhas (capa → orientações). Mesma geometria em mm reais das
+ * folhas (`--mm`), papel branco, traço fino e dourado com disciplina. As folhas de placeholders não
+ * dependem destas páginas: podem ser impressas sozinhas.
+ */
+.page {
+  --mm: calc(100cqw / 210);
+  position: absolute;
+  inset: 0;
+  padding: calc(var(--mm) * 16) calc(var(--mm) * 17) calc(var(--mm) * 12);
+}
+
+.field {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  /* A marca decomposta, mais leve que no Caderno: a folha é impressa em casa. */
+  opacity: 0.55;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.logo {
+  height: calc(var(--mm) * 9);
+  width: auto;
+}
+
+.kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--mm) * 1.8);
+  font-size: calc(var(--mm) * 2.6);
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--ph-gold-ink);
+}
+
+.kicker svg {
+  width: calc(var(--mm) * 3.8);
+  height: calc(var(--mm) * 3.8);
+}
+
+/* ---- capa */
+
+.coverTitle {
+  margin: calc(var(--mm) * 20) 0 0;
+  font-family: var(--font-heading);
+  font-size: calc(var(--mm) * 17.5);
+  line-height: 0.92;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.coverTitle span {
+  display: block;
+}
+
+.coverTitle em {
+  font-style: normal;
+  color: var(--ph-gold);
+}
+
+.coverRule {
+  display: block;
+  width: calc(var(--mm) * 38);
+  height: calc(var(--mm) * 7);
+  margin-top: calc(var(--mm) * 6);
+  color: var(--ph-gold);
+}
+
+/* Leque de três placeholders reais (as primeiras espécies do kit), reduzidos. */
+.fan {
+  position: absolute;
+  left: 50%;
+  top: calc(var(--mm) * 106);
+  width: 0;
+  height: 0;
+}
+
+.fanCard {
+  --mm: calc(100cqw / 210 * 0.9);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: calc(var(--mm) * 63);
+  height: calc(var(--mm) * 88);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  background: var(--ph-paper);
+  border-radius: calc(var(--mm) * 3.4);
+  box-shadow: 0 0.5mm 1.6mm rgb(22 19 15 / 0.16), 0 3mm 8mm -4mm rgb(22 19 15 / 0.22);
+  transform-origin: 50% 100%;
+}
+
+.fanCard[data-slot="0"] {
+  transform: translate(-50%, 0) translateX(calc(100cqw / 210 * -50)) translateY(calc(100cqw / 210 * 8)) rotate(-9deg);
+}
+
+.fanCard[data-slot="1"] {
+  z-index: 1;
+  transform: translate(-50%, 0);
+}
+
+.fanCard[data-slot="2"] {
+  transform: translate(-50%, 0) translateX(calc(100cqw / 210 * 50)) translateY(calc(100cqw / 210 * 8)) rotate(9deg);
+}
+
+.coverInfo {
+  position: absolute;
+  left: calc(var(--mm) * 17);
+  right: calc(var(--mm) * 60);
+  bottom: calc(var(--mm) * 30);
+  padding-top: calc(var(--mm) * 6);
+  border-top: calc(var(--mm) * 0.3) solid var(--ph-line);
+}
+
+.coverCollection {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: calc(var(--mm) * 6.4);
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.coverScope {
+  margin: calc(var(--mm) * 1.6) 0 0;
+  font-size: calc(var(--mm) * 3.6);
+  color: var(--ph-muted);
+}
+
+.coverCount {
+  margin: calc(var(--mm) * 5) 0 0;
+  font-size: calc(var(--mm) * 3.4);
+  line-height: 1.45;
+  color: var(--ph-muted);
+  white-space: nowrap;
+}
+
+.coverCount strong {
+  display: block;
+  font-family: var(--font-heading);
+  font-size: calc(var(--mm) * 5.4);
+  font-weight: 800;
+  color: var(--ph-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.pageFoot {
+  position: absolute;
+  left: calc(var(--mm) * 17);
+  right: calc(var(--mm) * 17);
+  bottom: calc(var(--mm) * 11);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: calc(var(--mm) * 8);
+  font-size: calc(var(--mm) * 2.3);
+  line-height: 1.45;
+  color: var(--ph-soft);
+}
+
+.pageFoot strong {
+  color: var(--ph-ink);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.legal {
+  max-width: calc(var(--mm) * 100);
+  text-align: right;
+}
+
+/* ---- orientações */
+
+.guideTitle {
+  margin: calc(var(--mm) * 10) 0 0;
+  font-family: var(--font-heading);
+  font-size: calc(var(--mm) * 9.5);
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.guideLead {
+  margin: calc(var(--mm) * 3) 0 0;
+  max-width: calc(var(--mm) * 150);
+  font-size: calc(var(--mm) * 3.5);
+  line-height: 1.45;
+  color: var(--ph-muted);
+}
+
+.howGrid {
+  margin: calc(var(--mm) * 8) 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: calc(var(--mm) * 5);
+}
+
+.how {
+  display: flex;
+  flex-direction: column;
+}
+
+.howArt {
+  width: 100%;
+  height: calc(var(--mm) * 27);
+  color: var(--ph-ink);
+}
+
+.howNo {
+  margin-top: calc(var(--mm) * 3);
+  font-family: var(--font-heading);
+  font-size: calc(var(--mm) * 5);
+  font-weight: 800;
+  line-height: 1;
+  color: var(--ph-gold);
+}
+
+.howTitle {
+  margin: calc(var(--mm) * 1.6) 0 0;
+  font-size: calc(var(--mm) * 3.3);
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.howText {
+  margin: calc(var(--mm) * 1.2) 0 0;
+  font-size: calc(var(--mm) * 2.75);
+  line-height: 1.45;
+  color: var(--ph-muted);
+}
+
+.facts {
+  margin: calc(var(--mm) * 7) 0 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border: calc(var(--mm) * 0.3) solid var(--ph-line);
+  border-radius: calc(var(--mm) * 3);
+}
+
+.fact {
+  padding: calc(var(--mm) * 3.4) calc(var(--mm) * 4);
+}
+
+.fact + .fact {
+  border-left: calc(var(--mm) * 0.3) solid var(--ph-line);
+}
+
+.fact dt {
+  font-size: calc(var(--mm) * 2.3);
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ph-soft);
+}
+
+.fact dd {
+  margin: calc(var(--mm) * 1.2) 0 0;
+  font-size: calc(var(--mm) * 2.75);
+  line-height: 1.45;
+  color: var(--ph-muted);
+}
+
+.fact dd strong {
+  display: block;
+  font-family: var(--font-heading);
+  font-size: calc(var(--mm) * 3.9);
+  white-space: nowrap;
+  font-weight: 800;
+  color: var(--ph-ink);
+}
+
+.discover {
+  margin-top: calc(var(--mm) * 10);
+  display: grid;
+  grid-template-columns: calc(var(--mm) * 62) minmax(0, 1fr);
+  gap: calc(var(--mm) * 9);
+}
+
+.discoverTitle {
+  margin: calc(var(--mm) * 2.4) 0 0;
+  font-family: var(--font-heading);
+  font-size: calc(var(--mm) * 7.4);
+  line-height: 1.02;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.discoverLead {
+  margin: calc(var(--mm) * 3) 0 0;
+  font-size: calc(var(--mm) * 3.1);
+  line-height: 1.5;
+  color: var(--ph-muted);
+}
+
+.features {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: calc(var(--mm) * 3.4);
+}
+
+.feature {
+  display: grid;
+  grid-template-columns: calc(var(--mm) * 5) minmax(0, 1fr);
+  gap: calc(var(--mm) * 2.6);
+  font-size: calc(var(--mm) * 2.85);
+  line-height: 1.45;
+  color: var(--ph-muted);
+}
+
+.feature svg {
+  width: calc(var(--mm) * 4.2);
+  height: calc(var(--mm) * 4.2);
+  margin-top: calc(var(--mm) * 0.3);
+}
+
+.feature b {
+  color: var(--ph-ink);
+}
+
+.cta {
+  position: absolute;
+  left: calc(var(--mm) * 17);
+  right: calc(var(--mm) * 17);
+  bottom: calc(var(--mm) * 25);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(var(--mm) * 8);
+  padding-top: calc(var(--mm) * 7);
+  border-top: calc(var(--mm) * 0.5) solid var(--ph-gold);
+}
+
+.ctaLine {
+  margin: 0;
+  font-family: var(--font-heading);
+  /* Cabe em duas linhas ao lado do QR (30 mm + endereço). */
+  font-size: calc(var(--mm) * 6.2);
+  line-height: 1.08;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.ctaLine span {
+  display: block;
+  color: var(--ph-gold-ink);
+}
+
+.ctaNote {
+  margin: calc(var(--mm) * 2.6) 0 0;
+  font-size: calc(var(--mm) * 2.9);
+  color: var(--ph-muted);
+}
+
+.access {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--mm) * 4);
+  flex: none;
+}
+
+/* QR com o endereço logo abaixo: bloco estreito (30 mm), a chamada fica com a largura toda. */
+.access[data-access="qr"] {
+  flex-direction: column;
+  gap: calc(var(--mm) * 1.6);
+  text-align: center;
+}
+
+.ctaText {
+  min-width: 0;
+}
+
+.qr {
+  width: calc(var(--mm) * 30);
+  height: calc(var(--mm) * 30);
+  flex: none;
+}
+
+.accessText {
+  font-size: calc(var(--mm) * 2.4);
+  white-space: nowrap;
+  line-height: 1.45;
+  color: var(--ph-muted);
+}
+
+.accessText strong {
+  display: block;
+  margin-top: calc(var(--mm) * 0.6);
+  font-family: var(--font-heading);
+  font-size: calc(var(--mm) * 3.8);
+  color: var(--ph-ink);
+}
+
+.accessMark {
+  width: calc(var(--mm) * 34);
+  height: auto;
+}
+
+/* ----------------------------------------------------------- folha de corte */
+
+.head,
+.foot {
+  --mm: calc(100cqw / 210);
+  position: absolute;
+  left: calc(var(--mm) * 10.5);
+  right: calc(var(--mm) * 10.5);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(var(--mm) * 4);
+  font-size: calc(var(--mm) * 2.5);
+  color: var(--ph-soft);
+  white-space: nowrap;
+}
+
+.head {
+  top: calc(var(--mm) * 6.5);
+}
+
+.foot {
+  bottom: calc(var(--mm) * 5.5);
+}
+
+.head b {
+  color: var(--ph-ink);
+  font-weight: 700;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--mm) * 1.4);
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ph-ink);
+}
+
+.brand svg {
+  width: calc(var(--mm) * 3.2);
+  height: calc(var(--mm) * 3.2);
+}
+
+.grid {
+  --mm: calc(100cqw / 210);
+  position: absolute;
+  left: calc(var(--mm) * 10.5);
+  top: calc(var(--mm) * 16.5);
+  width: calc(var(--mm) * 189);
+  height: calc(var(--mm) * 264);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(3, calc(var(--mm) * 63));
+  grid-template-rows: repeat(3, calc(var(--mm) * 88));
+}
+
+/* --------------------------------------------------------------- placeholder */
+
+.ph {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: calc(var(--mm) * 5.2) calc(var(--mm) * 5.2) calc(var(--mm) * 4.4);
+  break-inside: avoid;
+}
+
+/* Moldura interna: tolera um corte imperfeito sem perder o acabamento. */
+.ph::before {
+  content: "";
+  position: absolute;
+  inset: calc(var(--mm) * 2.4);
+  border: calc(var(--mm) * 0.3) solid var(--ph-line);
+  border-radius: calc(var(--mm) * 3);
+  pointer-events: none;
+}
+
+.phTop {
+  position: relative;
+  display: flex;
+  width: 100%;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.phNumber {
+  font-family: var(--font-heading);
+  font-size: calc(var(--mm) * 3.7);
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ph-ink);
+}
+
+.phGen {
+  font-size: calc(var(--mm) * 2.05);
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ph-gold-ink);
+}
+
+.stage {
+  position: relative;
+  width: calc(var(--mm) * 44);
+  height: calc(var(--mm) * 44);
+  margin-top: calc(var(--mm) * 3.2);
+  display: grid;
+  place-items: center;
+}
+
+.ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.art {
+  position: relative;
+  width: calc(var(--mm) * 37);
+  height: calc(var(--mm) * 37);
+  object-fit: contain;
+}
+
+.noArt {
+  position: relative;
+  font-family: var(--font-heading);
+  font-size: calc(var(--mm) * 8);
+  font-weight: 800;
+  color: var(--ph-line);
+}
+
+.phName {
+  position: relative;
+  max-width: 100%;
+  margin-top: calc(var(--mm) * 4.2);
+  font-family: var(--font-heading);
+  font-size: calc(var(--mm) * 4.6);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.005em;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--ph-ink);
+}
+
+.phName[data-size="long"] {
+  font-size: calc(var(--mm) * 3.9);
+}
+
+.phName[data-size="xlong"] {
+  font-size: calc(var(--mm) * 3.25);
+}
+
+.zig {
+  display: block;
+  width: calc(var(--mm) * 9);
+  height: calc(var(--mm) * 3);
+  margin-top: calc(var(--mm) * 1.6);
+  color: var(--ph-gold);
+}
+
+.sign {
+  position: relative;
+  margin-top: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--mm) * 0.9);
+  font-size: calc(var(--mm) * 1.75);
+  font-weight: 700;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--ph-soft);
+}
+
+.sign svg {
+  width: calc(var(--mm) * 2.6);
+  height: calc(var(--mm) * 2.6);
+}
+
+/* ------------------------------------------------------------------ impressão */
+
+@media print {
+  .kit,
+  :global(.dark) .kit {
+    display: block;
+    max-width: none;
+    gap: 0;
+  }
+
+  .sheet,
+  :global(.dark) .sheet {
+    page: mmkyu-placeholders;
+    width: 210mm;
+    height: 297mm;
+    aspect-ratio: auto;
+    border-radius: 0;
+    box-shadow: none;
+    break-after: page;
+    page-break-after: always;
+    break-inside: avoid;
+  }
+
+  .sheet:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+}

@@ -13,7 +13,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { BarChart3, BookOpen, Bookmark, ClipboardCheck, Clock3, Copy, Gem, Heart, Layers, Library, LibraryBig, ListX, PieChart, TrendingUp, Trophy, type LucideIcon } from "lucide-react";
+import { BarChart3, BookOpen, Bookmark, ClipboardCheck, Clock3, Copy, Gem, Heart, Layers, Library, LibraryBig, ListX, PieChart, Scissors, TrendingUp, Trophy, type LucideIcon } from "lucide-react";
 import type { ReportMenuIcon, ReportMenuItem } from "@/lib/reports/collection-checklist";
 import { MENU_PANEL_WIDTH, placeReportMenu } from "@/lib/reports/menu-placement";
 import styles from "./report-menu.module.css";
@@ -34,6 +34,7 @@ const ICONS: Record<ReportMenuIcon, LucideIcon> = {
   evolution: TrendingUp,
   rarity: Gem,
   booklet: BookOpen,
+  placeholders: Scissors,
 };
 
 
