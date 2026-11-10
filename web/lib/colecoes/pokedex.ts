@@ -357,7 +357,7 @@ export function parsePokedexPositions(rows: unknown): PokedexPositionsPage {
 export function stateTag(state: AcervoState): string {
   switch (state) {
     case "OWNED":
-      return "Conquistado";
+      return "Capturado";
     case "AVAILABLE":
       return "No seu acervo";
     case "ELSEWHERE":
@@ -372,8 +372,8 @@ export function stateDescription(position: Pick<PokedexPosition, "state" | "copi
   switch (position.state) {
     case "OWNED":
       return position.copiesInCollection > 1
-        ? `conquistado, ${position.copiesInCollection} cartas deste Pokémon na coleção`
-        : "conquistado";
+        ? `capturado, ${position.copiesInCollection} cartas deste Pokémon na coleção`
+        : "capturado";
     case "AVAILABLE":
       return position.copiesAvailable === 1
         ? "falta na coleção, mas você tem 1 carta deste Pokémon livre no acervo"

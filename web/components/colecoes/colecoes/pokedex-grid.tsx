@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import { Check, Loader2, Plus, Trophy } from "lucide-react";
+import { Check, Loader2, Plus } from "lucide-react";
+import { CaptureBurst } from "./capture-burst";
 import { loadMorePokedexPositions } from "@/app/colecoes/colecoes/actions";
 import { CardZoomProvider, CardZoomTrigger } from "@/components/card/card-zoom";
 import { Pokeball } from "@/components/icons/pokeball-icon";
@@ -105,20 +106,54 @@ export function PokedexGrid({
   const flushCelebration = useCallback(function flush(attempt: number = 0) {
     const conquered = pendingCelebrationRef.current;
     if (conquered.length === 0) return;
-    if (document.querySelector("[data-pkx-dialog]")) {
-      // Painel aberto (ou ainda saindo da tela): tenta de novo por ~3 s; se o painel
-      // continuar aberto, o próprio fechamento chama de novo.
-      if (attempt < 15) window.setTimeout(() => flush(attempt + 1), 200);
+    // Qualquer painel aberto — posição, lote ou "Cartas novas" (diálogo do cadastro) — adia a
+    // captura: ela só acontece depois de "Ver a coleção"/fechar, quando o usuário vê a grade.
+    // Espera enquanto o painel estiver aberto (até ~10 min; o fechamento do painel da posição e do
+    // lote também chama de novo).
+    if (document.querySelector('[data-pkx-dialog], [role="dialog"]')) {
+      if (attempt < 3000) window.setTimeout(() => flush(attempt + 1), 200);
       return;
     }
     pendingCelebrationRef.current = [];
-    setCelebrating(new Set(conquered.map((item) => item.positionId)));
-    setAnnounce(
-      conquered.length === 1
-        ? `${conquered[0]?.speciesName ?? "Pokémon"} conquistado!`
-        : `${formatCount(conquered.length)} Pokémon conquistados!`,
-    );
-    window.setTimeout(() => setCelebrating(new Set()), 2600);
+    const start = () => {
+      setCelebrating(new Set(conquered.map((item) => item.positionId)));
+      setAnnounce(
+        conquered.length === 1
+          ? `${conquered[0]?.speciesName ?? "Pokémon"} capturado!`
+          : `${formatCount(conquered.length)} Pokémon capturados!`,
+      );
+      // Duração da sequência de captura (capture-burst.module.css, ~3,2 s).
+      window.setTimeout(() => setCelebrating(new Set()), 3300);
+    };
+    // Leva a (primeira) carta capturada à vista e dá o foco a ela; a captura começa quando a
+    // rolagem termina — fora da tela, o efeito não seria visto.
+    const first = conquered[0];
+    const element = first ? document.getElementById(tileId(first.positionId)) : null;
+    if (!element) {
+      start();
+      return;
+    }
+    element.focus({ preventScroll: true });
+    const rect = element.getBoundingClientRect();
+    if (rect.top >= 0 && rect.bottom <= window.innerHeight) {
+      start();
+      return;
+    }
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    element.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "center" });
+    if (reduce) {
+      start();
+      return;
+    }
+    let started = false;
+    const go = () => {
+      if (started) return;
+      started = true;
+      window.removeEventListener("scrollend", go);
+      start();
+    };
+    window.addEventListener("scrollend", go, { once: true });
+    window.setTimeout(go, 900); // navegador sem `scrollend` ou rolagem já parada
   }, []);
 
   // Nova navegação (filtro/geração/refresh): recomeça da página do servidor.
@@ -343,12 +378,8 @@ function PokedexTile({
             glyphClassName={acervoStyles.priceTagGlyph}
           />
         ) : null}
-        {celebrating ? (
-          <span className={styles.conquerBadge} aria-hidden="true">
-            <Trophy className="h-3.5 w-3.5" strokeWidth={2.5} />
-            Conquistado!
-          </span>
-        ) : null}
+        {/* Momento de captura: esfera MMKYU (substitui o selo com troféu). */}
+        {celebrating ? <CaptureBurst /> : null}
         {position.copiesInCollection > 1 ? (
           <span className={`${acervoStyles.qty} ${styles.qtyFooter}`} aria-hidden="true">
             ×{formatCount(position.copiesInCollection)}

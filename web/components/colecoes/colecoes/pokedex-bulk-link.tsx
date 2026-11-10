@@ -215,7 +215,7 @@ function PokedexBulkPanel({ collectionId, generation, onClose }: { collectionId:
                 <div className={addStyles.reviewHead}>
                   <span className={addStyles.reviewCount}>{formatCount(review.items.length)}</span>
                   <span className={addStyles.reviewLabel}>
-                    {review.items.length === 1 ? "Pokémon que falta pode" : "Pokémon que faltam podem"} ser conquistados com cartas
+                    {review.items.length === 1 ? "Pokémon que falta pode" : "Pokémon que faltam podem"} ser capturados com cartas
                     livres do seu acervo — <strong>uma carta por Pokémon</strong>.
                   </span>
                 </div>
@@ -248,7 +248,7 @@ function PokedexBulkPanel({ collectionId, generation, onClose }: { collectionId:
                       Mostrando os primeiros {formatCount(review.items.length)}. Depois de confirmar, abra de novo para ver os demais.
                     </p>
                   ) : null}
-                  <ul className={styles.pickList} aria-label="Pokémon que podem ser conquistados">
+                  <ul className={styles.pickList} aria-label="Pokémon que podem ser capturados">
                     {review.items.map((item) => (
                       <PickRow
                         key={item.physicalCardId}
@@ -268,7 +268,7 @@ function PokedexBulkPanel({ collectionId, generation, onClose }: { collectionId:
                   </ul>
                 </section>
 
-                {commit.status === "error" ? <Notice title="Nenhum Pokémon foi conquistado">{linkFailureMessage(commit.reason)}</Notice> : null}
+                {commit.status === "error" ? <Notice title="Nenhum Pokémon foi capturado">{linkFailureMessage(commit.reason)}</Notice> : null}
               </div>
               <Footer lead={chosenCount === 0 ? "Nenhum Pokémon marcado" : `${formatCount(chosenCount)} Pokémon`}>
                 <Button variant="outline" onClick={close} disabled={busy}>
@@ -345,7 +345,7 @@ function Done({ commit, onClose }: { commit: { linked: number; offered: number; 
             <CheckCircle2 className="h-6 w-6" />
           </span>
           <h2 ref={headingRef} tabIndex={-1} className={addStyles.doneTitle}>
-            {commit.linked === 1 ? "1 Pokémon conquistado" : `${formatCount(commit.linked)} Pokémon conquistados`}
+            {commit.linked === 1 ? "1 Pokémon capturado" : `${formatCount(commit.linked)} Pokémon capturados`}
           </h2>
           <p className={addStyles.doneText}>
             O progresso da Pokédex já está atualizado. As cartas continuam no seu acervo, no mesmo lugar.

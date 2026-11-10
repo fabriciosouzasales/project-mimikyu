@@ -14,6 +14,7 @@ import {
   type AutoArrangeFailure,
   applyResultMessage,
   autoArrangeEntry,
+  autoArrangeTarget,
   canConfirm,
   classifyAutoArrangeFailure,
   confirmLabel,
@@ -28,9 +29,11 @@ import {
   isPlanToken,
   needsFreshPreview,
   pagesPhrase,
+  panelHint,
   parseApply,
   parsePreview,
   previewSummary,
+  reasonsFootnote,
   revalidationMessage,
   unfilledLines,
   unfilledPhrase,
@@ -134,13 +137,43 @@ test("elegibilidade: convidada aparece indisponível com motivo; arquivada e só
   assert.deepEqual(readOnly, { visible: true, enabled: false, reason: "READ_ONLY" });
 });
 
-test("elegibilidade: Pokédex, Livre, desconhecido e sem fichário não mostram a ação", () => {
+test("elegibilidade: Livre, desconhecido e sem fichário não mostram a ação", () => {
   const base = { hasBinder: true, active: true, editable: true, role: "OWNER" as const };
-  for (const kind of ["POKEDEX", "FREE", "UNKNOWN"]) assert.deepEqual(autoArrangeEntry({ ...base, kind }), { visible: false }, kind);
+  for (const kind of ["FREE", "UNKNOWN"]) assert.deepEqual(autoArrangeEntry({ ...base, kind }), { visible: false }, kind);
   assert.deepEqual(autoArrangeEntry({ ...base, kind: "SET", hasBinder: false }), { visible: false });
   assert.deepEqual(autoArrangeEntry({ ...base, kind: "SET", role: null }), { visible: false });
   // Tipo não suportado tem precedência sobre convidada (mesma ordem da 5343).
-  assert.deepEqual(autoArrangeEntry({ ...base, kind: "POKEDEX", role: "GUEST" }), { visible: false });
+  assert.deepEqual(autoArrangeEntry({ ...base, kind: "FREE", role: "GUEST" }), { visible: false });
+});
+
+test("elegibilidade: Pokédex da proprietária organiza nos bolsos de espécie", () => {
+  const base = { hasBinder: true, active: true, editable: true, role: "OWNER" as const, kind: "POKEDEX" };
+  const entry = autoArrangeEntry(base);
+  assert.deepEqual(entry, { visible: true, enabled: true, target: "SPECIES" });
+  assert.equal(autoArrangeTarget(entry), "SPECIES");
+  assert.equal(autoArrangeTarget(autoArrangeEntry({ ...base, kind: "SET" })), "RESERVED");
+  assert.deepEqual(autoArrangeEntry({ ...base, active: false, editable: false }), { visible: true, enabled: false, reason: "ARCHIVED", target: "SPECIES" });
+  assert.deepEqual(autoArrangeEntry({ ...base, editable: false }), { visible: true, enabled: false, reason: "READ_ONLY", target: "SPECIES" });
+  assert.deepEqual(autoArrangeEntry({ ...base, role: "GUEST" }), { visible: false });
+  assert.deepEqual(autoArrangeEntry({ ...base, hasBinder: false }), { visible: false });
+});
+
+test("Pokédex: motivo NOT_REPRESENTATIVE e textos de bolso de espécie", () => {
+  const p = parsePreview({
+    status: "READY", insert_count: 1, limit: 500, plan_token: "aa1:" + "a".repeat(64),
+    excluded_cards: { NOT_REPRESENTATIVE: 2, NO_COMPATIBLE_RESERVATION: 1 }, unfilled_slots: {}, unfilled_count: 0,
+    pages: [1],
+    items: [{ ord: 1, slot_id: "00000000-0000-4000-8000-000000000001", physical_card_id: "00000000-0000-4000-8000-000000000002", page_number: 1, row_index: 1, column_index: 1, card_id: "00000000-0000-4000-8000-000000000003", card_variant_id: "00000000-0000-4000-8000-000000000004" }],
+  });
+  assert.ok(p);
+  assert.equal(p.excludedCount, 3);
+  const lines = excludedLines(p, "SPECIES");
+  assert.deepEqual(lines.map((l) => l.label), ["O bolso da espécie não está livre", "Outra cópia representa esta espécie"]);
+  assert.equal(excludedLines(p)[0]?.label, "Sem bolso reservado para esta carta");
+  assert.match(confirmationText(p, "SPECIES"), /cópias extras/);
+  assert.doesNotMatch(confirmationText(p, "SPECIES"), /reservas/);
+  assert.match(panelHint("SPECIES"), /espécie/);
+  assert.match(reasonsFootnote("SPECIES"), /Cartas disponíveis/);
 });
 
 // ---------------------------------------------------------------------------

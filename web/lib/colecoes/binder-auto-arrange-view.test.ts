@@ -92,8 +92,16 @@ test("trilho: convidada, arquivada e só leitura → indisponível com explicaç
   for (const b of [guest, archived, readOnly]) assert.equal(b.present && !b.enabled, true);
 });
 
-test("trilho: Pokédex, Livre e sem fichário → botão ausente", () => {
-  for (const kind of ["POKEDEX", "FREE"]) assert.deepEqual(autoArrangeRailButton(autoArrangeEntry({ hasBinder: true, kind, active: true, editable: true, role: "OWNER" }), false), { present: false });
+test("trilho: Pokédex da proprietária → botão presente", () => {
+  assert.deepEqual(autoArrangeRailButton(autoArrangeEntry({ hasBinder: true, kind: "POKEDEX", active: true, editable: true, role: "OWNER" }), false), {
+    present: true,
+    enabled: true,
+    label: "Organizar automaticamente — ver a prévia",
+  });
+});
+
+test("trilho: Livre e sem fichário → botão ausente", () => {
+  for (const kind of ["FREE"]) assert.deepEqual(autoArrangeRailButton(autoArrangeEntry({ hasBinder: true, kind, active: true, editable: true, role: "OWNER" }), false), { present: false });
   assert.deepEqual(autoArrangeRailButton(autoArrangeEntry({ hasBinder: false, kind: "SET", active: true, editable: false, role: null }), false), { present: false });
 });
 

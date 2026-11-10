@@ -240,7 +240,7 @@ export function PokedexGenerationsSection({
     setDone({
       tone: "success",
       text: result.changed
-        ? `Gerações atualizadas: ${formatCount(result.satisfied)} de ${formatCount(result.total)} Pokémon conquistados. Nenhuma carta saiu da coleção.`
+        ? `Gerações atualizadas: ${formatCount(result.satisfied)} de ${formatCount(result.total)} Pokémon capturados. Nenhuma carta saiu da coleção.`
         : "As gerações já eram essas — nada precisou mudar.",
     });
     reload();

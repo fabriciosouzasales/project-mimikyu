@@ -574,7 +574,7 @@ function SettingsPanel({
               {(!isFree && identity.setName) || isPokedex || !identity.finishEditable ? (
                 <dl className={styles.facts}>
                   {!isFree && identity.setName ? <Fact label="Set" value={identity.setName} hint="Identidade oficial do Set." /> : null}
-                  {isPokedex ? <Fact label="Universo" value="Pokédex Nacional" hint="Uma carta de cada Pokémon conquista a posição." /> : null}
+                  {isPokedex ? <Fact label="Universo" value="Pokédex Nacional" hint="Uma carta de cada Pokémon captura a posição." /> : null}
                   {!identity.finishEditable ? <Fact label="Cor do fichário" value={finishLabel(identity.finish)} /> : null}
                 </dl>
               ) : null}

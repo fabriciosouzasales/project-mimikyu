@@ -100,7 +100,7 @@ import {
   pageRemovalFailureMessage,
   pageRemovedMessage,
 } from "@/lib/colecoes/binder-page-removal";
-import type { AutoArrangeEntry } from "@/lib/colecoes/binder-auto-arrange";
+import { type AutoArrangeEntry, autoArrangeTarget } from "@/lib/colecoes/binder-auto-arrange";
 import {
   ARRANGE_CLOSED,
   AUTO_ARRANGE_BUTTON_ID,
@@ -2139,6 +2139,7 @@ export function BinderWorkspace({
           {arrangeView.status !== "closed" ? (
             <AutoArrangePanel
               mode={controlDocked ? "side" : "bottom"}
+              target={autoArrangeTarget(autoArrange)}
               view={arrangeView}
               stale={arrangeStale}
               flow={applyFlow}

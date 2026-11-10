@@ -2,7 +2,17 @@
 
 import { useEffect, useRef } from "react";
 import { AlertTriangle, CheckCircle2, ChevronRight, Loader2, RotateCcw, ShieldCheck, X } from "lucide-react";
-import { REASONS_FOOTNOTE, applyResultMessage, confirmationText, excludedLines, pagesPhrase, previewSummary, unfilledLines } from "@/lib/colecoes/binder-auto-arrange";
+import {
+  type AutoArrangeTarget,
+  applyResultMessage,
+  confirmationText,
+  excludedLines,
+  pagesPhrase,
+  panelHint,
+  previewSummary,
+  reasonsFootnote,
+  unfilledLines,
+} from "@/lib/colecoes/binder-auto-arrange";
 import {
   AUTO_ARRANGE_PANEL_ID,
   type ArrangeView,
@@ -20,11 +30,11 @@ import {
   type ApplyFlow,
   CACHE_FAILED_NOTE,
   CONFIRM_ACTION_LABEL,
-  REVIEW_GUARANTEES,
   START_REVIEW_LABEL,
   applyFailureText,
   failureFollowUp,
   reviewActionState,
+  reviewGuarantees,
 } from "@/lib/colecoes/binder-auto-arrange-flow";
 import styles from "./binder-auto-arrange.module.css";
 
@@ -43,6 +53,7 @@ import styles from "./binder-auto-arrange.module.css";
  */
 export function AutoArrangePanel({
   mode,
+  target = "RESERVED",
   view,
   stale,
   flow,
@@ -61,6 +72,8 @@ export function AutoArrangePanel({
   onRefreshScreen,
 }: {
   mode: "side" | "bottom";
+  /** Set/Master Set (bolsos reservados) ou Pokédex (bolsos de espécie): muda só os textos. */
+  target?: AutoArrangeTarget;
   view: Exclude<ArrangeView, { status: "closed" }>;
   stale: boolean;
   flow: ApplyFlow;
@@ -113,7 +126,7 @@ export function AutoArrangePanel({
           <h3 id="organizar-titulo" ref={headingRef} tabIndex={-1} className={styles.title}>
             Organizar automaticamente
           </h3>
-          <p className={styles.hint}>Coloca nos bolsos reservados as cartas guardadas neste fichário que ainda não têm lugar.</p>
+          <p className={styles.hint}>{panelHint(target)}</p>
         </div>
         <button
           type="button"
@@ -135,7 +148,7 @@ export function AutoArrangePanel({
         {flowBody ? (
           <FlowBody flow={flow} totalPages={totalPages} visiblePages={visiblePages} onGoToPage={onGoToPage} onRefresh={onRefresh} onRetry={onRetry} onRefreshScreen={onRefreshScreen} onClose={onClose} />
         ) : reviewing && view.status === "ready" ? (
-          <ReviewBody view={view} notice={flow.kind === "review" ? flow.notice : null} writeBusy={writeBusy} onCancel={onCancelReview} onConfirm={onConfirm} />
+          <ReviewBody view={view} target={target} notice={flow.kind === "review" ? flow.notice : null} writeBusy={writeBusy} onCancel={onCancelReview} onConfirm={onConfirm} />
         ) : (
           <>
             {flow.kind === "idle" && flow.notice ? (
@@ -175,7 +188,7 @@ export function AutoArrangePanel({
                 ) : null}
               </div>
             ) : (
-              <ReadyBody view={view} stale={stale} canReview={canReview} writeBusy={writeBusy} totalPages={totalPages} visiblePages={visiblePages} onGoToPage={onGoToPage} onRefresh={onRefresh} onStartReview={onStartReview} />
+              <ReadyBody view={view} target={target} stale={stale} canReview={canReview} writeBusy={writeBusy} totalPages={totalPages} visiblePages={visiblePages} onGoToPage={onGoToPage} onRefresh={onRefresh} onStartReview={onStartReview} />
             )}
           </>
         )}
@@ -203,6 +216,7 @@ function flowAnnouncement(flow: ApplyFlow): string | null {
 
 function ReadyBody({
   view,
+  target,
   stale,
   canReview,
   writeBusy,
@@ -213,6 +227,7 @@ function ReadyBody({
   onStartReview,
 }: {
   view: Extract<ArrangeView, { status: "ready" }>;
+  target: AutoArrangeTarget;
   stale: boolean;
   canReview: boolean;
   writeBusy: boolean;
@@ -223,10 +238,10 @@ function ReadyBody({
   onStartReview: () => void;
 }) {
   const preview = view.preview;
-  const summary = previewSummary(preview);
+  const summary = previewSummary(preview, target);
   const pages = navigablePages(preview, totalPages);
   const next = nextAffectedPage(pages, visiblePages);
-  const excluded = excludedLines(preview);
+  const excluded = excludedLines(preview, target);
   const unfilled = unfilledLines(preview);
   const action = reviewActionState(canReview, writeBusy);
 
@@ -239,7 +254,7 @@ function ReadyBody({
 
       {preview.status === "READY" ? (
         <dl className={styles.facts}>
-          {readyFacts(preview).map((fact) => (
+          {readyFacts(preview, target).map((fact) => (
             <div key={fact.key} className={styles.fact} data-key={fact.key}>
               <dt>{fact.label}</dt>
               <dd>{fact.value}</dd>
@@ -285,7 +300,7 @@ function ReadyBody({
 
       {excluded.length > 0 ? <ReasonList title="Cartas que ficam de fora" lines={excluded} /> : null}
       {unfilled.length > 0 ? <ReasonList title="Reservas que continuam vazias" lines={unfilled} /> : null}
-      {excluded.length > 0 || unfilled.length > 0 ? <p className={styles.footnote}>{REASONS_FOOTNOTE}</p> : null}
+      {excluded.length > 0 || unfilled.length > 0 ? <p className={styles.footnote}>{reasonsFootnote(target)}</p> : null}
 
       <div className={styles.notes}>
         <p>{SERVER_AUTHORITY_NOTE}</p>
@@ -306,12 +321,14 @@ function ReadyBody({
 /** Etapa de revisão (no painel): quantidade, páginas, garantias e a confirmação explícita. */
 function ReviewBody({
   view,
+  target,
   notice,
   writeBusy,
   onCancel,
   onConfirm,
 }: {
   view: Extract<ArrangeView, { status: "ready" }>;
+  target: AutoArrangeTarget;
   notice: string | null;
   writeBusy: boolean;
   onCancel: () => void;
@@ -339,7 +356,7 @@ function ReviewBody({
         <p ref={reviewHeadingRef} tabIndex={-1} className={styles.headline}>
           Revisar antes de posicionar
         </p>
-        <p className={styles.detail}>{confirmationText(preview)}</p>
+        <p className={styles.detail}>{confirmationText(preview, target)}</p>
       </div>
       <dl className={styles.facts}>
         <div className={styles.fact} data-key="insert">
@@ -352,7 +369,7 @@ function ReviewBody({
         </div>
       </dl>
       <ul className={styles.guarantees} aria-label="O que é preservado">
-        {REVIEW_GUARANTEES.map((text) => (
+        {reviewGuarantees(target).map((text) => (
           <li key={text}>
             <ShieldCheck className="h-3.5 w-3.5 flex-none" aria-hidden />
             <span>{text}</span>

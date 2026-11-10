@@ -148,7 +148,7 @@ test("5204: converte, mantém total antes do limite e descarta estado desconheci
 });
 
 test("estados em linguagem de colecionador", () => {
-  assert.equal(stateTag("OWNED"), "Conquistado");
+  assert.equal(stateTag("OWNED"), "Capturado");
   assert.equal(stateTag("AVAILABLE"), "No seu acervo");
   assert.equal(stateTag("ELSEWHERE"), "Em outra coleção");
   assert.equal(stateTag("NOT_FOUND"), "Falta");

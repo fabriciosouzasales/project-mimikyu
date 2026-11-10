@@ -1,5 +1,6 @@
 import {
   type AutoArrangeEntry,
+  type AutoArrangeTarget,
   type AutoArrangeFailure,
   type AutoArrangePreview,
   entryHint,
@@ -123,13 +124,15 @@ function count(n: number, one: string, many: string): string {
 export type PreviewFact = { key: "insert" | "pages" | "unfilled" | "excluded"; value: string; label: string };
 
 /** Fatos da prévia READY na ordem da tela: posicionáveis, páginas, reservas vazias, de fora. */
-export function readyFacts(preview: AutoArrangePreview): PreviewFact[] {
-  return [
+export function readyFacts(preview: AutoArrangePreview, target: AutoArrangeTarget = "RESERVED"): PreviewFact[] {
+  const facts: PreviewFact[] = [
     { key: "insert", value: NUMBER.format(preview.insertCount), label: preview.insertCount === 1 ? "carta posicionável" : "cartas posicionáveis" },
     { key: "pages", value: NUMBER.format(preview.pages.length), label: preview.pages.length === 1 ? "página afetada" : "páginas afetadas" },
     { key: "unfilled", value: NUMBER.format(preview.unfilledCount), label: preview.unfilledCount === 1 ? "reserva continua vazia" : "reservas continuam vazias" },
     { key: "excluded", value: NUMBER.format(preview.excludedCount), label: preview.excludedCount === 1 ? "carta fica de fora" : "cartas ficam de fora" },
   ];
+  // Pokédex: bolsos de espécie sem carta não são reservas (a 5342 não os lista).
+  return target === "SPECIES" ? facts.filter((f) => f.key !== "unfilled") : facts;
 }
 
 /** Anúncio da região viva quando a leitura termina. */

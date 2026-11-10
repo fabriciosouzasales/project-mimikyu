@@ -4,8 +4,8 @@
 |--------|-------|
 | **Documento** | Contrato funcional e SQL da organização automática do fichário |
 | **Arquivo** | `docs/domain-modeling/collections/binder-auto-arrange-contract.md` |
-| **Versão** | 1.5 |
-| **Status** | Decisões APROVADAS (C-220–C-226). **Fundação SQL HOMOLOGADA no LIVE** (`P2 SQL FOUNDATION CLOSEOUT-16`, 2026-11-01): 5341–5344 canônicas em `database/schema/`, evidências em `database/proposals/2026-11-01-binder-auto-arrange/README.md`. **Interface P2 UI E1–E4 implementada localmente e homologada visualmente** (`P2 UI E4 FINAL CLOSEOUT-05`, 2026-11-01); `npm run lint`/`npm run build` da E4 pendentes no Windows. **Primeira aplicação real executada** no ME3 (147 inserções, `POST-APPLICATION INTEGRITY PASS`). Sem feature flag adicional (decisão do proprietário, §9). |
+| **Versão** | 1.6 |
+| **Status** | Decisões APROVADAS (C-220–C-226). **Fundação SQL HOMOLOGADA no LIVE** (`P2 SQL FOUNDATION CLOSEOUT-16`, 2026-11-01): 5341–5344 canônicas em `database/schema/`, evidências em `database/proposals/2026-11-01-binder-auto-arrange/README.md`. **Interface P2 UI E1–E4 implementada localmente e homologada visualmente** (`P2 UI E4 FINAL CLOSEOUT-05`, 2026-11-01); `npm run lint`/`npm run build` da E4 pendentes no Windows. **Primeira aplicação real executada** no ME3 (147 inserções, `POST-APPLICATION INTEGRITY PASS`). Sem feature flag adicional (decisão do proprietário, §9). **Extensão à Pokédex CONFIRMADA EXECUTADA no LIVE e homologada por Fabrício** (2026-11-09, 5360; §10). |
 | **Criado em** | 2026-11-01 (`Binder · P2 AUTO-ARRANGE SQL FOUNDATION-06`) |
 | **Base** | `AUTO-ARRANGE PRODUCT DECISION-02A`; `P2 LIVE ELIGIBILITY DIAGNOSIS-05` (read-only); C-42–C-44, C-191–C-197, C-201–C-209 |
 | **Relacionados** | `concept-decisions.md` (C-220–C-226), `docs/05d-colecoes-e-usuarios.md` (seção "Fichário — Organização automática (P2)"), `place_my_physical_card_in_slot` (5272), histórico 5267–5271 |
@@ -20,14 +20,14 @@ Uma ação do fichário que posiciona, de uma vez, os exemplares do colecionador
 
 | Elemento | Regra |
 |---|---|
-| Coleção | Set ou Master Set (`REFERENCE_BASED` + `STANDARD_SET`/`MASTER_SET`), ativa, do titular. Pokédex e Livre → recusa. |
+| Coleção | Set, Master Set ou Pokédex (`REFERENCE_BASED` + `STANDARD_SET`/`MASTER_SET`/`REFERENCE_POSITION`), ativa, do titular. Livre → recusa. Regras da Pokédex na §10. |
 | Fichário | O da própria coleção (proprietária). Coleção convidada → recusa. |
 | Exemplar candidato | Alocado à coleção proprietária; guardado no local do fichário; inventário do titular; fora de qualquer bolso. |
 | Bolso destino | Página do fichário; reserva da proprietária (`collection_id` nulo ou igual à proprietária); vazio; não travado; sem imagem; fora de mesclagem. |
 | Compatibilidade | Mesma carta; e variante exata quando a reserva fixa variante; e acabamento quando a reserva fixa acabamento. |
 | Correspondência | 1:1 estrito nos dois sentidos, sobre todos os pares compatíveis. Variante inativa conta para ambiguidade e nunca é posicionada. |
 
-Motivos devolvidos na prévia — exemplares: `INACTIVE_VARIANT`, `NO_COMPATIBLE_RESERVATION`, `MULTIPLE_DESTINATIONS`, `COMPETING_CANDIDATES`; bolsos: `NO_CANDIDATE`, `COMPETING_CANDIDATES`, `MULTIPLE_DESTINATIONS`, `INACTIVE_VARIANT`. A interface traduz para linguagem de colecionador (ex.: "duas cópias disputam este bolso — escolha uma manualmente").
+Motivos devolvidos na prévia — exemplares: `INACTIVE_VARIANT`, `NO_COMPATIBLE_RESERVATION`, `MULTIPLE_DESTINATIONS`, `COMPETING_CANDIDATES`, `NOT_REPRESENTATIVE` (só Pokédex, §10); bolsos: `NO_CANDIDATE`, `COMPETING_CANDIDATES`, `MULTIPLE_DESTINATIONS`, `INACTIVE_VARIANT`. A interface traduz para linguagem de colecionador (ex.: "duas cópias disputam este bolso — escolha uma manualmente").
 
 ## 3. Contrato SQL (homologado)
 
@@ -79,7 +79,7 @@ Em qualquer nova tentativa: se a revalidação devolver um plano diferente (outr
 
 ## 8. Fora do escopo
 
-Desempate automático, substituição/troca, movimentação, criação de reservas, Pokédex, Livre, coleções convidadas, organização parcial acima do limite.
+Desempate automático, substituição/troca, movimentação, criação de reservas, Livre, coleções convidadas, organização parcial acima do limite.
 
 ## 9. Homologação, evidências e riscos residuais
 
@@ -120,6 +120,20 @@ Evidências:
 
 ---
 
+## 10. Pokédex (2026-11-09, 5360)
+
+Decisão do proprietário (2026-11-09): replicar a organização automática na Pokédex, usando as cartas guardadas no fichário da coleção; com várias cópias da mesma espécie, vai para o bolso a **representante**.
+
+| Elemento | Regra na Pokédex |
+|---|---|
+| Bolso destino | Bolso de espécie (`collection_layout_slot_species_reference`, 5257–5260) da própria coleção; vazio; não travado; sem imagem; sem reserva de carta; fora de mesclagem. |
+| Exemplar candidato | Mesmas regras do §2, vinculado a uma espécie da Pokédex. |
+| Par | (bolso da espécie, representante da espécie). Representante = a mesma da grade (5204): a escolhida pelo colecionador, senão o vínculo mais antigo (`assigned_at`, alocação). 1:1 por construção. |
+| Cópias extras | Ficam fora com `NOT_REPRESENTATIVE` e continuam em Cartas disponíveis. Representante fora do fichário ou já em outro bolso → a espécie não recebe carta (nenhuma outra cópia a substitui). |
+| Bolsos vazios | Bolsos de espécie sem carta **não** geram `UNFILLED_SLOT` (seriam até 1.025 linhas sem valor para o colecionador). |
+
+Set/Master Set: plano e token inalterados (assinatura de todas as linhas idêntica antes e depois, no dry-run e após a aplicação). Fórmula do token inalterada (`aa1.2`). Interface: a ação aparece também na Pokédex da proprietária; textos falam em bolso de espécie e representante; sem a contagem de reservas vazias.
+
 ## Revision History
 
 | Versão | Descrição |
@@ -130,3 +144,4 @@ Evidências:
 | 1.3 | **Fundação SQL homologada (2026-11-01, `P2 SQL FOUNDATION CLOSEOUT-16`).** Status e §3 passam a homologado; retorno da confirmação detalhado; tratamento de `55P03`/`40P01` na interface; nova §9 com gates, evidências, riscos R1–R5, provas não demonstradas (K-M1–K-M3, `55P03`) e a condição para o primeiro uso real. Contrato funcional inalterado; C-220–C-226 inalteradas. |
 | 1.4 | **Tratamento de erros de concorrência na interface (2026-11-01, `P2 SQL FOUNDATION RELEASE-17 CORRECTION-18`).** §3, §7 e linhas R1/R2 da §9: `40001` (plano alterado → nova prévia e nova confirmação), `55P03` (indisponibilidade temporária → nova tentativa iniciada por revalidação) e `40P01` (falha temporária → nova tentativa controlada iniciada por revalidação) passam a ter tratamentos distintos; nenhuma escrita repetida automaticamente; plano mudado exige revisão e confirmação. Sem mudança de SQLSTATE, token, backend ou C-220–C-226. |
 | 1.5 | **Interface homologada e primeira aplicação real (2026-11-01, `P2 UI E4 FINAL CLOSEOUT-05`).** Status e §7 passam a implementado (E1–E4); §9 ganha a subseção da interface, a homologação visual da E4 (lint/build pendentes no Windows), a primeira aplicação real no ME3 (147 inserções, `POST-APPLICATION INTEGRITY PASS`), a decisão do proprietário de não implementar feature flag adicional e os riscos residuais não provados (K-M1–K-M3, `55P03`). SQL, token e C-220–C-226 inalterados. |
+| 1.6 | **Extensão à Pokédex (2026-11-09).** 5360 (CONFIRMADO EXECUTADO): a Pokédex passa a ser elegível; o bolso de cada espécie recebe a representante da espécie; novo motivo `NOT_REPRESENTATIVE`; bolsos de espécie vazios fora da lista de não preenchidos. Nova §10; §2 atualizada. Set/Master Set inalterados (plano e token). Homologada pelo proprietário ("tudo funcionando perfeitamente bem"). |

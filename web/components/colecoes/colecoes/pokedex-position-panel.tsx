@@ -231,7 +231,7 @@ export function PokedexPositionPanel({
   const stateLine =
     linkedCount > 0 ? (
       <>
-        <strong>Conquistado</strong> · {formatCount(linkedCount)} {linkedCount === 1 ? "carta nesta posição" : "cartas nesta posição"}
+        <strong>Capturado</strong> · {formatCount(linkedCount)} {linkedCount === 1 ? "carta nesta posição" : "cartas nesta posição"}
       </>
     ) : position.copiesAvailable > 0 ? (
       <>

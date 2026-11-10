@@ -147,6 +147,18 @@ export const REVIEW_GUARANTEES: readonly string[] = [
   "As cartas que ficam de fora continuam sem bolso.",
 ];
 
+/** Pokédex: o bolso de cada espécie recebe só a representante; as cópias extras ficam disponíveis. */
+export const SPECIES_REVIEW_GUARANTEES: readonly string[] = [
+  "Nenhuma carta é substituída, movida ou retirada.",
+  "Só bolsos de espécie vazios recebem carta — a representante da espécie.",
+  "Bolsos fixados e imagens ficam como estão.",
+  "As cópias extras continuam em Cartas disponíveis.",
+];
+
+export function reviewGuarantees(target: "RESERVED" | "SPECIES"): readonly string[] {
+  return target === "SPECIES" ? SPECIES_REVIEW_GUARANTEES : REVIEW_GUARANTEES;
+}
+
 export const CONFIRM_ACTION_LABEL = "Confirmar e posicionar";
 export const WRITE_BUSY_HINT = "Aguarde a alteração em andamento no fichário terminar.";
 

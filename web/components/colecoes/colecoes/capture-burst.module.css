@@ -1,0 +1,499 @@
+/*
+ * Momento de captura da Pokédex — "Esfera MMKYU" (ver capture-burst.tsx). Linha do tempo (~3,2 s):
+ *   0,00–0,40  queda com quique
+ *   0,45–1,60  três balanços; a aura cresce a cada um (tensão)
+ *   1,65       TRAVA: estalo da esfera, emblema aceso, clarão, raios, duas ondas, estrelas e faíscas
+ *   1,90       "Capturado!" com reflexo
+ *   2,85–3,20  dissolve
+ * Só `transform`/`opacity` (composição na GPU); cada movimento num elemento próprio — animações de
+ * `transform` no mesmo elemento se sobrepõem.
+ */
+
+.root {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  overflow: visible;
+  animation: capture-out 3.2s linear both;
+}
+
+.defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+.stage {
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  width: 3.4rem;
+  height: 3.4rem;
+  margin: -1.7rem 0 0 -1.7rem;
+}
+
+.glow {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: var(--acervo-card-radius, 0.6rem);
+}
+
+/* ------------------------------------------------------------ esfera */
+
+.drop,
+.wobble,
+.lock {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+
+.drop {
+  animation: capture-drop 0.42s cubic-bezier(0.25, 1.5, 0.5, 1) both;
+}
+
+.wobble {
+  transform-origin: 50% 88%;
+  animation: capture-wobble 1.15s 0.45s ease-in-out both;
+}
+
+.lock {
+  animation: capture-lock 0.36s 1.62s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+
+.orb {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  filter: drop-shadow(0 7px 12px rgb(0 0 0 / 0.55));
+}
+
+.emblem {
+  stroke: #b39a6a;
+}
+
+.core {
+  opacity: 0.35;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation:
+    capture-core-tension 1.15s 0.45s ease-in-out both,
+    capture-core-lock 0.5s 1.62s ease-out both;
+}
+
+.emblem {
+  animation: capture-emblem 0.25s 1.62s ease-out both;
+}
+
+/* Aura atrás da esfera: pulsa nos três balanços, cada vez mais forte. */
+.aura {
+  position: absolute;
+  inset: -35%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgb(255 226 150 / 0.75) 0%, rgb(240 184 79 / 0.35) 38%, transparent 68%);
+  opacity: 0;
+  animation: capture-aura 1.6s 0.4s ease-out both;
+}
+
+/* ------------------------------------------------------------ trava */
+
+/* Clarão: luz branca → dourada que cobre a carta e some. */
+.flash {
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  width: 22rem;
+  height: 22rem;
+  margin: -11rem 0 0 -11rem;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgb(255 255 255 / 0.98) 0%, rgb(255 244 210 / 0.9) 12%, rgb(246 205 120 / 0.55) 28%, rgb(240 184 79 / 0.18) 46%, transparent 64%);
+  opacity: 0;
+  transform: scale(0.15);
+  animation: capture-flash 0.9s 1.62s cubic-bezier(0.1, 0.8, 0.3, 1) both;
+}
+
+/* Coroa de raios girando. */
+.rays {
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  width: 18rem;
+  height: 18rem;
+  margin: -9rem 0 0 -9rem;
+  border-radius: 50%;
+  background: repeating-conic-gradient(from 0deg, rgb(255 236 180 / 0.95) 0deg 4deg, rgb(255 236 180 / 0) 7deg 22deg);
+  -webkit-mask: radial-gradient(circle, #000 0%, #000 12%, rgb(0 0 0 / 0.6) 30%, transparent 62%);
+  mask: radial-gradient(circle, #000 0%, #000 12%, rgb(0 0 0 / 0.6) 30%, transparent 62%);
+  opacity: 0;
+  transform: scale(0.2) rotate(0deg);
+  animation: capture-rays 1.25s 1.62s ease-out both;
+}
+
+/* Ondas de luz. */
+.wave {
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  width: 3.4rem;
+  height: 3.4rem;
+  margin: -1.7rem 0 0 -1.7rem;
+  border-radius: 50%;
+  border: 3px solid rgb(255 236 180 / 0.95);
+  box-shadow:
+    0 0 12px rgb(255 214 120 / 0.9),
+    inset 0 0 10px rgb(255 214 120 / 0.6);
+  opacity: 0;
+  transform: scale(0.6);
+  animation: capture-wave 0.8s 1.64s ease-out both;
+}
+
+.waveLate {
+  border-width: 2px;
+  animation-delay: 1.82s;
+  animation-duration: 0.95s;
+}
+
+/* Estrelas de quatro pontas, brilhando em volta da carta. */
+.star {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--s);
+  height: var(--s);
+  margin: calc(var(--s) / -2) 0 0 calc(var(--s) / -2);
+  opacity: 0;
+  transform: translate(0, 0) scale(0) rotate(0deg);
+  animation: capture-star 1.15s calc(1.66s + var(--d)) cubic-bezier(0.15, 0.8, 0.3, 1) both;
+}
+
+.star svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  filter: drop-shadow(0 0 4px rgb(255 220 140 / 0.95));
+}
+
+/* Faíscas: traços de luz saindo em raio. */
+.sparks {
+  position: absolute;
+  inset: 0;
+}
+
+.spark {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 1.1rem;
+  height: 0.18rem;
+  margin: -0.09rem 0 0 -0.55rem;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgb(255 255 255 / 0), #fff6dc 40%, #f3c46a);
+  box-shadow: 0 0 6px rgb(243 196 106 / 0.9);
+  opacity: 0;
+  transform: rotate(var(--a)) translateX(0.9rem) scaleX(0.3);
+  animation: capture-spark 0.8s calc(1.64s + var(--d)) ease-out both;
+}
+
+/* ------------------------------------------------------------ selo */
+
+.label {
+  position: absolute;
+  left: 50%;
+  top: calc(42% + 2.4rem);
+  overflow: hidden;
+  padding: 0.34rem 0.8rem;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #f8d688, #dca54b 55%, #b8812f);
+  color: #1d1a16;
+  box-shadow:
+    0 0 0 1px rgb(255 240 200 / 0.6) inset,
+    0 10px 26px -8px rgb(0 0 0 / 0.6),
+    0 0 18px rgb(240 184 79 / 0.55);
+  font: 800 0.82rem/1 var(--font-heading);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translate(-50%, 8px) scale(0.6);
+  animation: capture-label 0.45s 1.9s cubic-bezier(0.2, 1.5, 0.35, 1) both;
+}
+
+.labelText {
+  position: relative;
+}
+
+/* Reflexo que atravessa o selo. */
+.label::after {
+  content: "";
+  position: absolute;
+  inset: -20% auto -20% 0;
+  width: 40%;
+  background: linear-gradient(100deg, transparent, rgb(255 255 255 / 0.85), transparent);
+  transform: translateX(-160%) skewX(-18deg);
+  animation: capture-shine 0.7s 2.2s ease-out both;
+}
+
+/* ------------------------------------------------------------ quadros-chave */
+
+@keyframes capture-drop {
+  0% {
+    opacity: 0;
+    transform: translateY(-2.4rem) scale(0.55);
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes capture-wobble {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  10% {
+    transform: rotate(-18deg);
+  }
+  22% {
+    transform: rotate(0deg);
+  }
+  44% {
+    transform: rotate(15deg);
+  }
+  56% {
+    transform: rotate(0deg);
+  }
+  77% {
+    transform: rotate(-10deg);
+  }
+  88% {
+    transform: rotate(0deg);
+  }
+}
+
+@keyframes capture-lock {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.22);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes capture-core-tension {
+  0% {
+    opacity: 0.35;
+  }
+  22% {
+    opacity: 0.55;
+  }
+  56% {
+    opacity: 0.7;
+  }
+  100% {
+    opacity: 0.85;
+  }
+}
+
+@keyframes capture-core-lock {
+  0% {
+    opacity: 0.85;
+    transform: scale(1);
+  }
+  30% {
+    opacity: 1;
+    transform: scale(1.45);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}
+
+@keyframes capture-emblem {
+  to {
+    stroke: #fff1c4;
+  }
+}
+
+@keyframes capture-aura {
+  0% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  12% {
+    opacity: 0.35;
+    transform: scale(0.85);
+  }
+  22% {
+    opacity: 0.1;
+  }
+  40% {
+    opacity: 0.55;
+    transform: scale(0.95);
+  }
+  52% {
+    opacity: 0.2;
+  }
+  68% {
+    opacity: 0.8;
+    transform: scale(1.05);
+  }
+  80% {
+    opacity: 1;
+    transform: scale(1.25);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.6);
+  }
+}
+
+@keyframes capture-flash {
+  0% {
+    opacity: 0;
+    transform: scale(0.15);
+  }
+  14% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.15);
+  }
+}
+
+@keyframes capture-rays {
+  0% {
+    opacity: 0;
+    transform: scale(0.2) rotate(0deg);
+  }
+  18% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.1) rotate(55deg);
+  }
+}
+
+@keyframes capture-wave {
+  0% {
+    opacity: 1;
+    transform: scale(0.7);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(3.4);
+  }
+}
+
+@keyframes capture-star {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0) rotate(0deg);
+  }
+  30% {
+    opacity: 1;
+    transform: translate(calc(var(--x) * 0.75), calc(var(--y) * 0.75)) scale(1.25) rotate(calc(var(--r) + 45deg));
+  }
+  60% {
+    opacity: 1;
+    transform: translate(var(--x), var(--y)) scale(0.7) rotate(calc(var(--r) + 70deg));
+  }
+  75% {
+    opacity: 1;
+    transform: translate(var(--x), var(--y)) scale(1.05) rotate(calc(var(--r) + 85deg));
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--x), var(--y)) scale(0) rotate(calc(var(--r) + 120deg));
+  }
+}
+
+@keyframes capture-spark {
+  0% {
+    opacity: 0;
+    transform: rotate(var(--a)) translateX(0.9rem) scaleX(0.3);
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(var(--a)) translateX(3.6rem) scaleX(1);
+  }
+}
+
+@keyframes capture-label {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 8px) scale(0.6);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+
+@keyframes capture-shine {
+  to {
+    transform: translateX(320%) skewX(-18deg);
+  }
+}
+
+@keyframes capture-out {
+  0%,
+  89% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* ------------------------------------------------------------ movimento reduzido */
+
+@media (prefers-reduced-motion: reduce) {
+  .root,
+  .drop,
+  .wobble,
+  .lock,
+  .core,
+  .emblem,
+  .label,
+  .label::after {
+    animation: none;
+  }
+
+  .flash,
+  .rays,
+  .wave,
+  .aura,
+  .star,
+  .spark {
+    display: none;
+  }
+
+  .core {
+    opacity: 1;
+  }
+
+  .emblem {
+    stroke: #fff1c4;
+  }
+
+  .label {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}

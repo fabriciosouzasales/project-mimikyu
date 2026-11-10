@@ -231,7 +231,7 @@ export function PokedexCollectionView({
             aria-valuemin={0}
             aria-valuemax={total}
             aria-valuenow={owned}
-            aria-valuetext={`${formatCount(owned)} de ${formatCount(total)} Pokémon conquistados`}
+            aria-valuetext={`${formatCount(owned)} de ${formatCount(total)} Pokémon capturados`}
           >
             <div className={collection.isComplete ? `${styles.fill} ${styles.fillComplete}` : styles.fill} style={{ width: `${progressBarPercent(owned, total)}%` }} />
           </div>
@@ -440,10 +440,10 @@ function Empty({
           <Pokeball className="h-6 w-6" />
         </div>
         <h2 id="pokedex-vazia" className={acervoStyles.stateTitle}>
-          Nenhum Pokémon conquistado ainda
+          Nenhum Pokémon capturado ainda
         </h2>
         <p className={acervoStyles.stateText}>
-          Cada Pokémon conquistado aparece aqui com a carta que o representa. Em “Todas”, os marcados “No seu acervo” são os que
+          Cada Pokémon capturado aparece aqui com a carta que o representa. Em “Todas”, os marcados “No seu acervo” são os que
           você já tem ao alcance.
         </p>
         <Button asChild variant="outline" className={acervoStyles.stateAction}>

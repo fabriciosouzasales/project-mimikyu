@@ -154,7 +154,7 @@ const KIND_COPY: Record<CollectionKind, { title: string; text: string; icon: typ
   },
   pokedex: {
     title: "Completar a Pokédex",
-    text: "Uma carta de cada Pokémon da Pokédex Nacional. Você escolhe as gerações e acompanha cada Pokémon conquistado.",
+    text: "Uma carta de cada Pokémon da Pokédex Nacional. Você escolhe as gerações e acompanha cada Pokémon capturado.",
     icon: Pokeball,
   },
 };
@@ -664,7 +664,7 @@ function CreatePanel({ locations, ownedSets, onClose }: { locations: StorageOpti
                             ? "Master Set — cada carta nos acabamentos sugeridos. Você ajusta os acabamentos depois em Ajustes."
                             : "Set padrão — uma de cada carta. O progresso mostra quantas você já tem e quais faltam."
                           : kind === "pokedex"
-                            ? `Pokédex Nacional — ${selectionLabel(selectedGenerations, generationOptions)}, ${formatCount(generationSpecies)} Pokémon. Uma carta de cada Pokémon conquista a posição.`
+                            ? `Pokédex Nacional — ${selectionLabel(selectedGenerations, generationOptions)}, ${formatCount(generationSpecies)} Pokémon. Uma carta de cada Pokémon captura a posição.`
                             : "Curadoria sua, sem contagem de progresso. Você decide o que entra."}
                       </p>
                     </div>

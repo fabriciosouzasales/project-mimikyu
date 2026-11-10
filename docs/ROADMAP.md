@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Roadmap |
 | **Arquivo** | `docs/ROADMAP.md` |
-| **Versão** | 3.32 |
+| **Versão** | 3.33 |
 | **Status** | Aprovado |
 | **Objetivo** | Consolidar, em uma única fonte de verdade, a trajetória macro do Project Mimikyu — o que já foi concluído, o que está em andamento e o que é direção futura provável, mas ainda não comprometida. |
 | **Escopo** | Marcos de alto nível (Fases/Sub-Fases/Blocos). Não substitui `docs/README.md` (estado atual detalhado), `05-modelo-de-dados.md` (execução física) nem `06-pipeline-importacao.md` (estratégia de importação). |
@@ -934,3 +934,4 @@ Itens reais, já identificados em auditoria ou por decisão explícita de adiame
 | 3.30 | **V1-14 — F2-1 homologado (2026-11-09, `F2-1 FINAL CLOSEOUT & PUBLICATION-01`).** Linha V1-14: Relatórios nas páginas Pokédex e Coleção livre + Valor estimado homologados (desktop, temas, impressão A4, regressão Set/Master Set; lint e build PASS); celular após o deploy; publicação pendente; próximos F2-2 e F2-3 (contrato D7 v1.74 §4q). |
 | 3.31 | **V1-14 — F2-2 implementado localmente (2026-11-09, `F2-2 POKÉDEX CHECKLIST & MISSING SPECIES IMPLEMENTATION-01`).** Checklist da Pokédex e Espécies faltantes (escopo pelas gerações do objetivo, leitura canônica 5204, sem SQL nova); homologação e publicação pendentes; F2-3 não iniciado (contrato D7 v1.75 §4q). |
 | 3.32 | **V1-14 — F2-2 homologado (2026-11-09, `F2-2 FINAL CLOSEOUT & PUBLICATION-01`).** Checklist da Pokédex e Espécies faltantes homologados (escopo pelas gerações do objetivo, gerações em pt-BR, leitura canônica sem SQL nova; desktop e impressão A4; lint e build PASS); celular após o deploy; publicação pendente; próximo F2-3 (contrato D7 v1.76 §4q). |
+| 3.33 | **Pokédex e Fichário — melhorias homologadas (2026-11-09, pedidos de Fabrício).** Pokédex: "Conquistado" → "Capturado" e momento de captura com a Esfera MMKYU (05d v2.76, só frontend). Fichário: organização automática estendida à Pokédex — representante da espécie no bolso da espécie, `5360` CONFIRMADO EXECUTADO no LIVE, Set/Master Set inalterados (contrato `binder-auto-arrange-contract.md` v1.6; 05d v2.77). Ambos homologados pelo proprietário. Próximo na V1-14: F2-3 (Composição da coleção). |

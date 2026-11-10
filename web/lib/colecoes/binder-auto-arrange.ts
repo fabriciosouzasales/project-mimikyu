@@ -1,7 +1,8 @@
 // Organização automática do fichário (P2, C-220–C-226) — regras puras do cliente.
 //
 // Contrato efetivo (canônicas `database/schema/5342`–`5344`, contrato
-// `binder-auto-arrange-contract.md` v1.4):
+// `binder-auto-arrange-contract.md` v1.6 — Set/Master Set: bolsos reservados;
+// Pokédex: bolso de cada espécie recebe a representante da espécie):
 //  - prévia 5343 `preview_my_binder_auto_arrange(collection) → jsonb`
 //    { status READY|EMPTY|LIMIT_EXCEEDED, insert_count, limit (500), plan_token,
 //      excluded_cards {motivo: n}, unfilled_slots {motivo: n}, unfilled_count,
@@ -34,7 +35,7 @@ export const AUTO_ARRANGE_STATUSES = ["READY", "EMPTY", "LIMIT_EXCEEDED"] as con
 export type AutoArrangeStatus = (typeof AUTO_ARRANGE_STATUSES)[number];
 
 /** Motivos de exemplar fora do plano (5342 `card_reason`). */
-export const EXCLUDED_CARD_REASONS = ["INACTIVE_VARIANT", "NO_COMPATIBLE_RESERVATION", "MULTIPLE_DESTINATIONS", "COMPETING_CANDIDATES"] as const;
+export const EXCLUDED_CARD_REASONS = ["INACTIVE_VARIANT", "NO_COMPATIBLE_RESERVATION", "MULTIPLE_DESTINATIONS", "COMPETING_CANDIDATES", "NOT_REPRESENTATIVE"] as const;
 export type ExcludedCardReason = (typeof EXCLUDED_CARD_REASONS)[number];
 
 /** Motivos de bolso reservado que continua vazio (5342 `slot_reason`). */
@@ -52,9 +53,19 @@ export function isPlanToken(value: unknown): value is string {
 export type AutoArrangeEntry =
   /** Ação ausente: tipo de coleção sem organização automática ou sem fichário. */
   | { visible: false }
-  /** Ação presente; `enabled = false` mostra o motivo (padrão do trilho: indisponível, nunca some). */
-  | { visible: true; enabled: true }
-  | { visible: true; enabled: false; reason: "NOT_BINDER_OWNER" | "ARCHIVED" | "READ_ONLY" };
+  /**
+   * Ação presente; `enabled = false` mostra o motivo (padrão do trilho: indisponível, nunca some).
+   * `target: "SPECIES"` = Pokédex (bolsos de espécie); ausente = Set/Master Set (bolsos reservados).
+   */
+  | { visible: true; enabled: true; target?: "SPECIES" }
+  | { visible: true; enabled: false; reason: "NOT_BINDER_OWNER" | "ARCHIVED" | "READ_ONLY"; target?: "SPECIES" };
+
+/** Destino da organização: bolsos reservados (Set/Master Set) ou bolsos de espécie (Pokédex). */
+export type AutoArrangeTarget = "RESERVED" | "SPECIES";
+
+export function autoArrangeTarget(entry: AutoArrangeEntry): AutoArrangeTarget {
+  return entry.visible && entry.target === "SPECIES" ? "SPECIES" : "RESERVED";
+}
 
 export function autoArrangeEntry(header: {
   hasBinder: boolean;
@@ -64,12 +75,15 @@ export function autoArrangeEntry(header: {
   role: "OWNER" | "GUEST" | null;
 }): AutoArrangeEntry {
   if (!header.hasBinder) return { visible: false };
-  if (header.kind !== "SET" && header.kind !== "MASTER_SET") return { visible: false };
-  if (header.role === "GUEST") return { visible: true, enabled: false, reason: "NOT_BINDER_OWNER" };
+  const species = header.kind === "POKEDEX";
+  if (header.kind !== "SET" && header.kind !== "MASTER_SET" && !species) return { visible: false };
+  // Pokédex não tem fichário hóspede: sem papel de dono, a ação não aparece.
+  if (header.role === "GUEST") return species ? { visible: false } : { visible: true, enabled: false, reason: "NOT_BINDER_OWNER" };
   if (header.role !== "OWNER") return { visible: false };
-  if (!header.active) return { visible: true, enabled: false, reason: "ARCHIVED" };
-  if (!header.editable) return { visible: true, enabled: false, reason: "READ_ONLY" };
-  return { visible: true, enabled: true };
+  const t = species ? ({ target: "SPECIES" } as const) : {};
+  if (!header.active) return { visible: true, enabled: false, reason: "ARCHIVED", ...t };
+  if (!header.editable) return { visible: true, enabled: false, reason: "READ_ONLY", ...t };
+  return { visible: true, enabled: true, ...t };
 }
 
 export function entryHint(entry: AutoArrangeEntry): string | null {
@@ -231,10 +245,12 @@ function count(n: number, one: string, many: string): string {
   return `${NUMBER.format(n)} ${n === 1 ? one : many}`;
 }
 
-export function excludedCardReasonLabel(reason: ExcludedCardReason): string {
+export function excludedCardReasonLabel(reason: ExcludedCardReason, target: AutoArrangeTarget = "RESERVED"): string {
   switch (reason) {
     case "NO_COMPATIBLE_RESERVATION":
-      return "Sem bolso reservado para esta carta";
+      return target === "SPECIES" ? "O bolso da espécie não está livre" : "Sem bolso reservado para esta carta";
+    case "NOT_REPRESENTATIVE":
+      return "Outra cópia representa esta espécie";
     case "COMPETING_CANDIDATES":
       return "Mais de uma cópia para o mesmo bolso";
     case "MULTIPLE_DESTINATIONS":
@@ -260,8 +276,8 @@ export function unfilledSlotReasonLabel(reason: UnfilledSlotReason): string {
 export type ReasonLine = { key: string; label: string; count: number };
 
 /** Linhas de motivo na ordem do contrato, só as presentes. */
-export function excludedLines(preview: AutoArrangePreview): ReasonLine[] {
-  return EXCLUDED_CARD_REASONS.filter((r) => (preview.excludedCards[r] ?? 0) > 0).map((r) => ({ key: r, label: excludedCardReasonLabel(r), count: preview.excludedCards[r]! }));
+export function excludedLines(preview: AutoArrangePreview, target: AutoArrangeTarget = "RESERVED"): ReasonLine[] {
+  return EXCLUDED_CARD_REASONS.filter((r) => (preview.excludedCards[r] ?? 0) > 0).map((r) => ({ key: r, label: excludedCardReasonLabel(r, target), count: preview.excludedCards[r]! }));
 }
 
 export function unfilledLines(preview: AutoArrangePreview): ReasonLine[] {
@@ -269,6 +285,18 @@ export function unfilledLines(preview: AutoArrangePreview): ReasonLine[] {
 }
 
 export const REASONS_FOOTNOTE = "Para resolver, posicione essas cartas manualmente ou ajuste as reservas dos bolsos.";
+export const SPECIES_REASONS_FOOTNOTE = "As cópias extras continuam em Cartas disponíveis. Para trocar a carta do bolso, escolha outra representante na Pokédex ou posicione manualmente.";
+
+export function reasonsFootnote(target: AutoArrangeTarget): string {
+  return target === "SPECIES" ? SPECIES_REASONS_FOOTNOTE : REASONS_FOOTNOTE;
+}
+
+/** Subtítulo do painel. */
+export function panelHint(target: AutoArrangeTarget): string {
+  return target === "SPECIES"
+    ? "Coloca no bolso de cada espécie a carta que a representa na Pokédex, entre as guardadas neste fichário que ainda não têm lugar."
+    : "Coloca nos bolsos reservados as cartas guardadas neste fichário que ainda não têm lugar.";
+}
 
 /** "página 3", "páginas 2 e 3", "páginas 1, 2 e 5", "12 páginas". */
 export function pagesPhrase(pages: readonly number[]): string {
@@ -280,7 +308,7 @@ export function pagesPhrase(pages: readonly number[]): string {
 
 export type PreviewSummary = { headline: string; detail: string };
 
-export function previewSummary(preview: AutoArrangePreview): PreviewSummary {
+export function previewSummary(preview: AutoArrangePreview, target: AutoArrangeTarget = "RESERVED"): PreviewSummary {
   switch (preview.status) {
     case "READY":
       return {
@@ -290,7 +318,10 @@ export function previewSummary(preview: AutoArrangePreview): PreviewSummary {
     case "EMPTY":
       return {
         headline: "Nenhuma alteração",
-        detail: "Não há nenhuma carta com um único bolso reservado livre esperando por ela neste fichário.",
+        detail:
+          target === "SPECIES"
+            ? "Não há nenhuma carta representante de espécie esperando pelo bolso dela neste fichário."
+            : "Não há nenhuma carta com um único bolso reservado livre esperando por ela neste fichário.",
       };
     case "LIMIT_EXCEEDED":
       return {
@@ -309,8 +340,9 @@ export function excludedPhrase(preview: AutoArrangePreview): string | null {
 }
 
 /** Resumo da confirmação explícita (C-224). */
-export function confirmationText(preview: AutoArrangePreview): string {
-  return `${count(preview.insertCount, "carta será colocada", "cartas serão colocadas")} em ${count(preview.pages.length, "página", "páginas")}. Nenhuma carta é substituída, movida ou retirada; reservas e bolsos fixados ficam como estão.`;
+export function confirmationText(preview: AutoArrangePreview, target: AutoArrangeTarget = "RESERVED"): string {
+  const kept = target === "SPECIES" ? "bolsos fixados e cópias extras ficam como estão" : "reservas e bolsos fixados ficam como estão";
+  return `${count(preview.insertCount, "carta será colocada", "cartas serão colocadas")} em ${count(preview.pages.length, "página", "páginas")}. Nenhuma carta é substituída, movida ou retirada; ${kept}.`;
 }
 
 export function confirmLabel(preview: AutoArrangePreview): string {
@@ -501,7 +533,7 @@ export function failureMessage(reason: AutoArrangeFailure): string {
     case "limit_exceeded":
       return `São mais de ${NUMBER.format(AUTO_ARRANGE_LIMIT)} cartas de uma vez. Nada foi posicionado.`;
     case "unsupported":
-      return "A organização automática vale só para coleções de Set e Master Set.";
+      return "A organização automática vale só para coleções de Set, Master Set e Pokédex.";
     case "not_owner":
       return "Só a coleção dona deste fichário organiza as cartas automaticamente.";
     case "forbidden":
