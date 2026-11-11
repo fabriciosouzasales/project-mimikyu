@@ -10,6 +10,7 @@ import {
   toStorageSummary,
 } from "./storage-locations.ts";
 import { readRarityCatalog } from "../reports/distribution-queries.ts";
+import { type BinderOccupancy, parseBinderOccupancy } from "./binder-identity.ts";
 
 /**
  * Leituras de "Meus locais" (WHERE-02) — só com a sessão do usuário, nunca
@@ -403,4 +404,83 @@ export async function getLocationDistribution(supabase: SupabaseClient): Promise
   if (!readComplete) logRead("get_my_storage_locations", startedAt, { code: "BAD_SHAPE" });
   console.info(JSON.stringify({ scope: "reports.location_distribution", ms: Date.now() - startedAt, locations: parsed.length, complete: readComplete }));
   return { locations: parsed, summary: parsedSummary, readComplete };
+}
+
+/**
+ * "Capacidade e Ocupação de Fichários" (V1-14, bloco Locais, relatório 3 — D7
+ * §4t). Somente leitura; só o titular; sem SQL nova:
+ *
+ * 1. 5219 `get_my_storage_locations` — os locais; ficam os do tipo `BINDER`,
+ *    com os exemplares guardados em cada um;
+ * 2. `collection_layout` (RLS select-own) — o fichário digital de cada local
+ *    (`storage_container_id`, único por local — 5247) e a coleção proprietária;
+ *    contagem exata conferida (nenhum vínculo perdido);
+ * 3. 5245 `get_my_binder_occupancy(coleção proprietária)` — capacidade e
+ *    estados dos bolsos, UMA chamada por fichário vinculado, no máximo
+ *    `BINDER_READ_CONCURRENCY` ao mesmo tempo. Coleção arquivada não é
+ *    filtrada pela 5245 (só a titularidade) — o fichário entra normalmente.
+ *
+ * Qualquer falha → `null` (erro controlado; nunca consolidado parcial).
+ * Escala: N leituras para N fichários vinculados — limitação registrada no
+ * contrato (§4t) para avaliação futura de uma leitura agregada.
+ */
+export const BINDER_READ_CONCURRENCY = 4;
+
+export type BinderOccupancyReadRow = { id: string; name: string; storedCopies: number; occupancy: BinderOccupancy | null };
+export type BinderOccupancyRead = { binders: BinderOccupancyReadRow[]; readComplete: boolean };
+
+export async function getBinderOccupancyRead(supabase: SupabaseClient): Promise<BinderOccupancyRead | null> {
+  const startedAt = Date.now();
+  const [locations, layouts] = await Promise.all([
+    supabase.rpc("get_my_storage_locations"),
+    supabase.from("collection_layout").select("collection_id, storage_container_id", { count: "exact" }).not("storage_container_id", "is", null),
+  ]);
+  if (locations.error || !Array.isArray(locations.data)) {
+    logRead("get_my_storage_locations", startedAt, locations.error);
+    return null;
+  }
+  if (layouts.error || !Array.isArray(layouts.data) || layouts.count !== layouts.data.length) {
+    logRead("collection_layout.storage", startedAt, layouts.error ?? { code: "INCOMPLETE" });
+    return null;
+  }
+  const parsed = (locations.data as Record<string, unknown>[]).map(toStorageLocation).filter((l): l is StorageLocation => l !== null);
+  let readComplete = parsed.length === locations.data.length;
+  const ownerByContainer = new Map<string, string>();
+  for (const row of layouts.data as Record<string, unknown>[]) {
+    if (typeof row.storage_container_id !== "string" || typeof row.collection_id !== "string") {
+      readComplete = false;
+      continue;
+    }
+    ownerByContainer.set(row.storage_container_id.toLowerCase(), row.collection_id);
+  }
+  const binders = parsed.filter((l) => l.kindCode === "BINDER");
+  // Vínculo digital em local que não é Fichário físico não deveria existir (5247): não silenciar.
+  const binderIds = new Set(binders.map((b) => b.id.toLowerCase()));
+  const locationIds = new Set(parsed.map((l) => l.id.toLowerCase()));
+  for (const container of ownerByContainer.keys()) {
+    if (locationIds.has(container) && !binderIds.has(container)) readComplete = false;
+  }
+
+  const rows: BinderOccupancyReadRow[] = binders.map((b) => ({ id: b.id, name: b.name, storedCopies: b.cardCount, occupancy: null }));
+  const linked = rows.filter((r) => ownerByContainer.has(r.id.toLowerCase()));
+  let failed = false;
+  for (let i = 0; i < linked.length && !failed; i += BINDER_READ_CONCURRENCY) {
+    const batch = linked.slice(i, i + BINDER_READ_CONCURRENCY);
+    const results = await Promise.all(
+      batch.map((row) => supabase.rpc("get_my_binder_occupancy", { p_collection_id: ownerByContainer.get(row.id.toLowerCase()) })),
+    );
+    results.forEach((res, k) => {
+      const parsedOccupancy = res.error ? null : parseBinderOccupancy(res.data);
+      if (res.error || parsedOccupancy === null || parsedOccupancy === "absent") {
+        // Vínculo conhecido sem leitura de ocupação = falha (não "sem fichário").
+        logRead("get_my_binder_occupancy", startedAt, res.error ?? { code: parsedOccupancy === "absent" ? "ABSENT" : "BAD_SHAPE" });
+        failed = true;
+        return;
+      }
+      batch[k]!.occupancy = parsedOccupancy;
+    });
+  }
+  if (failed) return null;
+  console.info(JSON.stringify({ scope: "reports.binder_occupancy", ms: Date.now() - startedAt, binders: rows.length, linked: linked.length, complete: readComplete }));
+  return { binders: rows, readComplete };
 }

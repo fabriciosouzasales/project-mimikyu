@@ -128,7 +128,7 @@ test("conferência: leitura incompleta ou totais divergentes → incompleto (imp
 
 test("leitura e acesso: 5219 inteira (locais + resumo), global, somente leitura; menu De Meus locais; folha A4 com FitSheet", () => {
   const queries = code(read("lib/colecoes/storage-locations-queries.ts"));
-  const fn = queries.slice(queries.indexOf("export async function getLocationDistribution"));
+  const fn = queries.slice(queries.indexOf("export async function getLocationDistribution"), queries.indexOf("export const BINDER_READ_CONCURRENCY"));
   assert.ok(fn.includes('supabase.rpc("get_my_storage_locations")') && fn.includes('supabase.rpc("get_my_storage_summary")'));
   assert.ok(!/\.limit\(|\.range\(|p_page|storage_container_id/.test(fn), "sem limite nem leitura por local/exemplar");
   assert.ok(!/\.insert\(|\.update\(|\.delete\(|\.upsert\(/.test(queries));
@@ -136,8 +136,8 @@ test("leitura e acesso: 5219 inteira (locais + resumo), global, somente leitura;
   const action = actions.slice(actions.indexOf("export async function readLocationDistribution"));
   assert.ok(action.includes("readLocationDistribution(): Promise"), "sem parâmetros: não depende de local selecionado nem de filtros");
   const items = locationsReportMenuItems();
-  assert.deepEqual(items.map((i) => [i.id, i.disabledReason === null]), [["distribution", true], ["inventory", false]]);
-  assert.ok(!items.some((i) => /capacidade|ocupa/i.test(i.label)), "relatório 3 não aparece antes de existir");
+  // Menu "De Meus locais": os dois globais (Distribuição; Capacidade e Ocupação — §4t) e o Inventário do Local indisponível, com o caminho.
+  assert.deepEqual(items.map((i) => [i.id, i.disabledReason === null]), [["distribution", true], ["binders", true], ["inventory", false]]);
   const view = code(read("components/colecoes/locais/locations-view.tsx"));
   assert.ok(view.includes("<LocationsReportsAction />") && view.includes("acervoStyles.heroBar"), "mesmo lugar da ação Relatórios das outras páginas");
   const overlay = code(read("components/reports/location-distribution-overlay.tsx"));

@@ -4,7 +4,8 @@ import { useRef, useState } from "react";
 import { BarChart3 } from "lucide-react";
 import { ActionCapsule } from "@/components/ui/action-capsule";
 import capsuleStyles from "@/components/ui/action-capsule.module.css";
-import { locationsReportMenuItems } from "@/lib/reports/locations-reports";
+import { type LocationsReportId, locationsReportMenuItems } from "@/lib/reports/locations-reports";
+import { BinderOccupancyOverlay } from "./binder-occupancy-overlay";
 import { LocationDistributionOverlay } from "./location-distribution-overlay";
 import { ReportMenu } from "./report-menu";
 
@@ -17,7 +18,7 @@ import { ReportMenu } from "./report-menu";
 export function LocationsReportsAction() {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState<LocationsReportId | null>(null);
 
   return (
     <ActionCapsule label="Ações de Meus locais">
@@ -45,10 +46,11 @@ export function LocationsReportsAction() {
         open={menuOpen}
         onOpenChange={setMenuOpen}
         onSelect={(id) => {
-          if (id === "distribution") setOpen(true);
+          if (id === "distribution" || id === "binders") setOpen(id);
         }}
       />
-      {open ? <LocationDistributionOverlay onClose={() => setOpen(false)} /> : null}
+      {open === "distribution" ? <LocationDistributionOverlay onClose={() => setOpen(null)} /> : null}
+      {open === "binders" ? <BinderOccupancyOverlay onClose={() => setOpen(null)} /> : null}
     </ActionCapsule>
   );
 }

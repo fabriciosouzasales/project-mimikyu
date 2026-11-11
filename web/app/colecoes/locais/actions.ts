@@ -15,9 +15,11 @@ import type { AcervoItem } from "@/lib/colecoes/acervo-queries";
 import {
   type CardLocations,
   type LocationContents,
+  type BinderOccupancyRead,
   type LocationDistributionRead,
   type LocationInventory,
   getLocationContents,
+  getBinderOccupancyRead,
   getLocationDistribution,
   getLocationInventory,
   locateCardCopies,
@@ -246,6 +248,22 @@ export async function readLocationDistribution(): Promise<{ ok: true; data: Loca
     return data ? { ok: true, data, issuedAt: issuedAtLabel(new Date()) } : { ok: false };
   } catch {
     console.error(JSON.stringify({ scope: "colecoes.read", fn: "readLocationDistribution", code: "THROWN" }));
+    return { ok: false };
+  }
+}
+
+/**
+ * Relatório "Capacidade e Ocupação de Fichários" (V1-14, bloco Locais): os
+ * fichários físicos do titular (5219), o fichário digital de cada um e a
+ * ocupação dos bolsos (5245). Global; somente leitura.
+ */
+export async function readBinderOccupancy(): Promise<{ ok: true; data: BinderOccupancyRead; issuedAt: string } | { ok: false }> {
+  const supabase = await createClient();
+  try {
+    const data = await getBinderOccupancyRead(supabase);
+    return data ? { ok: true, data, issuedAt: issuedAtLabel(new Date()) } : { ok: false };
+  } catch {
+    console.error(JSON.stringify({ scope: "colecoes.read", fn: "readBinderOccupancy", code: "THROWN" }));
     return { ok: false };
   }
 }

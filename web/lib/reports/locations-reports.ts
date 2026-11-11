@@ -7,14 +7,16 @@
  * - "Inventário do Local" (D7 §4r): é de UM recipiente — emitido no painel do
  *   local ("Gerar inventário deste local"); no menu aparece indisponível com o
  *   caminho, para ser descoberto sem mudar o fluxo homologado.
- * Capacidade e ocupação de fichários (relatório 3) não aparece antes de existir.
+ * - "Capacidade e Ocupação de Fichários" (D7 §4t): global, abre direto do menu.
  */
 import type { ReportMenuItem } from "./collection-checklist.ts";
+import { BINDER_OCCUPANCY_TITLE } from "./binder-occupancy.ts";
 import { LOCATION_DISTRIBUTION_TITLE } from "./location-distribution.ts";
 
-export type LocationsReportId = "distribution";
+export type LocationsReportId = "distribution" | "binders";
 
 export const LOCATIONS_REPORT_PURPOSE = "Como todos os exemplares físicos estão distribuídos pelos seus locais.";
+export const BINDER_OCCUPANCY_PURPOSE = "Bolsos configurados, ocupados e livres nos fichários digitais dos seus fichários físicos.";
 
 export function locationsReportMenuItems(): ReportMenuItem[] {
   return [
@@ -22,6 +24,14 @@ export function locationsReportMenuItems(): ReportMenuItem[] {
       id: "distribution",
       label: LOCATION_DISTRIBUTION_TITLE,
       icon: "distribution",
+      href: null,
+      metric: null,
+      disabledReason: null,
+    },
+    {
+      id: "binders",
+      label: BINDER_OCCUPANCY_TITLE,
+      icon: "booklet",
       href: null,
       metric: null,
       disabledReason: null,
