@@ -67,6 +67,7 @@ export function CompletionHistorySheet({
   const tracking = report.trackingSince ? `Acompanhando desde ${dayText(report.trackingSince)}` : "Acompanhamento a partir do próximo fechamento";
   const cabecalho = (
     <RelatorioCabecalho
+      ajusteCelular
       titulo={COMPLETION_HISTORY_TITLE}
       identificacaoColecao={identity}
       colecaoLogoUrl={logoUrl}
@@ -82,7 +83,7 @@ export function CompletionHistorySheet({
   return (
     <RelatorioFolha>
       <div className="px-4 sm:px-6 print:px-0">
-        <table className="w-full" style={{ borderCollapse: "collapse" }}>
+        <table className="w-full" style={{ borderCollapse: "collapse", tableLayout: "fixed" }}>
           <thead>
             <tr>
               <th className="p-0 text-left font-normal">
@@ -169,7 +170,7 @@ export function CompletionHistorySheet({
                     </table>
 
                     {/* Celular: cartões. */}
-                    <ul className="grid grid-cols-1 gap-2 sm:hidden print:hidden" aria-label="Mudanças registradas e dias sem registro">
+                    <ul className="grid grid-cols-[minmax(0,1fr)] gap-2 sm:hidden print:hidden" aria-label="Mudanças registradas e dias sem registro">
                       {entries.map((entry) => (
                         <li key={entry.key}>{entry.change ? <ChangeCard change={entry.change} /> : entry.gap ? <GapCard gap={entry.gap} /> : null}</li>
                       ))}

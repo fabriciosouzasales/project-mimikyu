@@ -57,6 +57,7 @@ export function SetFavoritesSheet({
   const kindText = kind === "MASTER_SET" ? "Master Set" : "Set padrão";
   const cabecalho = (
     <RelatorioCabecalho
+      ajusteCelular
       titulo={SET_FAVORITES_TITLE}
       identificacaoColecao={identity}
       colecaoLogoUrl={logoUrl}
@@ -69,7 +70,7 @@ export function SetFavoritesSheet({
   return (
     <RelatorioFolha>
       <div className="px-6 print:px-0">
-        <table className="w-full" style={{ borderCollapse: "collapse" }}>
+        <table className="w-full" style={{ borderCollapse: "collapse", tableLayout: "fixed" }}>
           <thead>
             <tr>
               <th className="p-0 text-left font-normal">
@@ -94,7 +95,7 @@ export function SetFavoritesSheet({
                       <Indicator label="Referência NM" value={setFavoritesTotalText(report, formatBrl)} note={coverage} />
                     </section>
 
-                    <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 print:hidden" aria-label="Cartas favoritas deste Card Set">
+                    <ul className="grid grid-cols-[minmax(0,1fr)] gap-2 sm:grid-cols-2 print:hidden" aria-label="Cartas favoritas deste Card Set">
                       {report.lines.map((line) => (
                         <ScreenCard key={line.cardId} line={line} eager={eager} pricesUnavailable={report.pricesUnavailable} />
                       ))}

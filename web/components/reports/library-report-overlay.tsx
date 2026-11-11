@@ -5,6 +5,8 @@ import { readCollectionDistributionReport } from "@/app/colecoes/colecoes/relato
 import { collectionDistributionIncompleteText } from "@/lib/reports/collection-distribution";
 import { type LibraryReportId, libraryReport } from "@/lib/reports/library-reports";
 import { CollectionDistributionSheet } from "./collection-distribution-report";
+// Celular: a folha A4 inteira cabe na largura da tela (FitSheet — só na tela; a impressão não muda).
+import { FitSheet } from "./fit-sheet";
 import { type ReportSheetEntry, ReportSheetOverlay } from "./report-sheet-overlay";
 
 function loadReport(): Promise<ReportSheetEntry> {
@@ -13,7 +15,7 @@ function loadReport(): Promise<ReportSheetEntry> {
       ? {
           status: "ready",
           incomplete: collectionDistributionIncompleteText(r.data.report.incompleteReason),
-          sheet: <CollectionDistributionSheet report={r.data.report} issuedAt={r.data.issuedAt} />,
+          sheet: <FitSheet><CollectionDistributionSheet report={r.data.report} issuedAt={r.data.issuedAt} /></FitSheet>,
         }
       : { status: "error" },
   );

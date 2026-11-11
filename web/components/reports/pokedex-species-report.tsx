@@ -62,12 +62,13 @@ export function PokedexSpeciesSheet({
   return (
     <RelatorioFolha>
       <div className="px-4 sm:px-6 print:px-0" data-pokedex-report="">
-        <table className="w-full" style={{ borderCollapse: "collapse" }}>
+        <table className="w-full" style={{ borderCollapse: "collapse", tableLayout: "fixed" }}>
           <thead>
             <tr>
               <th className="p-0 text-left font-normal">
                 <div className="-mx-4 sm:-mx-6 print:mx-0">
                   <RelatorioCabecalho
+                    ajusteCelular
                     titulo={title}
                     identificacaoColecao={collectionName}
                     subtitulo={`Pokédex · ${speciesCountText(report.total)} no objetivo · ${generationsText} · Emitido em ${issuedAt}`}

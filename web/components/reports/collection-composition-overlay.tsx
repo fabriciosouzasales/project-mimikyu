@@ -5,6 +5,8 @@ import { type CollectionCompositionResult, readCollectionComposition } from "@/a
 import { COLLECTION_COMPOSITION_TITLE, compositionIncompleteText } from "@/lib/reports/collection-composition";
 import { shareInFlight } from "@/lib/reports/in-flight";
 import { CollectionCompositionSheet } from "./collection-composition-report";
+// Celular: a folha A4 inteira cabe na largura da tela (FitSheet — só na tela; a impressão não muda).
+import { FitSheet } from "./fit-sheet";
 import { type ReportSheetEntry, ReportSheetOverlay } from "./report-sheet-overlay";
 
 /** Uma leitura por coleção por vez (Strict Mode e pedidos equivalentes reaproveitam a mesma); nada em cache depois. */
@@ -34,7 +36,7 @@ export function collectionCompositionEntry(result: CollectionCompositionResult):
     return {
       status: "ready",
       incomplete: compositionIncompleteText(data.report.incompleteReason),
-      sheet: <CollectionCompositionSheet collectionName={data.collection.name} kind={data.kind} satisfiedSpecies={data.satisfiedSpecies} report={data.report} issuedAt={data.issuedAt} />,
+      sheet: <FitSheet><CollectionCompositionSheet collectionName={data.collection.name} kind={data.kind} satisfiedSpecies={data.satisfiedSpecies} report={data.report} issuedAt={data.issuedAt} /></FitSheet>,
     };
   }
   if (result.reason === "error") return { status: "error" };

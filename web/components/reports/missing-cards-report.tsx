@@ -55,6 +55,7 @@ export function MissingCardsSheet({
   const identity = collection.cardSetCode ? `${collection.cardSetCode} · ${collection.cardSetName ?? collection.name}` : collection.name;
   const cabecalho = (
     <RelatorioCabecalho
+      ajusteCelular
       titulo={MISSING_TITLE}
       identificacaoColecao={identity}
       colecaoLogoUrl={logoUrl}
@@ -68,7 +69,7 @@ export function MissingCardsSheet({
   return (
     <RelatorioFolha>
       <div className="px-6 print:px-0">
-        <table className="w-full" style={{ borderCollapse: "collapse" }}>
+        <table className="w-full" style={{ borderCollapse: "collapse", tableLayout: "fixed" }}>
           <thead>
             <tr>
               <th className="p-0 text-left font-normal">
@@ -174,7 +175,7 @@ function ScreenGroup({ group, isMaster, eager }: { group: MissingGroup; isMaster
         {group.title}
         <span className="font-normal text-neutral-500">· {plural(group.positions, "posição", "posições")}</span>
       </h3>
-      <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+      <ul className="grid grid-cols-[minmax(0,1fr)] gap-2 sm:grid-cols-2">
         {group.lines.map((line) => (
           <ScreenLine key={line.key} line={line} isMaster={isMaster} available={available} eager={eager} />
         ))}

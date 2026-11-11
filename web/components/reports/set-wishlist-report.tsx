@@ -61,6 +61,7 @@ export function SetWishlistSheet({
   const kindText = kind === "MASTER_SET" ? "Master Set" : "Set padrão";
   const cabecalho = (
     <RelatorioCabecalho
+      ajusteCelular
       titulo={SET_WISHLIST_TITLE}
       identificacaoColecao={identity}
       colecaoLogoUrl={logoUrl}
@@ -73,7 +74,7 @@ export function SetWishlistSheet({
   return (
     <RelatorioFolha>
       <div className="px-6 print:px-0">
-        <table className="w-full" style={{ borderCollapse: "collapse" }}>
+        <table className="w-full" style={{ borderCollapse: "collapse", tableLayout: "fixed" }}>
           <thead>
             <tr>
               <th className="p-0 text-left font-normal">
@@ -98,7 +99,7 @@ export function SetWishlistSheet({
                       <Indicator label="Referência NM" value={valueText} note={wishCoverageText(report.value)} />
                     </section>
 
-                    <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 print:hidden" aria-label="Desejos deste Card Set">
+                    <ul className="grid grid-cols-[minmax(0,1fr)] gap-2 sm:grid-cols-2 print:hidden" aria-label="Desejos deste Card Set">
                       {report.lines.map((line) => (
                         <ScreenCard key={line.entryId} line={line} eager={eager} />
                       ))}

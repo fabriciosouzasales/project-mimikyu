@@ -28,6 +28,8 @@ import { TopCardsSheet } from "./top-cards-report";
 import { WishlistReportSheet } from "./wishlist-report";
 import { AcervoSetInventorySheet } from "./acervo-set-inventory-report";
 import { AcervoSetSummarySheet } from "./acervo-set-summary-report";
+// Celular: a folha A4 inteira cabe na largura da tela (FitSheet — só na tela; a impressão não muda).
+import { FitSheet } from "./fit-sheet";
 import { type ReportSheetEntry, ReportSheetOverlay } from "./report-sheet-overlay";
 import { shareInFlight } from "@/lib/reports/in-flight";
 
@@ -48,7 +50,7 @@ function loadReport(report: AcervoReportId): Promise<ReportSheetEntry> {
         ? {
             status: "ready",
             incomplete: setInventoryIncompleteText(r.data.report.incompleteReason),
-            sheet: <AcervoSetInventorySheet report={r.data.report} issuedAt={r.data.issuedAt} />,
+            sheet: <FitSheet><AcervoSetInventorySheet report={r.data.report} issuedAt={r.data.issuedAt} /></FitSheet>,
           }
         : { status: "error" },
     );
@@ -59,7 +61,7 @@ function loadReport(report: AcervoReportId): Promise<ReportSheetEntry> {
         ? {
             status: "ready",
             incomplete: favoritesIncompleteText(r.data.report.incompleteReason),
-            sheet: <FavoritesReportSheet report={r.data.report} issuedAt={r.data.issuedAt} />,
+            sheet: <FitSheet><FavoritesReportSheet report={r.data.report} issuedAt={r.data.issuedAt} /></FitSheet>,
           }
         : { status: "error" },
     );
@@ -70,7 +72,7 @@ function loadReport(report: AcervoReportId): Promise<ReportSheetEntry> {
         ? {
             status: "ready",
             incomplete: wishlistIncompleteText(r.data.report.incompleteReason),
-            sheet: <WishlistReportSheet report={r.data.report} issuedAt={r.data.issuedAt} />,
+            sheet: <FitSheet><WishlistReportSheet report={r.data.report} issuedAt={r.data.issuedAt} /></FitSheet>,
           }
         : { status: "error" },
     );
@@ -81,7 +83,7 @@ function loadReport(report: AcervoReportId): Promise<ReportSheetEntry> {
         ? {
             status: "ready",
             incomplete: duplicatesIncompleteText(r.data.report.incompleteReason),
-            sheet: <DuplicatesSheet report={r.data.report} issuedAt={r.data.issuedAt} />,
+            sheet: <FitSheet><DuplicatesSheet report={r.data.report} issuedAt={r.data.issuedAt} /></FitSheet>,
             // Lista extensa: miniaturas sob demanda na tela, preparadas antes de abrir a impressão.
             preparePrint: (onProgress) => preparePrintImages(onProgress),
           }
@@ -94,7 +96,7 @@ function loadReport(report: AcervoReportId): Promise<ReportSheetEntry> {
         ? {
             status: "ready",
             incomplete: distributionIncompleteText(r.data.report.incompleteReason),
-            sheet: <DistributionSheet report={r.data.report} issuedAt={r.data.issuedAt} />,
+            sheet: <FitSheet><DistributionSheet report={r.data.report} issuedAt={r.data.issuedAt} /></FitSheet>,
           }
         : { status: "error" },
     );
@@ -105,7 +107,7 @@ function loadReport(report: AcervoReportId): Promise<ReportSheetEntry> {
         ? {
             status: "ready",
             incomplete: topCardsIncompleteText(r.data.report.incompleteReason),
-            sheet: <TopCardsSheet report={r.data.report} issuedAt={r.data.issuedAt} />,
+            sheet: <FitSheet><TopCardsSheet report={r.data.report} issuedAt={r.data.issuedAt} /></FitSheet>,
           }
         : { status: "error" },
     );
@@ -116,7 +118,7 @@ function loadReport(report: AcervoReportId): Promise<ReportSheetEntry> {
         ? {
             status: "ready",
             incomplete: setInventoryIncompleteText(r.data.report.incompleteReason),
-            sheet: <AcervoValueSheet report={r.data.report} issuedAt={r.data.issuedAt} />,
+            sheet: <FitSheet><AcervoValueSheet report={r.data.report} issuedAt={r.data.issuedAt} /></FitSheet>,
           }
         : { status: "error" },
     );
@@ -126,7 +128,7 @@ function loadReport(report: AcervoReportId): Promise<ReportSheetEntry> {
       ? {
           status: "ready",
           incomplete: setSummaryIncompleteText(r.data.report.incompleteReason),
-          sheet: <AcervoSetSummarySheet report={r.data.report} issuedAt={r.data.issuedAt} />,
+          sheet: <FitSheet><AcervoSetSummarySheet report={r.data.report} issuedAt={r.data.issuedAt} /></FitSheet>,
         }
       : { status: "error" },
   );

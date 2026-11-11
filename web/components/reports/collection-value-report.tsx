@@ -80,6 +80,7 @@ export function CollectionValueSheet({
   const orderText = kind === "POKEDEX" || kind === "FREE" ? "na ordem dos Sets" : "na ordem do Set";
   const cabecalho = (
     <RelatorioCabecalho
+      ajusteCelular
       titulo="Valor estimado dos exemplares alocados"
       identificacaoColecao={identity}
       colecaoLogoUrl={logoUrl}
@@ -105,7 +106,7 @@ export function CollectionValueSheet({
   return (
     <RelatorioFolha>
       <div className="px-4 sm:px-6 print:px-0">
-        <table className="w-full" style={{ borderCollapse: "collapse" }}>
+        <table className="w-full" style={{ borderCollapse: "collapse", tableLayout: "fixed" }}>
           <thead>
             <tr>
               <th className="p-0 text-left font-normal">
@@ -182,11 +183,11 @@ export function CollectionValueSheet({
                         </table>
 
                         {/* Celular: cartões de uma coluna, sem rolagem horizontal. */}
-                        <ul className="grid grid-cols-1 gap-2 sm:hidden print:hidden" aria-label="Exemplares alocados e valor estimado">
+                        <ul className="grid grid-cols-[minmax(0,1fr)] gap-2 sm:hidden print:hidden" aria-label="Exemplares alocados e valor estimado">
                           {report.lines.map((line, index) => {
                             const startsOutside = line.state !== "priced" && (index === 0 || report.lines[index - 1]?.state === "priced");
                             return (
-                              <li key={`${line.cardVariantId}.${line.languageCode}`} className="grid gap-2">
+                              <li key={`${line.cardVariantId}.${line.languageCode}`} className="grid grid-cols-[minmax(0,1fr)] gap-2">
                                 {startsOutside ? (
                                   <p className="pt-2 text-[11px] font-semibold text-neutral-700">
                                     Fora da soma · {plural(outside.length, "item", "itens")} sem cotação ou com preço indisponível

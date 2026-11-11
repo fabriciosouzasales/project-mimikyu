@@ -70,12 +70,13 @@ export function RarityDistributionSheet({
   return (
     <RelatorioFolha>
       <div className="px-4 sm:px-6 print:px-0">
-        <table className="w-full" style={{ borderCollapse: "collapse" }}>
+        <table className="w-full" style={{ borderCollapse: "collapse", tableLayout: "fixed" }}>
           <thead>
             <tr>
               <th className="p-0 text-left font-normal">
                 <div className="-mx-4 sm:-mx-6 print:mx-0">
                   <RelatorioCabecalho
+                    ajusteCelular
                     titulo={RARITY_DISTRIBUTION_TITLE}
                     identificacaoColecao={identity}
                     colecaoLogoUrl={logoUrl}
@@ -152,7 +153,7 @@ export function RarityDistributionSheet({
                     </table>
 
                     {/* Celular: um cartão por raridade, sem rolagem horizontal. */}
-                    <ul className="grid grid-cols-1 gap-2 sm:hidden print:hidden" aria-label="Posições por raridade">
+                    <ul className="grid grid-cols-[minmax(0,1fr)] gap-2 sm:hidden print:hidden" aria-label="Posições por raridade">
                       {report.bands.map((band) => (
                         <li key={band.key}>
                           <BandCard band={band} />
