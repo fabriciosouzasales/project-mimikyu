@@ -1,4 +1,4 @@
-import { formatCount, pluralize } from "./acervo.ts";
+import { acervoHref, formatCount, pluralize } from "./acervo.ts";
 
 /**
  * "Meus locais" (WHERE-02) — regras puras da gestão de locais físicos.
@@ -240,3 +240,224 @@ export function storageSuccessMessage(
       return `“${name}” foi excluído. Nenhuma carta foi movida ou apagada.`;
   }
 }
+
+// ---------------------------------------------------------------------------
+// Central de organização física (STORAGE LOCATIONS UX REDESIGN-01)
+// ---------------------------------------------------------------------------
+
+/**
+ * Participação com UMA casa decimal (L2-01): arredondada para o décimo mais
+ * próximo, em pt-BR. Nunca "100,0%" se a parte é menor que o todo (fica em
+ * 99,9%) e nunca "0,0%" se há alguma coisa (vira "<0,1%" no texto). `null`
+ * quando o todo é zero.
+ */
+export function shareTenths(part: number, whole: number): number | null {
+  if (whole <= 0) return null;
+  const p = Math.min(Math.max(part, 0), whole);
+  let tenths = Math.round((p * 1000) / whole);
+  if (tenths >= 1000 && p < whole) tenths = 999;
+  return tenths;
+}
+
+const ONE_DECIMAL = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+
+function tenthsText(tenths: number, part: number): string {
+  if (tenths === 0 && part > 0) return "<0,1%";
+  return `${ONE_DECIMAL.format(tenths / 10)}%`;
+}
+
+/**
+ * Percentual de organização: exemplares com local ÷ exemplares no acervo — as
+ * duas contagens da MESMA leitura (5219 `get_my_storage_summary`), uma casa
+ * decimal (4.009 / 4.062 → 98,7%). Acervo vazio → `null` (sem porcentagem).
+ */
+export function organizationShare(summary: Pick<StorageSummary, "totalCards" | "locatedCards">): number | null {
+  const tenths = shareTenths(summary.locatedCards, summary.totalCards);
+  return tenths === null ? null : tenths / 10;
+}
+
+/** "98,7%" / "—" (acervo vazio). */
+export function organizationShareText(summary: Pick<StorageSummary, "totalCards" | "locatedCards">): string {
+  const tenths = shareTenths(summary.locatedCards, summary.totalCards);
+  return tenths === null ? "—" : tenthsText(tenths, summary.locatedCards);
+}
+
+/** Frase da faixa de organização pendente; `null` quando não há nada pendente. */
+export function pendingOrganizationText(unlocatedCards: number): string | null {
+  if (unlocatedCards <= 0) return null;
+  return unlocatedCards === 1 ? "1 exemplar aguarda organização." : `${formatCount(unlocatedCards)} exemplares aguardam organização.`;
+}
+
+/** Ação da coluna de organização: "Organizar 53 exemplares" / "Organizar 1 exemplar". */
+export function organizeLabel(unlocatedCards: number): string {
+  return unlocatedCards === 1 ? "Organizar 1 exemplar" : `Organizar ${formatCount(unlocatedCards)} exemplares`;
+}
+
+/**
+ * Agrupa itens já em ordem de Set (5220 `SET_NUMBER`) por Card Set, mantendo a
+ * ordem — para o painel do local mostrar as cartas por Set.
+ */
+export function groupBySet<T extends { cardSetCode: string; cardSetName: string; copiesCount?: number }>(
+  items: readonly T[],
+): Array<{ code: string; name: string; items: T[]; cards: number; copies: number }> {
+  const groups: Array<{ code: string; name: string; items: T[]; cards: number; copies: number }> = [];
+  for (const item of items) {
+    let last = groups[groups.length - 1];
+    if (!last || last.code !== item.cardSetCode) {
+      last = { code: item.cardSetCode, name: item.cardSetName, items: [], cards: 0, copies: 0 };
+      groups.push(last);
+    }
+    last.items.push(item);
+    last.cards += 1;
+    last.copies += item.copiesCount ?? 0;
+  }
+  return groups;
+}
+
+/** "1 carta · 1 exemplar" / "30 cartas · 55 exemplares" — carta = identidade (variante + idioma); exemplar = unidade física. */
+export function cardsCopiesLabel(cards: number, copies: number): string {
+  return `${pluralize(cards, "carta", "cartas")} · ${pluralize(copies, "exemplar", "exemplares")}`;
+}
+
+/**
+ * Raridade na prévia da carta (CONTEXTUAL UX-02): o nome canônico do catálogo
+ * (`rarity.name` pelo `rarity_code` da 5220) — nunca inferido da imagem, do
+ * número ou da aparência. Sem código → "Não cadastrada"; catálogo indisponível
+ * ou código fora dele → "Indisponível no momento" (honesto, sem inventar).
+ */
+export function previewRarityLabel(code: string | null, names: Readonly<Record<string, string>> | null): string {
+  if (!code) return "Não cadastrada";
+  const name = names?.[code]?.trim();
+  return name ? name : "Indisponível no momento";
+}
+
+/** Identidade física de uma carta do acervo: variante exata + idioma (a mesma do Meu acervo e da pesquisa reversa). */
+export type CardIdentity = { cardVariantId: string; languageCode: string };
+
+/**
+ * Filtro contextual do painel (origem "Encontrar carta"): só a identidade
+ * exata pesquisada — mesma variante E mesmo idioma; nunca pelo nome. Devolve
+ * a linha do local (quantidade = exemplares DESTE local) ou `null`.
+ */
+export function findLocatedItem<T extends CardIdentity>(items: readonly T[], focus: CardIdentity): T | null {
+  const id = focus.cardVariantId.toLowerCase();
+  return items.find((item) => item.cardVariantId.toLowerCase() === id && item.languageCode === focus.languageCode) ?? null;
+}
+
+export type LocationSort = "name" | "most" | "least";
+/** Filtro de tipo: todos, um código do catálogo ou "sem tipo". */
+export type LocationKindFilter = "all" | "none" | string;
+
+export const LOCATION_SORT_OPTIONS: ReadonlyArray<{ value: LocationSort; label: string }> = [
+  { value: "name", label: "Nome (A–Z)" },
+  { value: "most", label: "Mais exemplares" },
+  { value: "least", label: "Menos exemplares" },
+];
+
+const NAME_ORDER = new Intl.Collator("pt-BR", { sensitivity: "base", numeric: true });
+
+/** Texto para busca: sem acento, minúsculo, espaços normalizados. */
+export function searchKey(value: string): string {
+  return value.normalize("NFD").replace(/[̀-ͯ]/g, "").toLocaleLowerCase("pt-BR").replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Tipos oferecidos no filtro (facetas da coluna lateral, Conceito B): só os que
+ * aparecem nos locais do colecionador (rótulo do banco, ordem do catálogo de
+ * tipos) e "Sem tipo definido" quando houver local sem tipo — nenhum tipo
+ * artificial. Cada faceta traz quantos locais e quantos exemplares guarda; a
+ * soma dos exemplares das facetas (sem "Todos") é o total com local definido
+ * (5219: cada exemplar localizado está em exatamente um local).
+ */
+export function kindFilterOptions(
+  locations: readonly Pick<StorageLocation, "kindCode" | "kindLabel" | "cardCount">[],
+  kinds: readonly StorageKind[],
+): Array<{ value: LocationKindFilter; label: string; count: number; copies: number }> {
+  const groups = new Map<string, { label: string; count: number; copies: number }>();
+  let untyped = 0;
+  let untypedCopies = 0;
+  let allCopies = 0;
+  for (const l of locations) {
+    allCopies += l.cardCount;
+    if (!l.kindCode) {
+      untyped += 1;
+      untypedCopies += l.cardCount;
+      continue;
+    }
+    const entry = groups.get(l.kindCode);
+    if (entry) {
+      entry.count += 1;
+      entry.copies += l.cardCount;
+    } else {
+      groups.set(l.kindCode, { label: l.kindLabel ?? kinds.find((k) => k.code === l.kindCode)?.label ?? "Tipo atual", count: 1, copies: l.cardCount });
+    }
+  }
+  const rank = (code: string) => {
+    const i = kinds.findIndex((k) => k.code === code);
+    return i < 0 ? Number.MAX_SAFE_INTEGER : i;
+  };
+  const typed = [...groups.entries()]
+    .sort(([a, x], [b, y]) => rank(a) - rank(b) || NAME_ORDER.compare(x.label, y.label))
+    .map(([code, v]) => ({ value: code as LocationKindFilter, label: v.label, count: v.count, copies: v.copies }));
+  return [
+    { value: "all", label: "Todos os locais", count: locations.length, copies: allCopies },
+    ...typed,
+    ...(untyped > 0 ? [{ value: "none" as LocationKindFilter, label: "Sem tipo definido", count: untyped, copies: untypedCopies }] : []),
+  ];
+}
+
+/**
+ * Código que o colecionador já escreve no começo do nome ("F001 - Fichário
+ * Coleção ME1", "ETB002.5 - Heróis Excelsos", "BX001 - Card Box Vermelha").
+ * Só APRESENTAÇÃO, nada persistido: letras maiúsculas (1–4) + um dígito +
+ * letras/dígitos/pontos, seguidos de hífen ou travessão e do resto do nome.
+ * Sem esse padrão inequívoco → sem código (nunca inventado); o nome completo
+ * continua sendo a identidade do local.
+ */
+export function splitLocationCode(name: string): { code: string | null; title: string } {
+  const match = /^([A-Z]{1,4}\d[A-Za-z0-9.]*)\s+[-–—]\s+(\S.*)$/.exec(name.trim());
+  if (!match) return { code: null, title: name };
+  return { code: match[1] as string, title: (match[2] as string).trim() };
+}
+
+/**
+ * Participação de um local no acervo físico (L2-01): exemplares do local ÷
+ * exemplares no acervo, uma casa decimal ("14,2%", "<0,1%"); vazio → `null`.
+ * A barra da linha usa EXATAMENTE este denominador (`acervoShareWidth`).
+ */
+export function acervoShareText(count: number, totalCards: number): string | null {
+  if (count <= 0) return null;
+  const tenths = shareTenths(count, totalCards);
+  return tenths === null ? null : tenthsText(tenths, count);
+}
+
+/** Largura da barra (0–100) na escala completa do acervo — o mesmo denominador do percentual. */
+export function acervoShareWidth(count: number, totalCards: number): number {
+  if (count <= 0 || totalCards <= 0) return 0;
+  return Math.min(100, (count * 100) / totalCards);
+}
+
+/** Busca (nome), filtro de tipo e ordem — tudo sobre a lista já lida (5219), sem nova consulta. */
+export function exploreLocations<T extends Pick<StorageLocation, "name" | "kindCode" | "kindLabel" | "cardCount" | "id">>(
+  locations: readonly T[],
+  options: { query: string; kind: LocationKindFilter; sort: LocationSort },
+): T[] {
+  const q = searchKey(options.query);
+  const filtered = locations.filter((l) => {
+    if (options.kind === "none" && l.kindCode) return false;
+    if (options.kind !== "all" && options.kind !== "none" && l.kindCode !== options.kind) return false;
+    return q === "" || searchKey(l.name).includes(q);
+  });
+  const byName = (a: T, b: T) => NAME_ORDER.compare(a.name, b.name) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  return [...filtered].sort((a, b) =>
+    options.sort === "most" ? b.cardCount - a.cardCount || byName(a, b) : options.sort === "least" ? a.cardCount - b.cardCount || byName(a, b) : byName(a, b),
+  );
+}
+
+/** Conteúdo de um local no Meu acervo (WHERE-04: `?local=<id>`, filtro no banco pela 5220). */
+export function locationAcervoHref(id: string): string {
+  return acervoHref({ storage: { kind: "location", id } });
+}
+
+/** Exemplares sem localização no Meu acervo (WHERE-04: `?local=sem`). */
+export const UNLOCATED_ACERVO_HREF = acervoHref({ storage: { kind: "none" } });

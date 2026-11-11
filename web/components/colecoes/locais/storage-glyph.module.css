@@ -1,0 +1,94 @@
+/*
+ * Recipientes desenhados (Meus locais, Conceito B). Só tokens do Design System:
+ * superfícies grafite derivadas de --surface-muted/--border, papel claro,
+ * traço em --muted-foreground e o dourado MMKYU como único acento.
+ * Movimento: só transform/opacity, desligado por prefers-reduced-motion.
+ */
+.glyph {
+  --obj: hsl(var(--surface-muted));
+  --obj-2: hsl(var(--border));
+  --glyph-paper: hsl(40 30% 97%);
+  --glyph-ink: hsl(var(--muted-foreground) / 0.75);
+  --glyph-gold: hsl(var(--primary));
+  display: block;
+  width: 100%;
+  height: auto;
+  color: hsl(var(--muted-foreground) / 0.85);
+  overflow: visible;
+}
+
+:global(.dark) .glyph {
+  --obj: hsl(30 12% 24%);
+  --obj-2: hsl(30 12% 18%);
+  --glyph-paper: hsl(38 30% 86%);
+  --glyph-ink: hsl(30 10% 45%);
+  color: hsl(30 12% 34%);
+}
+
+.surface {
+  fill: var(--obj);
+}
+
+.surface2 {
+  fill: var(--obj-2);
+}
+
+.paper {
+  fill: var(--glyph-paper);
+}
+
+.ink {
+  stroke: var(--glyph-ink);
+}
+
+.line {
+  stroke: currentColor;
+  opacity: 0.6;
+}
+
+.label {
+  fill: hsl(var(--foreground));
+  font-family: var(--font-sans);
+}
+
+.labelOnPaper {
+  fill: hsl(30 15% 16%);
+  font-family: var(--font-sans);
+}
+
+.lid,
+.cover,
+.pages {
+  transition:
+    transform 240ms cubic-bezier(0.2, 0.7, 0.2, 1),
+    opacity 200ms ease;
+}
+
+.cover {
+  transform-origin: 26px 50%;
+}
+
+.pages {
+  opacity: 0;
+}
+
+/* Recipiente aberto: a tampa sobe; o fichário mostra a página de bolsos. */
+.glyph[data-open] .lid {
+  transform: translateY(-9px);
+}
+
+.glyph[data-open] .cover {
+  transform: translateX(-14px) scaleX(0.55);
+}
+
+.glyph[data-open] .pages {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lid,
+  .cover,
+  .pages {
+    transition: none;
+  }
+}

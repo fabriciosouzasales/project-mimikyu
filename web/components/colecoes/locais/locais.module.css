@@ -1,43 +1,16 @@
 /*
- * Meus locais (WHERE-02 FRONTEND IMPLEMENTATION-01) — superfície do colecionador.
+ * Meus locais — Inventário dos locais físicos (STORAGE LOCATIONS CONCEPT B
+ * IMPLEMENTATION-01; base WHERE-02 e REDESIGN-01).
  *
- * O cabeçalho (palco, título, painel de números) é o MESMO do Meu acervo
- * (`acervo.module.css`), importado pelo componente — nenhuma variação local.
- * Aqui só o que é próprio desta tela: a grade de locais, o cartão de cada
- * local com a pilha de cartas decorativa e o estado vazio.
+ * Desktop: coluna lateral subordinada (organização do acervo + tipos) e a área
+ * principal com busca, ordem e o índice de locais em linhas densas. Celular: a
+ * coluna vira um bloco acima da relação e as facetas, uma faixa rolável.
+ * Recipientes desenhados em `storage-glyph.module.css`.
  *
- * Tokens só do Design System (globals.css). Dourado: CTA, foco e o brilho de
- * um local recém-criado — nada mais. Movimento: transform/opacity/box-shadow,
- * desligados por prefers-reduced-motion. Sem filter/backdrop-filter.
+ * Tokens só do Design System (globals.css). Dourado: CTA, foco, filtro ativo,
+ * código do colecionador e o maior volume — nada mais. Movimento:
+ * transform/opacity, desligado por prefers-reduced-motion.
  */
-
-.listHead {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.5rem 1rem;
-  /* Dentro da região editorial (library-modes .region), que já dá o respiro. */
-  margin-top: 0;
-}
-
-.listTitle {
-  font: 700 1.125rem/1.2 var(--font-heading);
-  letter-spacing: -0.015em;
-  color: hsl(var(--foreground));
-  outline: none;
-}
-
-.listTitle:focus-visible {
-  outline: 2px solid hsl(var(--ring));
-  outline-offset: 4px;
-  border-radius: 0.25rem;
-}
-
-.listMeta {
-  font-size: 0.8125rem;
-  color: hsl(var(--muted-foreground));
-}
 
 .notice {
   margin-top: 1rem;
@@ -45,198 +18,6 @@
 
 .notice:empty {
   display: none;
-}
-
-/* ---- grade de locais ----
- * Colunas pela largura real (auto-fill), nunca fixas: 1 no celular, 2–4 no desktop.
- */
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 17.5rem), 1fr));
-  gap: 1rem;
-  margin-top: 1rem;
-  padding-bottom: 2rem;
-}
-
-.grid[aria-busy="true"] {
-  cursor: progress;
-}
-
-.tile {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 0.875rem;
-  min-width: 0;
-  padding: 1.125rem 1.125rem 1rem;
-  border: 1px solid hsl(var(--border));
-  border-radius: 1rem;
-  background: linear-gradient(180deg, hsl(var(--surface)) 0%, hsl(var(--surface) / 0.78) 100%);
-  box-shadow: 0 1px 0 hsl(var(--foreground) / 0.03), 0 14px 32px -26px hsl(var(--foreground) / 0.4);
-  transition:
-    transform 180ms ease,
-    box-shadow 180ms ease,
-    border-color 180ms ease;
-}
-
-:global(.dark) .tile {
-  box-shadow: 0 1px 0 hsl(0 0% 100% / 0.03) inset, 0 18px 40px -28px hsl(0 0% 0% / 0.9);
-}
-
-@media (hover: hover) {
-  .tile:hover {
-    transform: translateY(-2px);
-    border-color: hsl(var(--foreground) / 0.18);
-    box-shadow: 0 1px 0 hsl(var(--foreground) / 0.04), 0 20px 40px -26px hsl(var(--foreground) / 0.5);
-  }
-}
-
-/* Recém-criado: um halo dourado que se apaga sozinho — mostra onde o novo local entrou. */
-.tile[data-new] {
-  animation: locais-new 1.8s ease-out both;
-}
-
-@keyframes locais-new {
-  0% {
-    box-shadow: 0 0 0 3px hsl(var(--primary) / 0.55), 0 14px 32px -26px hsl(var(--foreground) / 0.4);
-  }
-  100% {
-    box-shadow: 0 0 0 0 hsl(var(--primary) / 0), 0 14px 32px -26px hsl(var(--foreground) / 0.4);
-  }
-}
-
-.tileHead {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: start;
-  gap: 0.875rem;
-}
-
-.kindMark {
-  display: grid;
-  place-items: center;
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: 0.75rem;
-  border: 1px solid hsl(var(--border) / 0.9);
-  background: hsl(var(--surface-muted));
-  color: hsl(var(--foreground) / 0.72);
-}
-
-.tileTitles {
-  min-width: 0;
-  padding-top: 0.125rem;
-}
-
-.tileName {
-  font: 700 1.0625rem/1.25 var(--font-heading);
-  letter-spacing: -0.01em;
-  color: hsl(var(--foreground));
-  overflow-wrap: anywhere;
-}
-
-.tileKind {
-  margin-top: 0.1875rem;
-  font-size: 0.8125rem;
-  line-height: 1.35;
-  color: hsl(var(--muted-foreground));
-}
-
-.tileKindNone {
-  font-style: italic;
-  color: hsl(var(--muted-foreground) / 0.8);
-}
-
-/* Pilha de cartas: 0 (contorno tracejado), 1, 2 ou 3 silhuetas. Só decoração. */
-.stack {
-  width: 2.75rem;
-  height: auto;
-  color: hsl(var(--foreground) / 0.2);
-}
-
-:global(.dark) .stack {
-  color: hsl(var(--foreground) / 0.24);
-}
-
-.stackCard {
-  fill: hsl(var(--surface));
-  stroke: currentColor;
-  stroke-width: 1.25;
-}
-
-.stackEmpty {
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.25;
-  stroke-dasharray: 3 3;
-}
-
-.tileCount {
-  display: flex;
-  align-items: baseline;
-  gap: 0.4375rem;
-  color: hsl(var(--muted-foreground));
-  font-size: 0.875rem;
-}
-
-.tileNumber {
-  font: 800 1.875rem/1 var(--font-heading);
-  letter-spacing: -0.04em;
-  font-variant-numeric: tabular-nums lining-nums;
-  color: hsl(var(--foreground));
-}
-
-.tileNumberEmpty {
-  color: hsl(var(--muted-foreground) / 0.7);
-}
-
-.badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.375rem;
-  align-self: flex-start;
-  max-width: 100%;
-  padding: 0.25rem 0.625rem;
-  border-radius: 999px;
-  border: 1px solid hsl(var(--border));
-  background: hsl(var(--surface-muted) / 0.7);
-  font-size: 0.75rem;
-  line-height: 1.3;
-  color: hsl(var(--foreground) / 0.85);
-}
-
-.badge svg {
-  flex-shrink: 0;
-  color: hsl(var(--muted-foreground));
-}
-
-.tileFoot {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin-top: auto;
-  padding-top: 0.875rem;
-  border-top: 1px solid hsl(var(--border) / 0.7);
-}
-
-.tileActions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.tileReason {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.375rem;
-  font-size: 0.75rem;
-  line-height: 1.4;
-  color: hsl(var(--muted-foreground));
-}
-
-.tileReason svg {
-  flex-shrink: 0;
-  margin-top: 0.0625rem;
 }
 
 /* ---- estado vazio ---- */
@@ -392,25 +173,1344 @@
   color: hsl(var(--muted-foreground));
 }
 
-@media (max-width: 767px) {
-  .listHead {
-    margin-top: 1.5rem;
+/* Cabeçalho (HEADER DESIGN ALIGNMENT-01): o palco comum do módulo — acervo
+   .hero + colecoes .libraryHero (escala, lede, luz, grafismo). Aqui só o título
+   mais longo quebra em linhas equilibradas, sem reduzir a escala. */
+.hero h1 {
+  text-wrap: balance;
+}
+
+/* Celular estreito: "Armazenamento" é uma palavra só — o mínimo do módulo
+   (2,375 rem) a faria vazar abaixo de ~400 px. Só aí a escala acompanha a
+   largura; do tablet para cima, a escala do módulo é a mesma. */
+@media (max-width: 479px) {
+  .hero h1 {
+    font-size: min(2.375rem, 9.25vw);
+  }
+}
+
+/* Área de trabalho dentro da região editorial comum (library-modes .region):
+   sem painel de números no cabeçalho, a passagem fica um pouco mais curta — sem
+   espaço vazio a mais para quem tem muitos locais. */
+.workspace {
+  margin-top: 2rem;
+}
+
+.workspace > .layout {
+  margin-top: 0;
+}
+
+.allSet {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  font-size: 0.8125rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.allSet svg {
+  color: hsl(var(--primary));
+}
+
+.searchField {
+  position: relative;
+}
+
+.searchIcon {
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  width: 1rem;
+  height: 1rem;
+  transform: translateY(-50%);
+  color: hsl(var(--muted-foreground));
+  pointer-events: none;
+}
+
+.toolbarField {
+  min-width: 0;
+}
+
+.noMatch {
+  margin: 1rem 0 2rem;
+  padding: 1.5rem;
+  border: 1px dashed hsl(var(--border));
+  border-radius: 1rem;
+  text-align: center;
+}
+
+.noMatchTitle {
+  font: 700 0.9375rem/1.3 var(--font-heading);
+  color: hsl(var(--foreground));
+}
+
+.noMatchText {
+  margin-top: 0.25rem;
+  font-size: 0.8125rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.more {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+}
+
+.moreButton {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 0.625rem;
+  color: hsl(var(--muted-foreground));
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.moreButton:hover,
+.moreButton[aria-expanded="true"] {
+  background: hsl(var(--surface-muted));
+  color: hsl(var(--foreground));
+}
+
+.moreButton:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+.menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 0.25rem);
+  right: 0;
+  min-width: 11rem;
+  padding: 0.25rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.75rem;
+  background: hsl(var(--surface));
+  box-shadow: 0 12px 32px -14px hsl(0 0% 0% / 0.45);
+}
+
+.menuItem {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0 0.75rem;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  color: hsl(var(--foreground));
+  text-align: left;
+}
+
+.menuItem:hover,
+.menuItem:focus-visible {
+  background: hsl(var(--surface-muted));
+  outline: none;
+}
+
+.menuItem svg {
+  color: hsl(var(--muted-foreground));
+}
+
+/* ---- (D) consulta do local ---- */
+.viewPanel {
+  width: min(40rem, 100%);
+}
+
+.viewHead {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.viewTitle {
+  font: 700 1.125rem/1.25 var(--font-heading);
+  letter-spacing: -0.01em;
+  color: hsl(var(--foreground));
+  overflow-wrap: anywhere;
+  outline: none;
+}
+
+.viewBody {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem 1.125rem 1.25rem;
+  overflow-y: auto;
+}
+
+.links {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+.linkRow {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 3rem;
+  padding: 0.5rem 0.875rem;
+  color: hsl(var(--foreground));
+}
+
+.linkRow + .linkRow {
+  border-top: 1px solid hsl(var(--border) / 0.7);
+}
+
+.linkRow:hover {
+  background: hsl(var(--surface-muted));
+}
+
+.linkRow:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: -2px;
+}
+
+.linkTitle {
+  display: block;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground));
+}
+
+.linkName {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+@keyframes locais-pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+.contentFoot {
+  margin-top: 0.625rem;
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.contentState {
+  padding: 1.25rem;
+  border: 1px dashed hsl(var(--border));
+  border-radius: 0.75rem;
+  text-align: center;
+}
+
+.viewFoot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.875rem 1.125rem;
+  border-top: 1px solid hsl(var(--border));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .contentSkeleton {
+    animation: none;
   }
 
-  .tileActions > * {
-    flex: 1 1 0;
+  .tileCta svg {
+    transition: none;
+  }
+}
+
+.viewSection {
+  margin-bottom: 0.625rem;
+  font: 700 0.9375rem/1.3 var(--font-heading);
+  color: hsl(var(--foreground));
+}
+
+/* =====================================================================
+ * Conceito B — inventário
+ * ===================================================================== */
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(15.5rem, 17.5rem) minmax(0, 1fr);
+  gap: 1.75rem;
+  align-items: start;
+  margin-top: 1.25rem;
+  padding-bottom: 2.5rem;
+}
+
+.side {
+  position: sticky;
+  top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.mainCol {
+  min-width: 0;
+}
+
+/* ---- organização do acervo (coluna lateral) ---- */
+.org {
+  position: relative;
+  padding: 1rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.875rem;
+  background: hsl(var(--surface));
+}
+
+.orgTop {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.orgLabel {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+.orgValue {
+  font: 800 1.75rem/1 var(--font-heading);
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--foreground));
+}
+
+.bar {
+  height: 0.375rem;
+  margin: 0.625rem 0 0.75rem;
+  border-radius: 999px;
+  background: hsl(var(--surface-muted));
+  overflow: hidden;
+}
+
+.barFill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: hsl(var(--primary));
+}
+
+.orgNote {
+  margin: 0.5rem 0 0.75rem;
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.orgList {
+  display: grid;
+  gap: 0.375rem;
+}
+
+.orgRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.8125rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.orgRow dd {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--foreground));
+}
+
+.orgRow[data-warn] dd {
+  color: hsl(var(--primary-ink));
+}
+
+/* ---- facetas de tipo ---- */
+.facets {
+  min-width: 0;
+}
+
+.facetsTitle {
+  margin-bottom: 0.375rem;
+  padding-left: 0.25rem;
+  font: 700 0.8125rem/1.2 var(--font-heading);
+  color: hsl(var(--muted-foreground));
+}
+
+.facetList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.facet {
+  display: grid;
+  grid-template-columns: 2.25rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.625rem;
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.25rem 0.625rem 0.25rem 0.375rem;
+  border-radius: 0.625rem;
+  text-align: left;
+  color: hsl(var(--foreground));
+  transition: background-color 150ms ease;
+}
+
+.facet[data-all] {
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding-left: 0.75rem;
+}
+
+.facet:hover {
+  background: hsl(var(--surface-muted) / 0.7);
+}
+
+.facet:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 1px;
+}
+
+.facet[aria-pressed="true"] {
+  background: hsl(var(--primary) / 0.12);
+  box-shadow: inset 0 0 0 1px hsl(var(--primary) / 0.45);
+}
+
+.facetGlyph {
+  display: block;
+  width: 2.25rem;
+}
+
+.facetLabel {
+  font-size: 0.875rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.facetMeta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-size: 0.75rem;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--muted-foreground));
+  white-space: nowrap;
+}
+
+/* ---- busca e ordem ---- */
+.toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(11rem, 13rem);
+  gap: 0.625rem;
+}
+
+.listMeta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.25rem 1rem;
+  margin: 0.875rem 0.125rem 0.5rem;
+  font-size: 0.8125rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.listLegend {
+  font-size: 0.75rem;
+}
+
+/* ---- índice de locais ---- */
+.index {
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.875rem;
+  background: hsl(var(--surface));
+}
+
+.entry {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.entry + .entry {
+  border-top: 1px solid hsl(var(--border) / 0.8);
+}
+
+.entry:first-child .entryRow {
+  border-top-left-radius: inherit;
+}
+
+.entry:last-child .entryRow {
+  border-bottom-left-radius: 0.875rem;
+}
+
+.entryRow {
+  display: grid;
+  grid-template-columns: 3.25rem 5rem minmax(0, 1fr) minmax(9rem, 13rem) 1rem;
+  align-items: center;
+  gap: 0.875rem;
+  min-height: 4.25rem;
+  padding: 0.375rem 0.25rem 0.375rem 0.75rem;
+  text-align: left;
+  color: hsl(var(--foreground));
+  transition: background-color 150ms ease;
+}
+
+.entryRow:hover {
+  background: hsl(var(--surface-muted) / 0.65);
+}
+
+.entryRow:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: -2px;
+  border-radius: 0.5rem;
+}
+
+.entry[data-new] {
+  animation: locais-new-row 1.8s ease-out both;
+}
+
+@keyframes locais-new-row {
+  0% {
+    background: hsl(var(--primary) / 0.16);
+  }
+  100% {
+    background: transparent;
+  }
+}
+
+.entryGlyph {
+  display: block;
+  width: 3.25rem;
+}
+
+.entry[data-empty] .entryGlyph {
+  opacity: 0.6;
+}
+
+.entryCode {
+  font: 700 0.8125rem/1.1 var(--font-sans);
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--primary-ink));
+  overflow-wrap: anywhere;
+}
+
+.entryCode[data-none] {
+  font-weight: 500;
+  color: hsl(var(--muted-foreground) / 0.7);
+}
+
+.entryName {
+  min-width: 0;
+}
+
+/* No celular a coluna de código some; o código vai junto do nome. */
+.entryCodeInline {
+  display: none;
+  color: hsl(var(--primary-ink));
+  font-variant-numeric: tabular-nums;
+}
+
+.entryTitle {
+  display: block;
+  font: 700 0.9375rem/1.3 var(--font-heading);
+  letter-spacing: -0.005em;
+  overflow-wrap: anywhere;
+}
+
+.entrySub {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.125rem 0.875rem;
+  margin-top: 0.125rem;
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.entryLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  white-space: nowrap;
+}
+
+.entryLink svg {
+  color: hsl(var(--primary-ink));
+}
+
+.entryVolume {
+  display: grid;
+  gap: 0.375rem;
+}
+
+.entryCount {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+  white-space: nowrap;
+}
+
+.entryCount b {
+  font: 800 0.9375rem/1 var(--font-heading);
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--foreground));
+}
+
+.entryShare {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.entryBar {
+  position: relative;
+  display: block;
+  height: 0.375rem;
+  border-radius: 999px;
+  /* Escala completa do acervo (0–100%), com marcas discretas a cada 25%: a barra
+     curta é real (participação pequena), não falta de dado. */
+  background:
+    linear-gradient(90deg, transparent calc(25% - 1px), hsl(var(--border)) calc(25% - 1px), hsl(var(--border)) 25%, transparent 25%) 0 0 / 100% 100%,
+    linear-gradient(90deg, transparent calc(50% - 1px), hsl(var(--border)) calc(50% - 1px), hsl(var(--border)) 50%, transparent 50%) 0 0 / 100% 100%,
+    linear-gradient(90deg, transparent calc(75% - 1px), hsl(var(--border)) calc(75% - 1px), hsl(var(--border)) 75%, transparent 75%) 0 0 / 100% 100%,
+    hsl(var(--surface-muted));
+  overflow: hidden;
+}
+
+.entryBar span {
+  position: relative;
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: hsl(var(--primary) / 0.85);
+}
+
+.entryGo {
+  color: hsl(var(--muted-foreground));
+  transition: transform 160ms ease;
+}
+
+@media (hover: hover) {
+  .entryRow:hover .entryGo {
+    transform: translateX(2px);
+    color: hsl(var(--foreground));
+  }
+}
+
+/* "Mais ações" ao fim da linha, sempre visível (não depende de hover). */
+.entry .more {
+  position: relative;
+  top: auto;
+  right: auto;
+  margin-right: 0.375rem;
+}
+
+/* ---- painel do local ---- */
+.viewHeader {
+  align-items: flex-end;
+  padding-top: 1rem;
+  padding-bottom: 1rem;
+  background: linear-gradient(180deg, hsl(var(--surface-muted) / 0.6), transparent);
+}
+
+.viewObject {
+  display: block;
+  flex: none;
+  width: 5.5rem;
+  padding-bottom: 0.25rem;
+  border-bottom: 2px solid hsl(var(--border));
+}
+
+.codeChip {
+  display: inline-block;
+  margin-bottom: 0.25rem;
+  padding: 0.0625rem 0.5rem;
+  border-radius: 0.375rem;
+  border: 1px solid hsl(var(--primary) / 0.45);
+  background: hsl(var(--primary) / 0.1);
+  font: 700 0.75rem/1.6 var(--font-sans);
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--primary-ink));
+}
+
+.viewKind {
+  margin-top: 0.125rem;
+  font-size: 0.8125rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.setGroup + .setGroup {
+  margin-top: 1.25rem;
+}
+
+.setHead {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 0.625rem;
+  font-size: 0.8125rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.setHead b {
+  font: 700 0.875rem/1.2 var(--font-heading);
+  color: hsl(var(--foreground));
+}
+
+.setHead span {
+  margin-left: auto;
+  font-size: 0.75rem;
+}
+
+.cardGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(6.5rem, 1fr));
+  gap: 1rem 0.75rem;
+}
+
+.cardTile {
+  width: 100%;
+  text-align: left;
+  cursor: zoom-in;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+  padding: 0.25rem;
+  border-radius: 0.625rem;
+  color: hsl(var(--foreground));
+}
+
+.cardTile:hover {
+  background: hsl(var(--surface-muted) / 0.7);
+}
+
+.cardTile:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 0;
+}
+
+.cardImage {
+  position: relative;
+  display: block;
+  margin-bottom: 0.375rem;
+  aspect-ratio: 63 / 88;
+  border-radius: 4.6% / 3.4%;
+  background: hsl(var(--surface-muted));
+  box-shadow: 0 1px 2px hsl(var(--foreground) / 0.12), 0 6px 14px -8px hsl(var(--foreground) / 0.4);
+  overflow: hidden;
+}
+
+.cardImage img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cardBadge {
+  position: absolute;
+  right: 0.25rem;
+  bottom: 0.25rem;
+  min-width: 1.5rem;
+  padding: 0 0.375rem;
+  border-radius: 999px;
+  background: hsl(30 18% 8% / 0.82);
+  font: 700 0.75rem/1.375rem var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  color: hsl(38 38% 94%);
+}
+
+.cardName {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cardMeta {
+  font-size: 0.6875rem;
+  line-height: 1.3;
+  color: hsl(var(--muted-foreground));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cardSkeleton {
+  aspect-ratio: 63 / 100;
+  border-radius: 0.5rem;
+  background: hsl(var(--surface-muted));
+  animation: locais-pulse 1.4s ease-in-out infinite;
+}
+
+/* ---- responsivo ---- */
+@media (max-width: 1023px) {
+  .layout {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .side {
+    position: static;
+  }
+
+  .facetList {
+    flex-direction: row;
+    gap: 0.375rem;
+    overflow-x: auto;
+    padding-bottom: 0.25rem;
+  }
+
+  .facet {
+    width: auto;
+    flex: none;
+    border: 1px solid hsl(var(--border));
+  }
+
+  .facetMeta {
+    flex-direction: row;
+    gap: 0.375rem;
+  }
+
+  .facetMeta span::before {
+    content: "· ";
+  }
+}
+
+@media (max-width: 767px) {
+  .entryRow {
+    grid-template-columns: 2.5rem minmax(0, 1fr) auto;
+    gap: 0.75rem;
+    min-height: 4rem;
+    padding-left: 0.625rem;
+  }
+
+  .entryGlyph {
+    width: 2.5rem;
+  }
+
+  .entryCode {
+    display: none;
+  }
+
+  .entryCodeInline {
+    display: inline;
+  }
+
+  .entryVolume {
+    min-width: 5.5rem;
+  }
+
+  .entryBar,
+  .entryGo,
+  .listLegend {
+    display: none;
+  }
+
+  .entryCount {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.125rem;
+  }
+
+  .entryShare {
+    margin-left: 0;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .tile,
-  .tile[data-new] {
-    transition: none;
+  .entry[data-new] {
     animation: none;
   }
 
-  /* Sem movimento: o novo local ganha só uma borda dourada estática (sem halo pulsante). */
-  .tile[data-new] {
-    border-color: hsl(var(--primary) / 0.6);
+  .entryGo,
+  .facet,
+  .entryRow {
+    transition: none;
   }
+}
+
+/* =====================================================================
+ * L2-01 — modos de consulta, encontrar carta, prévia da carta
+ * ===================================================================== */
+
+.modes {
+  display: inline-flex;
+  gap: 0.25rem;
+  margin-bottom: 0.875rem;
+  padding: 0.25rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.75rem;
+  background: hsl(var(--surface));
+}
+
+.mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.5rem;
+  padding: 0 0.875rem;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.mode:hover {
+  color: hsl(var(--foreground));
+}
+
+.mode[aria-selected="true"] {
+  background: hsl(var(--primary) / 0.14);
+  color: hsl(var(--foreground));
+  box-shadow: inset 0 0 0 1px hsl(var(--primary) / 0.45);
+}
+
+.mode:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+.finder {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+
+.finderHint {
+  font-size: 0.8125rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.candidates {
+  display: grid;
+  gap: 0.375rem;
+}
+
+.candidate {
+  display: grid;
+  grid-template-columns: 2.75rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.875rem;
+  width: 100%;
+  min-height: 4.25rem;
+  padding: 0.375rem 0.875rem 0.375rem 0.5rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.75rem;
+  background: hsl(var(--surface));
+  text-align: left;
+  color: hsl(var(--foreground));
+}
+
+.candidate:hover {
+  background: hsl(var(--surface-muted) / 0.65);
+}
+
+.candidate:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 1px;
+}
+
+.candidateImage,
+.foundImage {
+  display: block;
+  aspect-ratio: 63 / 88;
+  border-radius: 4.6% / 3.4%;
+  background: hsl(var(--surface-muted));
+  overflow: hidden;
+}
+
+.candidateImage img,
+.foundImage img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.candidateText {
+  min-width: 0;
+}
+
+.found {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.foundHead {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.875rem;
+  background: hsl(var(--surface));
+}
+
+.foundTitle {
+  font: 700 1.125rem/1.25 var(--font-heading);
+  color: hsl(var(--foreground));
+  outline: none;
+}
+
+.foundMeta {
+  margin-top: 0.125rem;
+  font-size: 0.8125rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.foundTotal {
+  margin-top: 0.375rem;
+  font: 700 0.9375rem/1.2 var(--font-heading);
+  color: hsl(var(--foreground));
+}
+
+.foundRow {
+  grid-template-columns: 3.25rem 5rem minmax(0, 1fr) auto 1rem;
+}
+
+.foundRow[data-unlocated] {
+  color: hsl(var(--muted-foreground));
+}
+
+.foundCount {
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+  white-space: nowrap;
+}
+
+.foundCount b {
+  font: 800 0.9375rem/1 var(--font-heading);
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--foreground));
+}
+
+.foundSkeleton {
+  height: 4.25rem;
+  border-radius: 0.75rem;
+  background: hsl(var(--surface-muted));
+  animation: locais-pulse 1.4s ease-in-out infinite;
+}
+
+@media (max-width: 767px) {
+  .foundRow {
+    grid-template-columns: 2.5rem minmax(0, 1fr) auto;
+  }
+
+  .foundHead {
+    grid-template-columns: 3.5rem minmax(0, 1fr);
+  }
+
+  .foundHead > :last-child {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Prévia da carta: sobre o painel do local, sem sair da página. */
+.previewOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: hsl(0 0% 0% / 0.55);
+}
+
+.preview {
+  position: fixed;
+  z-index: 61;
+  top: 50%;
+  left: 50%;
+  /* Coluna da carta + coluna de informações de largura fixa: o modal mede o
+     que precisa (≈ 38,5 rem), sem sobra lateral. A coluna de informações
+     estica até a altura da carta e distribui o conteúdo (topo, meio, base). */
+  display: grid;
+  grid-template-columns: auto 15.5rem;
+  gap: 1.5rem;
+  align-items: stretch;
+  max-width: calc(100vw - 2rem);
+  max-height: calc(100dvh - 2rem);
+  overflow: auto;
+  padding: 1.25rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 1rem;
+  background: hsl(var(--surface));
+  box-shadow: 0 30px 60px -30px hsl(0 0% 0% / 0.8);
+  transform: translate(-50%, -50%);
+  outline: none;
+}
+
+.preview[data-state="open"] {
+  animation: locais-preview-in 200ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+@keyframes locais-preview-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -48%) scale(0.98);
+  }
+}
+
+/* A carta manda: até 19 rem de largura, limitada pela altura da tela (63:88). */
+.previewImage {
+  width: min(19rem, calc((100dvh - 4.5rem) * 63 / 88));
+  aspect-ratio: 63 / 88;
+  border-radius: 4.6% / 3.4%;
+  background: hsl(var(--surface-muted));
+  box-shadow: 0 2px 4px hsl(0 0% 0% / 0.25), 0 18px 32px -16px hsl(0 0% 0% / 0.6);
+  overflow: hidden;
+}
+
+.previewImage img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.previewNoImage {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  font-size: 0.8125rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.previewInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+  padding-top: 0.25rem;
+}
+
+.previewIdentity {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.previewTitle {
+  margin-bottom: 0.25rem;
+  font: 800 1.25rem/1.2 var(--font-heading);
+  color: hsl(var(--foreground));
+  overflow-wrap: anywhere;
+}
+
+.previewMeta {
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: hsl(var(--muted-foreground));
+}
+
+/* Características: rótulo e valor alinhados em duas colunas, sem divisórias. */
+.previewTraits {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.4375rem 0.875rem;
+  font-size: 0.8125rem;
+  line-height: 1.35;
+}
+
+.previewTrait {
+  display: contents;
+}
+
+.previewTrait dt {
+  color: hsl(var(--muted-foreground));
+}
+
+.previewTrait dd {
+  font-weight: 600;
+  color: hsl(var(--foreground));
+  overflow-wrap: anywhere;
+}
+
+/* Armazenamento: um único separador acima; local e as duas quantidades. */
+.previewStorage {
+  padding-top: 0.875rem;
+  border-top: 1px solid hsl(var(--border));
+}
+
+.previewPlaceLabel {
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.previewPlace {
+  display: flex;
+  align-items: baseline;
+  gap: 0.375rem;
+  margin-top: 0.125rem;
+  font: 700 0.875rem/1.35 var(--font-heading);
+  color: hsl(var(--foreground));
+  overflow-wrap: anywhere;
+}
+
+.previewPlace svg {
+  align-self: center;
+  color: hsl(var(--primary));
+}
+
+.previewCounts {
+  margin-top: 0.375rem;
+}
+
+.previewCountRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+}
+
+.previewCountRow + .previewCountRow {
+  border-top: 1px solid hsl(var(--border));
+}
+
+.previewCountRow dt {
+  font-size: 0.8125rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.previewCountRow dd {
+  font: 700 0.9375rem/1.2 var(--font-heading);
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--foreground));
+  white-space: nowrap;
+}
+
+/* Ação de retorno na base da coluna, alinhada à base da carta. */
+.previewBack {
+  margin-top: auto;
+}
+
+/* Tablet/celular: empilha imagem → identificação → quantidades → voltar. */
+@media (max-width: 639px) {
+  .preview {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1rem;
+    width: min(22rem, calc(100vw - 2rem));
+    padding: 1rem;
+  }
+
+  /* Mais informações na coluna: a imagem cede altura; se ainda faltar, o
+     modal rola por inteiro (max-height do .preview) — nada fica inacessível. */
+  .previewImage {
+    justify-self: center;
+    width: min(14rem, 100%, calc((100dvh - 29rem) * 63 / 88));
+    min-width: 8rem;
+  }
+
+  .previewInfo {
+    gap: 1rem;
+    padding-top: 0;
+  }
+
+  .previewBack {
+    margin-top: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .preview[data-state="open"],
+  .foundSkeleton {
+    animation: none;
+  }
+
+  .mode {
+    transition: none;
+  }
+}
+
+/* =====================================================================
+ * Filtro contextual (CONTEXTUAL UX-02) — painel aberto por "Encontrar carta"
+ * ===================================================================== */
+
+/* Os totais acima continuam do local inteiro; a legenda deixa isso explícito. */
+.factsCaption {
+  margin-bottom: 0.375rem;
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.viewSection:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+  border-radius: 0.25rem;
+}
+
+.located {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.locatedBody {
+  display: grid;
+  grid-template-columns: 8.5rem minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid hsl(var(--primary) / 0.45);
+  border-radius: 0.875rem;
+  background: hsl(var(--primary) / 0.06);
+}
+
+.locatedTile {
+  min-width: 0;
+}
+
+.locatedName {
+  font: 800 1rem/1.25 var(--font-heading);
+  color: hsl(var(--foreground));
+  overflow-wrap: anywhere;
+}
+
+.locatedMeta {
+  margin-top: 0.25rem;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: hsl(var(--muted-foreground));
+}
+
+.locatedCount {
+  margin-top: 0.625rem;
+  font-size: 0.8125rem;
+  color: hsl(var(--foreground));
+}
+
+.locatedCount b {
+  font: 800 1.125rem/1 var(--font-heading);
+  font-variant-numeric: tabular-nums;
+}
+
+.locatedNote {
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+}
+
+@media (max-width: 420px) {
+  .locatedBody {
+    grid-template-columns: 6.5rem minmax(0, 1fr);
+    gap: 0.75rem;
+  }
+}
+
+.workspace > .notice {
+  margin: 0 0 1rem;
 }

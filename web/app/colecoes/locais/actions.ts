@@ -11,6 +11,17 @@ import {
   normalizeStorageName,
   storageFailureFromError,
 } from "@/lib/colecoes/storage-locations";
+import type { AcervoItem } from "@/lib/colecoes/acervo-queries";
+import {
+  type CardLocations,
+  type LocationContents,
+  type LocationInventory,
+  getLocationContents,
+  getLocationInventory,
+  locateCardCopies,
+  searchAcervoCards,
+} from "@/lib/colecoes/storage-locations-queries";
+import { issuedAtLabel } from "@/lib/reports/collection-checklist";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -155,4 +166,68 @@ function fail(
   // Sem dados do usuário: só função, duração, código e a classe do erro.
   console.error(JSON.stringify({ scope: "colecoes.write", fn, ms: Date.now() - startedAt, code: error?.code ?? "NO_DATA", reason }));
   return { ok: false, reason };
+}
+
+/**
+ * Consulta contextual de um local (STORAGE LOCATIONS UX REDESIGN-01) — SOMENTE
+ * LEITURA: nada move, atribui ou altera. Sessão do usuário; o banco limita ao
+ * próprio acervo (5220 e RLS); id fora de formato → indisponível sem consulta.
+ */
+export async function readLocationContents(input: { id: string }): Promise<{ ok: true; contents: LocationContents } | { ok: false }> {
+  if (!isUuid(input?.id)) return { ok: false };
+  const supabase = await createClient();
+  try {
+    const contents = await getLocationContents(supabase, input.id.toLowerCase());
+    return contents ? { ok: true, contents } : { ok: false };
+  } catch {
+    console.error(JSON.stringify({ scope: "colecoes.read", fn: "readLocationContents", code: "THROWN" }));
+    return { ok: false };
+  }
+}
+
+/** Encontrar carta (L2-01): candidatas no acervo do titular pela busca do Meu acervo. Somente leitura. */
+export async function readCardSearch(input: { query: string }): Promise<{ ok: true; items: AcervoItem[]; totalGroups: number } | { ok: false }> {
+  if (typeof input?.query !== "string") return { ok: false };
+  const supabase = await createClient();
+  try {
+    const result = await searchAcervoCards(supabase, input.query);
+    return result ? { ok: true, ...result } : { ok: false };
+  } catch {
+    console.error(JSON.stringify({ scope: "colecoes.read", fn: "readCardSearch", code: "THROWN" }));
+    return { ok: false };
+  }
+}
+
+/** Onde estão os exemplares de uma identidade (variante + idioma). Somente leitura; só o acervo do titular. */
+export async function readCardLocations(input: { cardVariantId: string; languageCode: string }): Promise<
+  { ok: true; result: CardLocations } | { ok: false; reason: "not_found" | "error" }
+> {
+  if (!isUuid(input?.cardVariantId) || typeof input?.languageCode !== "string" || !/^[a-z]{2,3}(-[A-Z]{2})?$/.test(input.languageCode)) {
+    return { ok: false, reason: "not_found" };
+  }
+  const supabase = await createClient();
+  try {
+    const result = await locateCardCopies(supabase, { cardVariantId: input.cardVariantId.toLowerCase(), languageCode: input.languageCode });
+    if (result === undefined) return { ok: false, reason: "not_found" };
+    return result ? { ok: true, result } : { ok: false, reason: "error" };
+  } catch {
+    console.error(JSON.stringify({ scope: "colecoes.read", fn: "readCardLocations", code: "THROWN" }));
+    return { ok: false, reason: "error" };
+  }
+}
+
+/** Relatório "Inventário do Local" (V1-14, bloco Locais): local da 5219 + todo o seu conteúdo. Somente leitura. */
+export async function readLocationInventory(input: { id: string }): Promise<
+  { ok: true; data: LocationInventory; issuedAt: string } | { ok: false; reason: "not_found" | "error" }
+> {
+  if (!isUuid(input?.id)) return { ok: false, reason: "not_found" };
+  const supabase = await createClient();
+  try {
+    const result = await getLocationInventory(supabase, input.id.toLowerCase());
+    if (result.status === "ready") return { ok: true, data: result.data, issuedAt: issuedAtLabel(new Date()) };
+    return { ok: false, reason: result.status };
+  } catch {
+    console.error(JSON.stringify({ scope: "colecoes.read", fn: "readLocationInventory", code: "THROWN" }));
+    return { ok: false, reason: "error" };
+  }
 }
