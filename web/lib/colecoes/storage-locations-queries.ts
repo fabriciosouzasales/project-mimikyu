@@ -374,3 +374,33 @@ export async function getLocationInventory(
   if (!read) return { status: "error" };
   return { status: "ready", data: { location, read } };
 }
+
+/**
+ * "Distribuição do Acervo por Local" (V1-14, bloco Locais, relatório 1 — D7
+ * §4s): a mesma leitura homologada da página — 5219 `get_my_storage_locations`
+ * (TODOS os locais do titular, contagem agregada no banco, sem limite) e
+ * `get_my_storage_summary` — em paralelo, uma chamada cada; nada por local nem
+ * por exemplar. Somente leitura; só o titular (`auth.uid()` no banco).
+ * `readComplete` = nenhuma linha fora do formato. Falha → `null`.
+ */
+export type LocationDistributionRead = { locations: StorageLocation[]; summary: StorageSummary; readComplete: boolean };
+
+export async function getLocationDistribution(supabase: SupabaseClient): Promise<LocationDistributionRead | null> {
+  const startedAt = Date.now();
+  const [locations, summary] = await Promise.all([supabase.rpc("get_my_storage_locations"), supabase.rpc("get_my_storage_summary")]);
+  if (locations.error || !Array.isArray(locations.data)) {
+    logRead("get_my_storage_locations", startedAt, locations.error);
+    return null;
+  }
+  const summaryRow = Array.isArray(summary.data) ? (summary.data[0] as Record<string, unknown> | undefined) : undefined;
+  const parsedSummary = summary.error ? null : toStorageSummary(summaryRow);
+  if (!parsedSummary) {
+    logRead("get_my_storage_summary", startedAt, summary.error ?? { code: "BAD_SHAPE" });
+    return null;
+  }
+  const parsed = (locations.data as Record<string, unknown>[]).map(toStorageLocation).filter((l): l is StorageLocation => l !== null);
+  const readComplete = parsed.length === locations.data.length;
+  if (!readComplete) logRead("get_my_storage_locations", startedAt, { code: "BAD_SHAPE" });
+  console.info(JSON.stringify({ scope: "reports.location_distribution", ms: Date.now() - startedAt, locations: parsed.length, complete: readComplete }));
+  return { locations: parsed, summary: parsedSummary, readComplete };
+}

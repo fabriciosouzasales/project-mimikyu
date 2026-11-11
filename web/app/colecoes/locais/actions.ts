@@ -15,8 +15,10 @@ import type { AcervoItem } from "@/lib/colecoes/acervo-queries";
 import {
   type CardLocations,
   type LocationContents,
+  type LocationDistributionRead,
   type LocationInventory,
   getLocationContents,
+  getLocationDistribution,
   getLocationInventory,
   locateCardCopies,
   searchAcervoCards,
@@ -229,5 +231,21 @@ export async function readLocationInventory(input: { id: string }): Promise<
   } catch {
     console.error(JSON.stringify({ scope: "colecoes.read", fn: "readLocationInventory", code: "THROWN" }));
     return { ok: false, reason: "error" };
+  }
+}
+
+/**
+ * Relatório "Distribuição do Acervo por Local" (V1-14, bloco Locais): todos os
+ * locais e o resumo do acervo do titular (5219). Global — não depende de local
+ * selecionado nem dos filtros da página. Somente leitura.
+ */
+export async function readLocationDistribution(): Promise<{ ok: true; data: LocationDistributionRead; issuedAt: string } | { ok: false }> {
+  const supabase = await createClient();
+  try {
+    const data = await getLocationDistribution(supabase);
+    return data ? { ok: true, data, issuedAt: issuedAtLabel(new Date()) } : { ok: false };
+  } catch {
+    console.error(JSON.stringify({ scope: "colecoes.read", fn: "readLocationDistribution", code: "THROWN" }));
+    return { ok: false };
   }
 }

@@ -12,6 +12,7 @@ import {
 import type { StorageOverview } from "@/lib/colecoes/storage-locations-queries";
 import { Button } from "@/components/ui/button";
 import { InlineFeedback } from "@/components/ui/feedback";
+import { LocationsReportsAction } from "@/components/reports/locations-reports-action";
 import { LocationsExplorer, LocationsNotice, LocationsProvider, NewLocationButton } from "./locations-manager";
 import acervoStyles from "../acervo/acervo.module.css";
 import colecoesStyles from "../colecoes/colecoes.module.css";
@@ -57,7 +58,7 @@ export function LocationsView({ overview }: { overview: StorageOverview | null }
   return (
     <LocationsProvider kinds={kinds} locations={locations}>
       <div className={acervoStyles.root}>
-        <Header action={empty ? null : <NewLocationButton />} />
+        <Header action={empty ? null : <NewLocationButton />} reports />
         {/* Passagem cabeçalho → área de trabalho: a mesma região editorial de Meu acervo e
             Minhas coleções (library-modes .region) — fio de borda a borda e marca dourada curta. */}
         <div className={`${regionStyles.region} ${styles.workspace}`}>
@@ -83,11 +84,17 @@ export function LocationsView({ overview }: { overview: StorageOverview | null }
  * só na coluna lateral. A ação principal na faixa do cabeçalho (`.heroRow`),
  * como "Nova coleção" e "Adicionar cartas".
  */
-function Header({ action = null }: { action?: React.ReactNode }) {
+function Header({ action = null, reports = false }: { action?: React.ReactNode; reports?: boolean }) {
   return (
     <header className={`${acervoStyles.hero} ${colecoesStyles.libraryHero} ${styles.hero}`}>
       <div className={acervoStyles.stageGlow} aria-hidden="true" />
       <HeroStorage />
+      {/* V1-14 bloco Locais: "Relatórios" no canto superior direito, como em Meu acervo e Minhas coleções. */}
+      {reports ? (
+        <div className={acervoStyles.heroBar}>
+          <LocationsReportsAction />
+        </div>
+      ) : null}
       <div className={acervoStyles.heroContent}>
         <h1 className={acervoStyles.title}>Meus Locais de Armazenamento</h1>
         <p className={acervoStyles.lede}>Saiba onde estão suas cartas e acompanhe seus espaços de armazenamento.</p>
