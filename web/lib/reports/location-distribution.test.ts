@@ -136,8 +136,8 @@ test("leitura e acesso: 5219 inteira (locais + resumo), global, somente leitura;
   const action = actions.slice(actions.indexOf("export async function readLocationDistribution"));
   assert.ok(action.includes("readLocationDistribution(): Promise"), "sem parâmetros: não depende de local selecionado nem de filtros");
   const items = locationsReportMenuItems();
-  // Menu "De Meus locais": os dois globais (Distribuição; Capacidade e Ocupação — §4t) e o Inventário do Local indisponível, com o caminho.
-  assert.deepEqual(items.map((i) => [i.id, i.disabledReason === null]), [["distribution", true], ["binders", true], ["inventory", false]]);
+  // Menu "De Meus locais": só os dois relatórios consolidados (o Inventário do Local fica nas ações do local).
+  assert.deepEqual(items.map((i) => [i.id, i.disabledReason === null]), [["distribution", true], ["binders", true]]);
   const view = code(read("components/colecoes/locais/locations-view.tsx"));
   assert.ok(view.includes("<LocationsReportsAction />") && view.includes("acervoStyles.heroBar"), "mesmo lugar da ação Relatórios das outras páginas");
   const overlay = code(read("components/reports/location-distribution-overlay.tsx"));

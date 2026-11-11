@@ -4,10 +4,12 @@
  *
  * - "Distribuição do Acervo por Local" (Quantidade de Exemplares por Local,
  *   D7 §4s): global, abre direto do menu;
- * - "Inventário do Local" (D7 §4r): é de UM recipiente — emitido no painel do
- *   local ("Gerar inventário deste local"); no menu aparece indisponível com o
- *   caminho, para ser descoberto sem mudar o fluxo homologado.
  * - "Capacidade e Ocupação de Fichários" (D7 §4t): global, abre direto do menu.
+ *
+ * O "Inventário do Local" (D7 §4r) é de UM recipiente e não fica neste menu
+ * (LOCATION INVENTORY ACCESS UX REFINEMENT-01): é emitido nas ações do próprio
+ * local — "Imprimir inventário" no menu "…" da linha e "Gerar inventário deste
+ * local" no painel —, as duas pela mesma prévia.
  */
 import type { ReportMenuItem } from "./collection-checklist.ts";
 import { BINDER_OCCUPANCY_TITLE } from "./binder-occupancy.ts";
@@ -35,14 +37,6 @@ export function locationsReportMenuItems(): ReportMenuItem[] {
       href: null,
       metric: null,
       disabledReason: null,
-    },
-    {
-      id: "inventory",
-      label: "Inventário do Local",
-      icon: "inventory",
-      href: null,
-      metric: null,
-      disabledReason: "Abra um local e use “Gerar inventário deste local”.",
     },
   ];
 }

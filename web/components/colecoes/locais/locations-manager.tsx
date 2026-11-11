@@ -561,7 +561,16 @@ function LocationRow({ location, totalCards, binders }: { location: StorageLocat
   );
 }
 
-/** Menu "Mais ações" (Editar, Excluir): botão + lista de itens, teclado (setas, Esc, Tab) e clique fora. */
+/**
+ * Menu "Mais ações" (Editar, Imprimir inventário, Excluir): botão + lista de
+ * itens, teclado (setas, Esc, Tab) e clique fora. "Imprimir inventário"
+ * (LOCATION INVENTORY ACCESS UX REFINEMENT-01) abre a MESMA prévia do botão
+ * "Gerar inventário deste local" do painel (`{ kind: "report", location }` →
+ * `LocationInventoryOverlay`): o local é o da linha, o inventário é sempre do
+ * local inteiro (nenhum filtro da página ou do painel), nada é impresso sem a
+ * escolha do usuário na prévia. Leitura apenas — a ação não depende de poder
+ * editar ou excluir.
+ */
 function ActionsMenu({ location }: { location: StorageLocation }) {
   const { open } = useManager();
   const [expanded, setExpanded] = useState(false);
@@ -621,6 +630,11 @@ function ActionsMenu({ location }: { location: StorageLocation }) {
             <Pencil className="h-4 w-4" aria-hidden="true" />
             Editar local
           </button>
+          <button type="button" role="menuitem" className={styles.menuItem} onClick={() => choose({ kind: "report", location })} aria-haspopup="dialog">
+            <ClipboardList className="h-4 w-4" aria-hidden="true" />
+            Imprimir inventário
+          </button>
+          <div role="separator" className={styles.menuSeparator} />
           <button type="button" role="menuitem" className={styles.menuItem} onClick={() => choose({ kind: "delete", location })}>
             {block ? <Lock className="h-4 w-4" aria-hidden="true" /> : <Trash2 className="h-4 w-4" aria-hidden="true" />}
             Excluir local

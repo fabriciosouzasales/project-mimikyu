@@ -98,3 +98,31 @@ test("prévia no celular: folha A4 reduzida para caber na tela; desktop e impres
   const sheet = read("components/reports/location-inventory-report.tsx");
   assert.ok(sheet.includes('width: "4.25rem"') && sheet.includes('width: "8.5rem"'), "colunas da folha impressa inalteradas");
 });
+
+test("acesso (ACCESS UX REFINEMENT-01): fora do menu Relatórios; 'Imprimir inventário' no menu … do local abre a MESMA prévia do painel", async () => {
+  const { locationsReportMenuItems } = await import("./locations-reports.ts");
+  const items = locationsReportMenuItems();
+  assert.deepEqual(items.map((i) => i.id), ["distribution", "binders"], "só os dois relatórios consolidados");
+  assert.ok(!items.some((i) => /invent/i.test(i.id + i.label)), "Inventário do Local fora do menu Relatórios");
+
+  const manager = code(read("components/colecoes/locais/locations-manager.tsx"));
+  const menu = manager.slice(manager.indexOf("function ActionsMenu"), manager.indexOf("function visibleGroups"));
+  const edit = menu.indexOf("Editar local");
+  const print = menu.indexOf("Imprimir inventário");
+  const del = menu.indexOf("Excluir local");
+  assert.ok(edit > 0 && print > edit && del > print, "Editar → Imprimir inventário → Excluir");
+  assert.ok(menu.indexOf('role="separator"') > print && menu.indexOf('role="separator"') < del, "separação antes de Excluir");
+  assert.ok(menu.includes('choose({ kind: "report", location })'), "o local da própria linha");
+  assert.ok(!/window\.print|\.print\(/.test(menu), "abre a prévia; nada é impresso automaticamente");
+  assert.ok(menu.includes('choose({ kind: "edit", location })') && menu.includes('choose({ kind: "delete", location })'), "Editar e Excluir preservados");
+  assert.ok(!/storageDeleteBlock\(location\)[^;]*report|canEdit|canDelete/.test(menu.slice(menu.indexOf("Imprimir"))), "não depende de editar/excluir");
+
+  // Um só caminho de emissão: painel e menu usam o mesmo estado e a mesma casca.
+  const provider = manager.slice(manager.indexOf("export function LocationsProvider"), manager.indexOf("export function NewLocationButton"));
+  assert.equal((provider.match(/<LocationInventoryOverlay/g) ?? []).length, 1, "uma única prévia do inventário");
+  assert.ok(provider.includes('setPanel({ kind: "report", location })'), "o botão do painel continua levando à mesma prévia");
+  const panel = manager.slice(manager.indexOf("function LocationContentPanel"), manager.indexOf("function CardTile"));
+  assert.ok(panel.includes("Gerar inventário deste local") && panel.includes("onClick={() => onReport(location)}"));
+  // Estado único `panel`: abrir o inventário de outro local substitui o anterior; ao fechar, volta a null.
+  assert.ok(provider.includes("locationId={panel.location.id}") && provider.includes("setPanel(null)"));
+});
