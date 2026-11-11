@@ -1,0 +1,23 @@
+/*
+ * Prévia da folha A4 ajustada à largura da tela (STORAGE LOCATIONS MOBILE
+ * RESPONSIVENESS CORRECTION-01). Só na TELA e só quando a área é mais estreita
+ * que a folha: a folha é composta na largura A4 e reduzida por `transform`
+ * (proporção e paginação intactas). O recorte de `.outer` só apara a caixa de
+ * layout original de 210 mm — a folha reduzida cabe inteira, nada fica oculto.
+ * Na impressão, nenhum ajuste: a folha sai exatamente como antes.
+ */
+.outer[data-fit] {
+  overflow: hidden;
+}
+
+@media print {
+  .outer {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .inner {
+    width: auto !important;
+    transform: none !important;
+  }
+}

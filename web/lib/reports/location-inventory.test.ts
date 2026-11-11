@@ -81,3 +81,20 @@ test("leitura: TODO o local (todas as páginas), só o titular, somente leitura;
   const manager = code(read("components/colecoes/locais/locations-manager.tsx"));
   assert.ok(manager.includes("<LocationInventoryOverlay") && manager.includes("locationId={panel.location.id}"), "usa o local aberto");
 });
+
+test("prévia no celular: folha A4 reduzida para caber na tela; desktop e impressão intactos", async () => {
+  const { A4_SCREEN_PX, sheetFitScale } = await import("./sheet-fit.ts");
+  assert.equal(A4_SCREEN_PX, 794);
+  assert.equal(sheetFitScale(1200), null, "desktop: sem redução");
+  assert.equal(sheetFitScale(794), null);
+  assert.ok(Math.abs((sheetFitScale(343) ?? 0) - 343 / 794) < 1e-9, "iPhone 375: largura inteira visível");
+  assert.equal(sheetFitScale(0), null);
+  const fit = code(read("components/reports/fit-sheet.tsx"));
+  assert.ok(fit.includes("transform: `scale(${fit.scale})`") && fit.includes("width: A4_SCREEN_PX"), "composta na largura A4, só reduzida");
+  const css = read("components/reports/fit-sheet.module.css");
+  assert.ok(/@media print[\s\S]*width: auto !important;\s*transform: none !important/.test(css), "impressão sem ajuste");
+  const overlay = code(read("components/reports/location-inventory-overlay.tsx"));
+  assert.ok(overlay.includes("<FitSheet>") && overlay.includes("<LocationInventorySheet"), "só o Inventário do Local; outros relatórios intactos");
+  const sheet = read("components/reports/location-inventory-report.tsx");
+  assert.ok(sheet.includes('width: "4.25rem"') && sheet.includes('width: "8.5rem"'), "colunas da folha impressa inalteradas");
+});

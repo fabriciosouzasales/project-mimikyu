@@ -352,3 +352,20 @@ test("cabeçalho (HEADER ALIGNMENT-01): palco comum do módulo, grafismo de arma
   assert.ok(button.includes("addStyles.launchPrimary") && button.includes("addStyles.launcherHero"), "mesmo lançador de Nova coleção / Adicionar cartas");
   assert.ok(button.includes('open({ kind: "create" })'), "função preservada");
 });
+
+test("celular (MOBILE CORRECTION-01): coluna única encolhível, chips sem quebra por letra, painel sem blocos esmagados", () => {
+  const css = read("components/colecoes/locais/locais.module.css");
+  const tablet = css.slice(css.indexOf("@media (max-width: 1023px) {"));
+  assert.ok(/\.layout \{\s*grid-template-columns: minmax\(0, 1fr\);/.test(tablet), "a coluna não cresce além da tela");
+  assert.ok(/\.side \{\s*position: static;\s*min-width: 0;/.test(tablet));
+  assert.ok(/\.facet \{[^}]*grid-template-columns: 1\.75rem auto auto;/.test(tablet), "rótulo com a largura do próprio texto");
+  assert.ok(/\.facetLabel \{\s*white-space: nowrap;\s*overflow-wrap: normal;/.test(tablet));
+  assert.ok(/\.facetList \{[^}]*overflow-x: auto;/.test(tablet), "rolagem só dentro da faixa de filtros");
+  assert.ok(/\.facetList > li \{\s*flex: none;/.test(tablet), "os itens da faixa (li) não encolhem");
+  assert.ok(/\.viewBody > \* \{\s*flex-shrink: 0;/.test(css), "totais e vínculos não encolhem no painel");
+  assert.ok(css.includes("env(safe-area-inset-bottom)"));
+  const phone = css.slice(css.indexOf("Celular (MOBILE RESPONSIVENESS CORRECTION-01)"));
+  assert.ok(/\.toolbar \{\s*grid-template-columns: minmax\(0, 1fr\);/.test(phone), "busca e ordem empilhadas");
+  assert.ok(/\.locatedTile \.cardName,\s*\.locatedTile \.cardMeta \{\s*display: none;/.test(phone));
+  assert.ok(!/overflow-x: hidden/.test(css), "nenhum corte artificial");
+});

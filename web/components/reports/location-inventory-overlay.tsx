@@ -4,6 +4,7 @@ import { ClipboardList } from "lucide-react";
 import { readLocationInventory } from "@/app/colecoes/locais/actions";
 import { shareInFlight } from "@/lib/reports/in-flight";
 import { LOCATION_INVENTORY_TITLE, buildLocationInventory, locationInventoryIncompleteText } from "@/lib/reports/location-inventory";
+import { FitSheet } from "./fit-sheet";
 import { LocationInventorySheet } from "./location-inventory-report";
 import { type ReportSheetEntry, ReportSheetOverlay } from "./report-sheet-overlay";
 
@@ -37,7 +38,12 @@ export function locationInventoryEntry(result: InventoryResult): ReportSheetEntr
     return {
       status: "ready",
       incomplete: locationInventoryIncompleteText(report.incompleteReason),
-      sheet: <LocationInventorySheet locationName={location.name} kindLabel={location.kindLabel} report={report} issuedAt={result.issuedAt} />,
+      // Celular: a folha A4 inteira cabe na largura da tela (escala só na tela; impressão intacta).
+      sheet: (
+        <FitSheet>
+          <LocationInventorySheet locationName={location.name} kindLabel={location.kindLabel} report={report} issuedAt={result.issuedAt} />
+        </FitSheet>
+      ),
     };
   }
   if (result.reason === "error") return { status: "error" };

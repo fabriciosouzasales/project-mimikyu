@@ -958,26 +958,58 @@
 
 /* ---- responsivo ---- */
 @media (max-width: 1023px) {
+  /* MOBILE RESPONSIVENESS CORRECTION-01 — causa do transbordamento da página:
+     \`1fr\` = minmax(auto, 1fr); a faixa de facetas (rolável, chips sem quebra)
+     impunha sua largura mínima à coluna única, que crescia além da tela e
+     arrastava organização, cabeçalho e lista. \`minmax(0, 1fr)\` + min-width 0
+     limitam a coluna à área útil; a rolagem fica só dentro da faixa. */
   .layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: 1rem;
   }
 
   .side {
     position: static;
+    min-width: 0;
   }
 
   .facetList {
     flex-direction: row;
     gap: 0.375rem;
     overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-padding-inline: 0.25rem;
     padding-bottom: 0.25rem;
   }
 
+  /* Os itens da faixa são os <li>: sem \`flex: none\` eles encolhiam até a
+     largura mínima do chip (era o que espremia o rótulo). */
+  .facetList > li {
+    flex: none;
+  }
+
+  /* Chip: cada coluna do tamanho do próprio conteúdo. Antes, \`minmax(0, 1fr)\`
+     num chip de largura automática deixava o rótulo com ~0 px e o
+     \`overflow-wrap: anywhere\` o quebrava letra por letra. */
   .facet {
     width: auto;
     flex: none;
+    grid-template-columns: 1.75rem auto auto;
+    gap: 0.5rem;
     border: 1px solid hsl(var(--border));
+  }
+
+  .facet[data-all] {
+    grid-template-columns: auto auto;
+  }
+
+  .facetGlyph {
+    width: 1.75rem;
+  }
+
+  .facetLabel {
+    white-space: nowrap;
+    overflow-wrap: normal;
   }
 
   .facetMeta {
@@ -1504,13 +1536,112 @@
   color: hsl(var(--muted-foreground));
 }
 
-@media (max-width: 420px) {
-  .locatedBody {
-    grid-template-columns: 6.5rem minmax(0, 1fr);
-    gap: 0.75rem;
-  }
-}
 
 .workspace > .notice {
   margin: 0 0 1rem;
+}
+
+/* =====================================================================
+ * Celular (MOBILE RESPONSIVENESS CORRECTION-01)
+ * ===================================================================== */
+
+/* Painel do local: o corpo é uma coluna flexível de altura fixa e rolável. Os
+   blocos com \`overflow: hidden\` (totais, vínculos) tinham altura mínima 0 e
+   eram ESMAGADOS quando o conteúdo passava da tela (totais vazios no iPhone).
+   Nenhum bloco encolhe: quem rola é o corpo. */
+.viewBody > * {
+  flex-shrink: 0;
+}
+
+.viewBody {
+  overscroll-behavior: contain;
+}
+
+/* Rodapé do painel acima da barra do navegador / indicador de início. */
+.viewFoot {
+  padding-bottom: max(0.875rem, env(safe-area-inset-bottom));
+}
+
+.preview {
+  overscroll-behavior: contain;
+}
+
+@media (max-width: 639px) {
+  /* Busca e ordem empilhadas: o seletor de ordem (11 rem mínimos) não aperta a busca. */
+  .toolbar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Relação de locais em duas linhas: recipiente à esquerda; 1ª linha código +
+     nome (largura toda), 2ª linha tipo/vínculos já sob o nome e a quantidade com
+     a participação. Antes, nome espremido entre o recipiente e a coluna de
+     quantidade (~50 px em 320 px) quebrava letra por letra. */
+  .entryRow {
+    grid-template-columns: 2.5rem minmax(0, 1fr);
+    row-gap: 0.375rem;
+    padding-block: 0.625rem;
+  }
+
+  .entryGlyph {
+    grid-row: span 2;
+    align-self: start;
+  }
+
+  .entryVolume {
+    min-width: 0;
+  }
+
+  .entryCount {
+    flex-direction: row;
+    justify-content: flex-start;
+    align-items: baseline;
+    gap: 0.375rem;
+  }
+
+  .entryShare {
+    margin-left: 0.25rem;
+  }
+
+  /* Modos de consulta na largura toda, metade cada, com alvo de 44 px. */
+  .modes {
+    display: flex;
+    width: 100%;
+  }
+
+  .mode {
+    flex: 1 1 0;
+    min-width: 0;
+    justify-content: center;
+    gap: 0.375rem;
+    min-height: 2.75rem;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.8125rem;
+    line-height: 1.15;
+    text-align: center;
+  }
+
+  .viewBody {
+    padding-inline: 1rem;
+  }
+
+  .viewObject {
+    width: 4.25rem;
+  }
+
+  /* Carta localizada: a miniatura fica só com a imagem (nome, número e
+     quantidade já estão ao lado); texto com a largura que sobra. */
+  .locatedBody {
+    grid-template-columns: 6.5rem minmax(0, 1fr);
+    gap: 0.875rem;
+  }
+
+  .locatedTile .cardName,
+  .locatedTile .cardMeta {
+    display: none;
+  }
+
+  /* Prévia ampliada: o modal inteiro rola dentro da altura útil, respeitando as áreas seguras. */
+  .preview {
+    max-height: calc(100dvh - 2rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  }
 }
