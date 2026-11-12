@@ -21,6 +21,9 @@ import type { AcervoItem, AcervoItemsPage } from "@/lib/colecoes/acervo-queries"
 import { COLECOES_PATH } from "@/lib/colecoes/colecoes";
 import type { CollectionSummary } from "@/lib/colecoes/colecoes-queries";
 import { FREE_COVER_CODE_ENABLED, FREE_COVER_UPLOAD_ENABLED, distinctSetCount, freeCollectionHref, freeHeroCards, freeTotalPages } from "@/lib/colecoes/free-collection";
+import { CardFavoriteButton, favoriteHostClass } from "@/components/favorites/card-favorite-button";
+import { FavoriteGrid } from "./collection-view";
+import type { VariantFavorite } from "@/lib/favorites/card-favorites";
 import { CardZoomProvider, CardZoomTrigger } from "@/components/card/card-zoom";
 import { CARD_GRID_SIZES as GRID_SIZES, CardArt } from "../acervo/card-art";
 import { VariantPriceSummary } from "@/components/card/variant-price-summary";
@@ -75,6 +78,7 @@ export function FreeCollectionView({
   prices = null,
   priceStatus = null,
   priceNow = 0,
+  favorites = null,
 }: {
   collection: CollectionSummary;
   /** Cartas da coleção (5159); `null` = leitura falhou. */
@@ -98,6 +102,11 @@ export function FreeCollectionView({
   /** Estado da leitura de preços (CORRECTION-01): parcial/indisponível → aviso discreto. */
   priceStatus?: VariantPricesStatus | null;
   priceNow?: number;
+  /**
+   * V1-10 (extensão — página da coleção): variante exibida → carta + estado do Favorito
+   * (leitura em lote, a mesma do Acervo). `null` = sem corações.
+   */
+  favorites?: Map<string, VariantFavorite> | null;
 }) {
   const active = collection.lifecycleStatus === "ACTIVE";
   const copies = collection.copiesCount;
@@ -271,6 +280,7 @@ export function FreeCollectionView({
             <PriceReadNotice status={priceStatus} className="mb-4" />
             {/* Clicar na carta amplia — mesmo preview e mesmo morph do Catálogo Editorial. */}
             <CardZoomProvider>
+              <FavoriteGrid enabled={favorites !== null}>
               <ul className={acervoStyles.grid} aria-label="Cartas da coleção">
                 {items.items.map((item, index) => (
                   <li key={`${item.cardVariantId}.${item.languageCode}`}>
@@ -280,10 +290,12 @@ export function FreeCollectionView({
                       manageable={canManage}
                       price={prices?.get(item.cardVariantId.toLowerCase()) ?? null}
                       priceNow={priceNow}
+                      favorite={favorites ? (favorites.get(item.cardVariantId.toLowerCase()) ?? null) : null}
                     />
                   </li>
                 ))}
               </ul>
+              </FavoriteGrid>
             </CardZoomProvider>
             {pages > 1 ? <Pagination collectionId={collection.id} page={page} pages={pages} /> : null}
           </>
@@ -313,6 +325,7 @@ function FreeTile({
   manageable,
   price,
   priceNow,
+  favorite,
 }: {
   item: AcervoItem;
   priority: boolean;
@@ -320,6 +333,8 @@ function FreeTile({
   /** V1-09: preço NM da variante (unitário). */
   price: VariantPrice | null;
   priceNow: number;
+  /** V1-10 (extensão): carta + estado do Favorito; `null` = sem coração. */
+  favorite: VariantFavorite | null;
 }) {
   const number = formatCollectorNumber(item.collectorNumber, item.collectorTotal);
   const caption = `${item.cardSetCode.toUpperCase()} · ${number}`;
@@ -330,7 +345,7 @@ function FreeTile({
     .filter(Boolean)
     .join(", ");
   return (
-    <article className={`${acervoStyles.tile} ${freeStyles.tileStatic}`} aria-label={spoken}>
+    <article className={[acervoStyles.tile, freeStyles.tileStatic, favorite ? favoriteHostClass : null].filter(Boolean).join(" ")} aria-label={spoken}>
       <div className={copies > 1 ? `${acervoStyles.artWrap} ${acervoStyles.stack}` : acervoStyles.artWrap}>
         <CardZoomTrigger
           id={`${item.cardVariantId}.${item.languageCode}`}
@@ -355,8 +370,11 @@ function FreeTile({
           className={`${acervoStyles.priceTag} ${freeStyles.priceTagButton}`}
           glyphClassName={acervoStyles.priceTagGlyph}
         />
+        {favorite ? (
+          <CardFavoriteButton cardId={favorite.cardId} cardName={`${item.cardName} (${caption})`} isFavorite={favorite.isFavorite} indicator="corner" />
+        ) : null}
         {copies > 1 ? (
-          <span className={acervoStyles.qty} aria-hidden="true">
+          <span className={favorite ? `${acervoStyles.qty} ${styles.qtyBelowFavorite}` : acervoStyles.qty} aria-hidden="true">
             ×{formatCount(copies)}
           </span>
         ) : null}

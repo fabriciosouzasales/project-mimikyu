@@ -12,16 +12,37 @@ import styles from "./card-favorite.module.css";
  * e ficar dentro de um elemento posicionado com a classe `favoriteHostClass`.
  * Nome acessível constante ("Favoritar X"); o estado é anunciado por `aria-pressed`.
  */
-export function CardFavoriteButton({ cardId, cardName, isFavorite }: { cardId: string; cardName: string; isFavorite: boolean }) {
+export function CardFavoriteButton({
+  cardId,
+  cardName,
+  isFavorite,
+  indicator = "chip",
+}: {
+  cardId: string;
+  cardName: string;
+  isFavorite: boolean;
+  /**
+   * `chip` (padrão — Acervo, Pesquisa, Cartas favoritas): exatamente o de antes.
+   * `corner` (página da coleção, padrão homologado no Fichário): em repouso, a favorita
+   * mostra só um triângulo `--favorite` com coração vazado no vértice da moldura; o
+   * coração aparece com hover/foco (o triângulo some). Mesmo botão, mesmo controlador.
+   */
+  indicator?: "chip" | "corner";
+}) {
   return (
     <button
       type="button"
-      className={styles.favorite}
+      className={indicator === "corner" ? `${styles.favorite} ${styles.corner}` : styles.favorite}
       data-card-fav={cardId}
       aria-pressed={isFavorite}
       aria-label={favoriteToggleLabel(cardName)}
     >
       <FavoriteHeartIcon className={styles.favoriteIcon} />
+      {indicator === "corner" ? (
+        <span className={styles.cornerMark} aria-hidden="true">
+          <FavoriteHeartIcon className={styles.cornerHeart} />
+        </span>
+      ) : null}
     </button>
   );
 }

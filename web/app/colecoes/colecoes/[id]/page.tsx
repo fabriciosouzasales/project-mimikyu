@@ -45,6 +45,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCachedUser, getCachedUserProfile } from "@/lib/supabase/request-auth-cache";
 import { getMyWishedByCard, getMyWishedPositionKeys } from "@/lib/wishlist/wishlist-queries";
 import { wishedCardIds } from "@/lib/wishlist/wishlist";
+import { getMyCardFavoriteIds, getMyCardFavoritesByVariant } from "@/lib/favorites/card-favorites-queries";
 
 export const metadata: Metadata = { title: "Coleção · Minhas coleções" };
 
@@ -116,11 +117,13 @@ export default async function ColecaoPage({
     const freeSummary = withCover ?? summary;
     // V1-09: preço NM por variante (3983) dos grupos exibidos (≤ 48), junto com a capa.
     // PRICING TIMEOUT CORRECTION-01: leitura com estado (falha avisa; nunca vira "sem preço").
-    const [coverLogoUrl, priceRead] = await Promise.all([
+    // V1-10 (extensão): Favoritos das cartas exibidas — uma leitura em lote (a mesma do Acervo); falha = sem corações.
+    const [coverLogoUrl, priceRead, favorites] = await Promise.all([
       freeSummary.coverLogoPath
         ? getCoverLogoUrls(supabase, [freeSummary.coverLogoPath]).then((urls) => urls.get(freeSummary.coverLogoPath as string) ?? null)
         : Promise.resolve(null),
       readVariantPrices(supabase, (items?.items ?? []).map((item) => item.cardVariantId)),
+      items ? getMyCardFavoritesByVariant(supabase, items.items.map((item) => item.cardVariantId)) : Promise.resolve(null),
     ]);
     return (
       <AppShell title={summary.name} icon={LibraryBig}>
@@ -137,6 +140,7 @@ export default async function ColecaoPage({
           prices={priceRead.status === "unavailable" ? null : priceRead.prices}
           priceStatus={priceRead.status}
           priceNow={Date.now()}
+          favorites={favorites}
         />
       </AppShell>
     );
@@ -227,7 +231,10 @@ export default async function ColecaoPage({
   // lote (5346, por carta), só no Set padrão; falha = sem marcador.
   // V1-11 W3: no Master Set, estado por posição (carta + acabamento) da página exibida —
   // uma leitura em lote (5348); falha ou 5348 ausente no LIVE = sem marcador.
-  const [logoUrl, positionPrices, wishedCards, wishedPositions] = await Promise.all([
+  // V1-10 (extensão): Favoritos das cartas da página exibida (Set padrão ou Master Set) —
+  // uma leitura em lote por carta (5336); falha = sem corações. Favorito é da carta (C-82).
+  const shownCardIds = master?.positions ? master.positions.items.map((position) => position.cardId) : (positions?.items ?? []).map((position) => position.cardId);
+  const [logoUrl, positionPrices, wishedCards, wishedPositions, favoriteCards] = await Promise.all([
     logoPath ? getSetLogoUrls(supabase, [logoPath]).then((urls) => urls.get(logoPath) ?? null) : Promise.resolve(null),
     collection === null
       ? Promise.resolve(null)
@@ -250,6 +257,7 @@ export default async function ColecaoPage({
           master.positions.items.map((position) => position.cardId),
         )
       : Promise.resolve(null),
+    collection !== null && shownCardIds.length > 0 ? getMyCardFavoriteIds(supabase, shownCardIds) : Promise.resolve(null),
   ]);
 
   return (
@@ -271,6 +279,7 @@ export default async function ColecaoPage({
           priceStatus={positionPrices?.status ?? null}
           priceNow={Date.now()}
           wishedCards={wishedCards}
+          favoriteCards={favoriteCards}
         />
       )}
     </AppShell>

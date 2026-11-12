@@ -45,6 +45,8 @@ import { type VariantPricesStatus, priceAccessibleText } from "@/lib/pricing/var
 import { PriceReadNotice } from "./price-read-notice";
 import type { PositionPrice, PositionPrices } from "@/lib/pricing/position-pricing-queries";
 import { WishButton, wishHostClass } from "@/components/wishlist/wish-button";
+import { CardFavoriteButton, favoriteHostClass } from "@/components/favorites/card-favorite-button";
+import { CardFavoritesController } from "@/components/favorites/card-favorites-controller";
 import { WishlistController } from "@/components/wishlist/wishlist-controller";
 import { MissingWishesLauncher } from "@/components/wishlist/missing-wishes-launcher";
 
@@ -96,6 +98,7 @@ export function CollectionView({
   priceStatus = null,
   priceNow = 0,
   wishedCards = null,
+  favoriteCards = null,
 }: {
   collection: CollectionSummary;
   /** Cartas do Set inteiro (R2 sem filtro) para os destaques do hero. */
@@ -125,6 +128,12 @@ export function CollectionView({
    * `null` = sem leitura → a grade não mostra o marcador.
    */
   wishedCards?: ReadonlySet<string> | null;
+  /**
+   * V1-10 (extensão — página da coleção): cartas favoritas do usuário entre as exibidas
+   * (leitura em lote no servidor, 5336). `null` = leitura indisponível ou superfície sem
+   * Favoritos: nenhum coração (nunca um coração que não funciona).
+   */
+  favoriteCards?: ReadonlySet<string> | null;
 }) {
   const total = collection.totalPositions;
   const owned = collection.satisfiedPositions;
@@ -359,6 +368,7 @@ export function CollectionView({
           prices={positionPrices}
           priceNow={priceNow}
           wishedPositions={master.wishedPositions ?? null}
+          favoriteCards={favoriteCards}
         />
       ) : positions === null ? (
         <ReadError retryHref={collectionHref(collection.id, filter)} />
@@ -375,6 +385,7 @@ export function CollectionView({
       ) : (
         // Clicar na carta amplia — mesmo preview e mesmo morph do Catálogo Editorial.
         <CardZoomProvider>
+          <FavoriteGrid enabled={favoriteCards !== null}>
           <WishGrid enabled={wishedCards !== null}>
             <ul className={acervoStyles.grid} aria-label={`Cartas — ${segments.find((segment) => segment.key === filter)?.label}`}>
               {positions.items.map((position, index) => (
@@ -387,11 +398,13 @@ export function CollectionView({
                     price={positionPrices?.[position.cardId.toLowerCase()] ?? null}
                     priceNow={priceNow}
                     wished={wishedCards ? wishedCards.has(position.cardId.toLowerCase()) : undefined}
+                    favorite={favoriteCards ? favoriteCards.has(position.cardId.toLowerCase()) : undefined}
                   />
                 </li>
               ))}
             </ul>
           </WishGrid>
+          </FavoriteGrid>
         </CardZoomProvider>
       )}
       </section>
@@ -415,6 +428,15 @@ function WishGrid({ enabled, children }: { enabled: boolean; children: ReactNode
   return enabled ? <WishlistController>{children}</WishlistController> : <>{children}</>;
 }
 
+/**
+ * V1-10 (extensão — página da coleção): o controlador homologado dos corações (Acervo,
+ * Pesquisa) envolve a grade só quando a leitura dos favoritos respondeu. O favorito é do
+ * usuário e da CARTA (C-82/C-83): nada aqui depende da coleção nem da posse.
+ */
+export function FavoriteGrid({ enabled, children }: { enabled: boolean; children: ReactNode }) {
+  return enabled ? <CardFavoritesController>{children}</CardFavoritesController> : <>{children}</>;
+}
+
 /** Carta da grade (titular; também a grade do participante VIEWER, com `manageable=false` e sem acervo). */
 export function PositionTile({
   position,
@@ -424,6 +446,7 @@ export function PositionTile({
   price = null,
   priceNow = 0,
   wished,
+  favorite,
 }: {
   position: CollectionPosition;
   priority: boolean;
@@ -438,6 +461,8 @@ export function PositionTile({
    * carta: uma variante ativa → inclusão direta; várias → escolha explícita (C-212).
    */
   wished?: boolean;
+  /** V1-10 (extensão): estado do Favorito da carta; `undefined` = sem coração (participante, leitura indisponível). */
+  favorite?: boolean;
 }) {
   const number = formatCollectorNumber(position.collectorNumber, position.collectorTotal);
   const caption = setCode ? `${setCode.toUpperCase()} · ${number}` : number;
@@ -452,7 +477,7 @@ export function PositionTile({
 
   return (
     <article
-      className={wished === undefined ? acervoStyles.tile : `${acervoStyles.tile} ${wishHostClass}`}
+      className={[acervoStyles.tile, wished === undefined ? null : wishHostClass, favorite === undefined ? null : favoriteHostClass].filter(Boolean).join(" ")}
       aria-label={[`${position.cardName}, ${caption}, ${status}`, shownPrice ? priceAccessibleText(shownPrice.price, priceNow) : null]
         .filter(Boolean)
         .join(", ")}
@@ -482,6 +507,10 @@ export function PositionTile({
           // Irmão do gatilho de ampliar (botão dentro de botão é inválido); canto superior esquerdo homologado.
           <WishButton cardId={position.cardId} cardName={`${position.cardName} (${caption})`} isWished={wished} />
         ) : null}
+        {favorite !== undefined ? (
+          // Canto superior direito (espelho do Desejos): triângulo em repouso, coração com hover/foco.
+          <CardFavoriteButton cardId={position.cardId} cardName={`${position.cardName} (${caption})`} isFavorite={favorite} indicator="corner" />
+        ) : null}
         {shownPrice ? (
           // V1-09 Fase B: mesma etiqueta da Fase A (canto inferior esquerdo), preço unitário da variante.
           <VariantPriceSummary
@@ -497,7 +526,7 @@ export function PositionTile({
           />
         ) : null}
         {position.copiesInCollection > 1 ? (
-          <span className={acervoStyles.qty} aria-hidden="true">
+          <span className={favorite === undefined ? acervoStyles.qty : `${acervoStyles.qty} ${styles.qtyBelowFavorite}`} aria-hidden="true">
             ×{formatCount(position.copiesInCollection)}
           </span>
         ) : null}

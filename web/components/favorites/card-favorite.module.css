@@ -92,6 +92,66 @@
   }
 }
 
+/* ---- Indicador em canto (COLLECTION PAGE FAVORITES INTEGRATION-01) ----
+   Variante `corner` do mesmo botão (página da coleção), no padrão homologado do Fichário:
+   - favorita em repouso: só o triângulo `--favorite` com coração vazado no vértice superior
+     direito da moldura (o botão transborda a arte em 3 px: o vértice fica a 0.1875rem);
+   - hover/foco do card (desktop) ou foco por teclado: o coração aparece e o triângulo some;
+   - toque (sem hover): a favorita mostra o triângulo e ele É o controle visível (área de
+     toque de 44 px do botão); a não favorita segue a regra do toque do V1-10 (contorno
+     visível) — nunca um controle invisível que alterna no primeiro toque.
+   Nada aqui vale para a variante padrão (`chip`). */
+.cornerMark {
+  display: none;
+  position: absolute;
+  top: 0.1875rem;
+  right: 0.1875rem;
+  width: 0.875rem;
+  height: 0.875rem;
+  background: hsl(var(--favorite));
+  clip-path: polygon(0 0, 100% 0, 100% 100%);
+  border-top-right-radius: 0.375rem;
+  pointer-events: none;
+}
+
+.cornerHeart {
+  position: absolute;
+  top: 0.0625rem;
+  right: 0.0625rem;
+  width: 0.4375rem;
+  height: 0.4375rem;
+  fill: transparent;
+  stroke: hsl(0 0% 100%);
+}
+
+.corner[aria-pressed="true"] .cornerMark {
+  display: block;
+}
+
+.corner[aria-pressed="true"] .favoriteIcon {
+  opacity: 0;
+}
+
+.corner:focus-visible .favoriteIcon {
+  opacity: 1;
+}
+
+.corner:focus-visible .cornerMark {
+  display: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .favoriteHost:hover .corner[aria-pressed="true"] .favoriteIcon,
+  .favoriteHost:focus-within .corner[aria-pressed="true"] .favoriteIcon {
+    opacity: 1;
+  }
+
+  .favoriteHost:hover .corner .cornerMark,
+  .favoriteHost:focus-within .corner .cornerMark {
+    display: none;
+  }
+}
+
 /* Página Cartas favoritas: desfavoritada fica atenuada no lugar (sem salto de layout)
    até a próxima navegação — mesma decisão D4 da página Pokémon Favoritos. */
 .favoriteHost[data-fav-removed] {

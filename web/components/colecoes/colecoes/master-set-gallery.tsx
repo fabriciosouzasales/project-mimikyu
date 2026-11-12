@@ -24,6 +24,8 @@ import { VariantPriceSummary } from "@/components/card/variant-price-summary";
 import { priceAccessibleText } from "@/lib/pricing/variant-pricing";
 import type { PositionPrice, PositionPrices } from "@/lib/pricing/position-pricing-queries";
 import { WishButton, wishHostClass } from "@/components/wishlist/wish-button";
+import { CardFavoriteButton, favoriteHostClass } from "@/components/favorites/card-favorite-button";
+import { CardFavoritesController } from "@/components/favorites/card-favorites-controller";
 import { WishlistController } from "@/components/wishlist/wishlist-controller";
 import { wishFinishKey, wishPositionKey } from "@/lib/wishlist/wishlist";
 
@@ -55,6 +57,7 @@ export function MasterSetGallery({
   prices = null,
   priceNow = 0,
   wishedPositions = null,
+  favoriteCards = null,
 }: {
   collectionId: string;
   collectionName: string;
@@ -70,6 +73,8 @@ export function MasterSetGallery({
   priceNow?: number;
   /** V1-11 W3: posições (carta|acabamento) com desejo. `null` = sem leitura → sem marcador. */
   wishedPositions?: ReadonlySet<string> | null;
+  /** V1-10 (extensão): cartas favoritas entre as exibidas — o Favorito é da CARTA, igual em qualquer acabamento (C-82). */
+  favoriteCards?: ReadonlySet<string> | null;
 }) {
   const pages = positions ? masterSetTotalPages(positions.total) : 1;
   const retryHref = pageHref(collectionId, filter, page);
@@ -83,6 +88,7 @@ export function MasterSetGallery({
       ) : (
         <>
           <CardZoomProvider>
+            <FavoriteGrid enabled={favoriteCards !== null}>
             <WishGrid enabled={wishedPositions !== null}>
               <ul className={acervoStyles.grid} aria-label="Posições do Master Set">
                 {positions.items.map((position, index) => (
@@ -96,11 +102,13 @@ export function MasterSetGallery({
                       price={prices?.[position.key] ?? null}
                       priceNow={priceNow}
                       wished={positionWished(position, wishedPositions)}
+                      favorite={favoriteCards ? favoriteCards.has(position.cardId.toLowerCase()) : undefined}
                     />
                   </li>
                 ))}
               </ul>
             </WishGrid>
+            </FavoriteGrid>
           </CardZoomProvider>
           {pages > 1 ? <Pager collectionId={collectionId} filter={filter} page={page} pages={pages} /> : null}
         </>
@@ -114,6 +122,11 @@ export function MasterSetGallery({
 
 function WishGrid({ enabled, children }: { enabled: boolean; children: ReactNode }) {
   return enabled ? <WishlistController>{children}</WishlistController> : <>{children}</>;
+}
+
+/** V1-10 (extensão): o mesmo controlador dos corações do Acervo e da Pesquisa (mesma carta em vários acabamentos = pintadas juntas). */
+function FavoriteGrid({ enabled, children }: { enabled: boolean; children: ReactNode }) {
+  return enabled ? <CardFavoritesController>{children}</CardFavoritesController> : <>{children}</>;
 }
 
 /** Estado do marcador da posição; `undefined` = sem marcador (sem leitura ou acabamento inválido). */
@@ -132,6 +145,7 @@ function MasterTile({
   price,
   priceNow,
   wished,
+  favorite,
 }: {
   collectionId: string;
   position: MasterSetPosition;
@@ -143,6 +157,8 @@ function MasterTile({
   priceNow: number;
   /** V1-11 W3: estado do marcador da Lista de desejos; `undefined` = sem marcador. */
   wished?: boolean;
+  /** V1-10 (extensão): estado do Favorito da carta; `undefined` = sem coração. */
+  favorite?: boolean;
 }) {
   const number = formatCollectorNumber(position.collectorNumber, position.collectorTotal);
   const caption = setCode ? `${setCode.toUpperCase()} · ${number}` : number;
@@ -155,7 +171,7 @@ function MasterTile({
 
   return (
     <article
-      className={wished === undefined ? acervoStyles.tile : `${acervoStyles.tile} ${wishHostClass}`}
+      className={[acervoStyles.tile, wished === undefined ? null : wishHostClass, favorite === undefined ? null : favoriteHostClass].filter(Boolean).join(" ")}
       aria-label={[
         `${position.cardName}, ${caption}, ${position.isSecret ? "carta secreta, " : ""}${finish}, ${positionStatusText(position)}`,
         shownPrice ? priceAccessibleText(shownPrice.price, priceNow) : null,
@@ -185,6 +201,14 @@ function MasterTile({
             isWished={wished}
           />
         ) : null}
+        {favorite !== undefined ? (
+          <CardFavoriteButton
+            cardId={position.cardId}
+            cardName={`${position.cardName} (${caption} · ${finish})`}
+            isFavorite={favorite}
+            indicator="corner"
+          />
+        ) : null}
         {shownPrice ? (
           // V1-09 Fase B: etiqueta da variante desta posição (carta + acabamento) — nunca de outro acabamento.
           <VariantPriceSummary
@@ -200,7 +224,7 @@ function MasterTile({
           />
         ) : null}
         {position.copiesInCollection > 1 ? (
-          <span className={acervoStyles.qty} aria-hidden="true">
+          <span className={favorite === undefined ? acervoStyles.qty : `${acervoStyles.qty} ${styles.qtyBelowFavorite}`} aria-hidden="true">
             ×{formatCount(position.copiesInCollection)}
           </span>
         ) : null}

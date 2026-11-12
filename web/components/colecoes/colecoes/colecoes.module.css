@@ -1052,3 +1052,10 @@
   outline-offset: 2px;
   border-radius: 0.25rem;
 }
+
+/* V1-10 (extensão — página da coleção): com Favoritos, o canto superior direito é do
+   coração (área de toque de 44 px a partir de −3 px); a quantidade "×N" desce para logo
+   abaixo dela, sem disputar o canto. */
+.qtyBelowFavorite {
+  top: 2.75rem;
+}
