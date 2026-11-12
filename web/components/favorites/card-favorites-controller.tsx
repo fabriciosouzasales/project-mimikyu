@@ -34,11 +34,20 @@ export function CardFavoritesController({
   children,
   mode = "grid",
   onConfirmed,
+  className,
+  onFeedback,
 }: {
   children: ReactNode;
   /** "favorites": página Cartas favoritas — atenua enquanto grava; a página remove após a confirmação. */
   mode?: "grid" | "favorites";
   onConfirmed?: (cardId: string, isFavorite: boolean) => void;
+  /**
+   * Extensão no Fichário (V1-10): classe da raiz (ex.: `contents`, para não mexer na
+   * grade) e o erro entregue ao aviso do próprio Fichário em vez do aviso no fluxo.
+   * Sem elas, exatamente o comportamento de antes (Acervo, Pesquisa, Cartas favoritas).
+   */
+  className?: string;
+  onFeedback?: (feedback: { tone: "error"; text: string }) => void;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const entries = useRef(new Map<string, FavoriteEntry>());
@@ -81,7 +90,9 @@ export function CardFavoritesController({
     paint(send.cardId, step.entry);
 
     if (step.reverted) {
-      setError(favoriteErrorMessage(cardName, reason));
+      const message = favoriteErrorMessage(cardName, reason);
+      if (onFeedback) onFeedback({ tone: "error", text: message });
+      else setError(message);
     } else if (step.send) {
       void write(step.send, cardName);
     } else {
@@ -113,7 +124,7 @@ export function CardFavoritesController({
   }
 
   return (
-    <div ref={rootRef} onClickCapture={onClick}>
+    <div ref={rootRef} onClickCapture={onClick} className={className}>
       {children}
       <p className="sr-only" aria-live="polite">
         {announcement}

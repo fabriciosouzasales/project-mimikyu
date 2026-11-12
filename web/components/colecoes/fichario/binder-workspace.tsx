@@ -137,6 +137,7 @@ import { SideArrowButton, TopNavControls, FOCUS_RING } from "./binder-chrome";
 import { BINDER_SPREAD_MEDIA, BinderObjectFrame } from "./binder-object";
 import { PageGrid } from "./binder-page-grid";
 import { BinderWishLayer } from "./binder-wish";
+import { BinderFavoriteLayer } from "./binder-favorites";
 import type { BinderFinish } from "@/lib/colecoes/binder-finish";
 import { AddPagesDialog } from "./binder-add-pages";
 import { AvailablePanel, type AvailableState } from "./binder-available";
@@ -2154,6 +2155,8 @@ export function BinderWorkspace({
           </div>
 
           <BinderWishLayer pages={cache} dialogContainer={rootRef} onFeedback={onWishFeedback}>
+          {/* V1-10 (extensão): Favoritos no fichário do titular (também arquivado) — só preferência do usuário, nada grava no fichário. */}
+          <BinderFavoriteLayer pages={cache} onFeedback={onWishFeedback}>
           <section ref={stageRef} className={ws.stage} aria-label={`${binderName} — ${label}`}>
             {fit.pocket > 0 ? (
               <BinderObject
@@ -2188,6 +2191,7 @@ export function BinderWorkspace({
               />
             ) : null}
           </section>
+          </BinderFavoriteLayer>
           {/* V1-08: a ampliação do Catálogo, montada na raiz do fichário (tela cheia/overlay). */}
           <BinderCardView slot={cardViewSlot} container={rootRef.current} useViewTransition={cardViewMorph} onClose={closeCardView} />
           </BinderWishLayer>

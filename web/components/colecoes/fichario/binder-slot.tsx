@@ -37,6 +37,10 @@ import { cn } from "@/lib/utils";
 import { type BinderWishTarget, binderWishState, binderWishTarget, wishToggleLabel } from "@/lib/wishlist/wishlist";
 import { PocketArt } from "./binder-page";
 import { BinderWishContext } from "./binder-wish";
+import { BinderFavoriteContext } from "./binder-favorites";
+import { FavoriteHeartIcon } from "@/components/pokedex/favorite-heart";
+import { favoriteToggleLabel } from "@/lib/favorites/card-favorites";
+import { binderFavoriteCardId, binderFavoriteCornerSize, binderMarkerLayout } from "@/lib/colecoes/binder-favorites";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 
@@ -220,6 +224,11 @@ export function BinderSlotView({
   const wishTarget = wishCtx && !image ? binderWishTarget(slot) : null;
   const wished = wishTarget && wishCtx ? binderWishState(wishTarget, wishCtx) : null;
   const wishShown = wishTarget !== null && wished !== null;
+  // V1-10 (extensão): Favorito — só no fichário do titular (contexto), carta inequívoca e estado lido.
+  const favCtx = useContext(BinderFavoriteContext);
+  const favCardId = favCtx ? binderFavoriteCardId(slot) : null;
+  const favShown = favCardId !== null && favCtx !== null && favCtx.known.has(favCardId);
+  const favorited = favShown && favCtx !== null && favCardId !== null && favCtx.favorites.has(favCardId);
   // Spike binder-nav-01 (EmptySlotQuickActions): bolso vazio e solto convida a "Adicionar carta".
   const addable = editable && !occupied && !image && !slot.locked && !selectionActive && !placing && !inTray;
   const label = [slotDescription(slot), projected ? "prévia: receberia uma carta na organização automática" : null, priceShown && priceCtx ? priceAccessibleText(price, priceCtx.now) : null, speciesRef ? speciesReferenceLabel(speciesRef) : null, addable ? "Enter para adicionar carta" : null, !editable && handlers.onViewCard && canViewCard(slot) ? "Enter para ver a carta" : null, dimmed ? "de outra coleção" : null, slot.locked ? "bolso fixado" : null, inTray ? "carta na Bandeja" : null, selected ? "selecionada" : null]
@@ -232,8 +241,10 @@ export function BinderSlotView({
   const showActions = editable && !selectionActive;
   // Controles proporcionais ao bolso: legíveis em 2×2, sem cobrir a arte em 5×4.
   const control = Math.round(Math.min(26, Math.max(18, pocket * 0.2)));
-  // Com o marcador no canto superior direito, cadeado e divergência descem logo abaixo dele.
-  const badgeShift = wishShown ? control + 4 : 0;
+  // Canto superior direito: Favorito ao lado do Desejos; em bolso estreito, abaixo dele, com os selos
+  // (cadeado, divergência) passando para a coluna esquerda, sob o "Selecionar" — mesmas alturas de antes.
+  const marks = binderMarkerLayout({ control, pocket, wish: wishShown, favorite: favShown });
+  const badgeShift = marks.shift;
 
   // V1-08: morph bolso → lupa (só enquanto o fichário marca este bolso).
   const viewTransitionSource = useContext(CardViewTransitionContext) === slot.slotId;
@@ -354,12 +365,12 @@ export function BinderSlotView({
       ) : null}
 
       {slot.locked ? (
-        <Badge side="right" tone="hsl(205 80% 75%)" shift={badgeShift}>
+        <Badge side={marks.badgeSide} tone="hsl(205 80% 75%)" shift={badgeShift}>
           <Lock className="h-2 w-2 sm:h-2.5 sm:w-2.5" fill="currentColor" aria-hidden />
         </Badge>
       ) : null}
       {slot.state === "OCCUPIED_MISMATCH" ? (
-        <Badge side="right" offset={slot.locked ? 1 : 0} shift={badgeShift} tone="hsl(38 92% 70%)" title="Diferente da carta reservada">
+        <Badge side={marks.badgeSide} offset={slot.locked ? 1 : 0} shift={badgeShift} tone="hsl(38 92% 70%)" title="Diferente da carta reservada">
           <Shuffle className="h-2 w-2 sm:h-2.5 sm:w-2.5" aria-hidden />
         </Badge>
       ) : null}
@@ -419,12 +430,25 @@ export function BinderSlotView({
           target={wishTarget}
           wished={wished === true}
           inert={selectionActive || placing}
-          size={control}
+          size={marks.size}
           name={[face.cardName, [face.setCode?.toUpperCase(), number].filter(Boolean).join(" · ")].filter(Boolean).join(" — ")}
           // Reserva só da carta ("*"): sem rótulo de acabamento — a escolha vem depois, explícita.
           variantLabel={
             occupied ? (slot.present?.variantLabel ?? null) : wishTarget.kind === "position" && wishTarget.finish === "*" ? null : (slot.expected?.finishName ?? null)
           }
+        />
+      ) : null}
+
+      {favShown && favCardId && face ? (
+        <FavoriteMark
+          cardId={favCardId}
+          favorited={favorited}
+          inert={selectionActive || placing}
+          size={marks.size}
+          beside={wishShown && !marks.stacked ? marks.size + marks.gap : 0}
+          below={wishShown && marks.stacked ? marks.size + STACK_GAP : 0}
+          corner={binderFavoriteCornerSize(pocket)}
+          name={[face.cardName, [face.setCode?.toUpperCase(), number].filter(Boolean).join(" · ")].filter(Boolean).join(" — ")}
         />
       ) : null}
 
@@ -710,6 +734,107 @@ function WishMark({
         </button>
       </Tip>
     </TooltipPrimitive.Provider>
+  );
+}
+
+/**
+ * V1-10 (extensão) — coração de Favorito no bolso: o mesmo coração e a mesma cor
+ * (`FavoriteHeartIcon`, `--favorite`) do Acervo e da Pesquisa, no tamanho
+ * proporcional do bolso (como o marcador de Desejos), sem encolher. Fica à ESQUERDA do
+ * marcador de Desejos quando a linha cabe; em bolso estreito, logo ABAIXO dele
+ * (`binderMarkerLayout`), sem nenhuma área de toque sobreposta. Favorita = preenchido, sempre
+ * visível; não favorita = contorno só em hover/foco do bolso (no toque, tocar o bolso
+ * revela, como as demais ações).
+ *
+ * O clique é do `CardFavoritesController` da V1-10 (delegação por `data-card-fav`):
+ * nunca chega ao bolso, ao arrasto, à seleção nem à lupa. Com seleção ativa ou carta
+ * na mão, fica inerte (o estado continua visível).
+ */
+/** Vão vertical entre Desejos e Favorito em coluna (as áreas de toque encostam, sem sobrepor). */
+const STACK_GAP = 4;
+
+function FavoriteMark({
+  cardId,
+  favorited,
+  inert,
+  size,
+  beside,
+  below,
+  corner,
+  name,
+}: {
+  cardId: string;
+  favorited: boolean;
+  inert: boolean;
+  size: number;
+  /** px à esquerda do canto (o marcador de Desejos ao lado, em linha). */
+  beside: number;
+  /** px abaixo do topo (o marcador de Desejos acima, em coluna — bolso estreito). */
+  below: number;
+  /** Cateto do triângulo indicador na moldura (px). */
+  corner: number;
+  name: string;
+}) {
+  return (
+    <>
+    <TooltipPrimitive.Provider delayDuration={300}>
+      <Tip label={favorited ? "Favorita — clique para tirar" : "Favoritar"}>
+        <button
+          type="button"
+          className={cn(
+            // Coração interativo: só com as ações reveladas (hover, foco, toque); o estado em repouso é o triângulo.
+            // Invisível = não clicável: no toque, o 1º toque revela (foco no bolso), só o 2º alterna — nunca desfavorita "às cegas".
+            "peer/fav group/fav pointer-events-none absolute z-30 flex items-center justify-center rounded-full opacity-0 transition-opacity duration-150 motion-reduce:transition-none",
+            !inert &&
+              "group-hover/slot:pointer-events-auto group-hover/slot:opacity-100 group-focus-within/slot:pointer-events-auto group-focus-within/slot:opacity-100 focus-visible:opacity-100",
+            RING,
+          )}
+          // Em coluna (bolso estreito), a área de toque cresce só para os lados: não invade o Desejos acima nem a cápsula abaixo.
+          style={
+            below > 0
+              ? { top: `calc(4% + ${below}px)`, right: `calc(4% + ${beside}px)`, width: size + 8, height: size, margin: "0 -4px" }
+              : { top: "4%", right: `calc(4% + ${beside}px)`, width: size + 8, height: size + 8, margin: -4 }
+          }
+          data-card-fav={cardId}
+          aria-pressed={favorited}
+          aria-label={favoriteToggleLabel(name)}
+          disabled={inert}
+          tabIndex={inert ? -1 : undefined}
+          onPointerDown={(event) => event.stopPropagation()}
+        >
+          <span
+            className={cn(
+              "flex items-center justify-center rounded-full transition-[background-color,color,transform] duration-150 group-active/fav:scale-90 group-data-[pending]/fav:opacity-70 motion-reduce:transition-none",
+              "bg-[hsl(0_0%_0%/0.55)] text-white/90 shadow-[0_1px_3px_rgba(0,0,0,0.45),inset_0_0_0_1.5px_hsl(0_0%_100%/0.6)]",
+              "group-aria-pressed/fav:bg-[hsl(0_0%_0%/0.62)] group-aria-pressed/fav:text-[hsl(var(--favorite))] group-aria-pressed/fav:shadow-[0_1px_3px_rgba(0,0,0,0.5),inset_0_0_0_1.5px_hsl(var(--favorite)/0.85)]",
+            )}
+            style={{ width: size, height: size }}
+          >
+            <FavoriteHeartIcon className="h-[58%] w-[58%] fill-transparent stroke-current group-aria-pressed/fav:fill-current" />
+          </span>
+        </button>
+      </Tip>
+    </TooltipPrimitive.Provider>
+    {/*
+      Indicador passivo (FAVORITES CORNER INDICATOR CORRECTION-01): triângulo `--favorite` no vértice
+      superior direito da moldura, com coração vazado. Segue o `aria-pressed` do botão (inclusive a
+      atualização otimista do controlador); some quando o coração interativo aparece — exceto com
+      seleção ativa ou carta na mão, quando a ação está indisponível e só o indicador fica. Sem área
+      de toque (pointer-events: none): não interfere em arrasto, seleção, lupa nem nos marcadores.
+    */}
+    <span
+      className={cn(
+        "pointer-events-none absolute right-0 top-0 z-[25] hidden peer-aria-pressed/fav:block",
+        !inert && "group-hover/slot:!hidden group-focus-within/slot:!hidden",
+      )}
+      style={{ width: corner, height: corner, background: "hsl(var(--favorite))", clipPath: "polygon(0 0, 100% 0, 100% 100%)" }}
+      aria-hidden
+    >
+      <span className="absolute block" style={{ width: corner * 0.46, height: corner * 0.46, top: corner * 0.08, right: corner * 0.08 }}>
+        <FavoriteHeartIcon className="block h-full w-full fill-transparent stroke-white" />
+      </span>
+    </span>
+    </>
   );
 }
 
