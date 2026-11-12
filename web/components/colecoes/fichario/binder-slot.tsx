@@ -6,6 +6,7 @@ import { useDndContext, useDraggable, useDroppable, type DraggableSyntheticListe
 import {
   BetweenVerticalStart,
   Bookmark,
+  BookmarkPlus,
   BookmarkX,
   Check,
   Crop,
@@ -16,6 +17,7 @@ import {
   Maximize2,
   Plus,
   RefreshCw,
+  Replace,
   Shuffle,
   Trash2,
   Undo2,
@@ -82,6 +84,14 @@ export type SlotHandlers = {
   onInsertGap: (slot: BinderSlot) => void;
   /** Imagem em 2 bolsos (5240): ver, ajustar, substituir ou separar. */
   onOpenRegion: (regionId: string, mode: RegionDialogMode) => void;
+  /**
+   * V1-07: qual ação de reserva por carta escolhida o bolso oferece ("reserve" no
+   * vazio, "change" no reservado da proprietária). Opcional: fichário
+   * compartilhado / somente leitura não fornece — nada aparece.
+   */
+  reserveForMode?: (slot: BinderSlot) => "reserve" | "change" | null;
+  /** V1-07: abre o seletor "Reservar para uma carta" / "Trocar carta reservada". */
+  onReserveFor?: (slot: BinderSlot) => void;
 };
 
 export type RegionDialogMode = "view" | "frame" | "replace" | "separate";
@@ -826,6 +836,8 @@ function QuickActions({
 }) {
   const reservation = hasReservation(slot);
   const canReserve = canReserveCurrent(slot);
+  // V1-07: reservar bolso vazio para uma carta escolhida / trocar a reservada (só o fichário do dono fornece).
+  const reserveFor = !occupied && !inTray ? (handlers.reserveForMode?.(slot) ?? null) : null;
   return (
     <TooltipPrimitive.Provider delayDuration={250} skipDelayDuration={100}>
       <div className="absolute inset-x-0 bottom-[6%] flex items-center justify-center">
@@ -853,9 +865,17 @@ function QuickActions({
           {!occupied && !slot.locked && !inTray ? (
             <QuickButton icon={Plus} label="Adicionar carta" onClick={() => handlers.onAddCard(slot)} size={size} />
           ) : null}
+          {reserveFor === "reserve" && handlers.onReserveFor ? (
+            <QuickButton icon={BookmarkPlus} label="Reservar este bolso para uma carta…" onClick={() => handlers.onReserveFor?.(slot)} size={size} tone="reserve" />
+          ) : null}
           {occupied || reserved || reservation ? (
             reservation ? (
-              <QuickButton icon={BookmarkX} label="Liberar reserva deste bolso" onClick={() => handlers.onClearReserve(slot)} size={size} active tone="reserve" />
+              <>
+                {reserveFor === "change" && handlers.onReserveFor ? (
+                  <QuickButton icon={Replace} label="Trocar carta reservada…" onClick={() => handlers.onReserveFor?.(slot)} size={size} tone="reserve" />
+                ) : null}
+                <QuickButton icon={BookmarkX} label="Liberar reserva deste bolso" onClick={() => handlers.onClearReserve(slot)} size={size} active tone="reserve" />
+              </>
             ) : (
               <QuickButton
                 icon={Bookmark}

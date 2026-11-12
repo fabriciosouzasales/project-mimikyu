@@ -5,6 +5,7 @@ import type { BinderFinish } from "@/lib/colecoes/binder-finish";
 import { mayHaveSpeciesReferences } from "@/lib/colecoes/binder-species";
 import { mayHaveCatalogNovelties } from "@/lib/colecoes/binder-catalog";
 import { autoArrangeEntry } from "@/lib/colecoes/binder-auto-arrange";
+import { reserveScopeOfKind } from "@/lib/colecoes/binder-reserve";
 import { collectionHref } from "@/lib/colecoes/colecoes";
 import { BinderOverlayShell } from "./binder-overlay-shell";
 import { BinderWorkspace } from "./binder-workspace";
@@ -52,6 +53,7 @@ export function BinderOverlay({
           speciesReferences={mayHaveSpeciesReferences(header)}
           catalogNovelties={mayHaveCatalogNovelties(header)}
           autoArrange={autoArrangeEntry(header)}
+          reserveScope={reserveScopeOfKind(header.kind)}
           columns={columns}
           rows={rows}
           totalPages={header.pageCount}

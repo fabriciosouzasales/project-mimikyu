@@ -7,6 +7,7 @@ import type { JoinCandidate } from "@/lib/colecoes/binder-share";
 import { type SpeciesReferenceState, mayHaveSpeciesReferences } from "@/lib/colecoes/binder-species";
 import { mayHaveCatalogNovelties } from "@/lib/colecoes/binder-catalog";
 import { autoArrangeEntry } from "@/lib/colecoes/binder-auto-arrange";
+import { reserveScopeOf } from "@/lib/colecoes/binder-reserve";
 import { collectionHref } from "@/lib/colecoes/colecoes";
 import { BinderAssembly } from "./binder-assembly";
 import { BinderJoinOrCreate } from "./binder-join";
@@ -74,6 +75,7 @@ export function BinderView({
         initialSpeciesState={speciesState}
         catalogNovelties={mayHaveCatalogNovelties(header)}
         autoArrange={autoArrangeEntry(header)}
+        reserveScope={reserveScopeOf(collection.policy)}
         backHref={backHref}
       />
     );

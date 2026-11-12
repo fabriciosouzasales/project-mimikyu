@@ -32,6 +32,7 @@ import {
   readSpeciesReferenceState,
   removePage,
   removeSlots,
+  readReservationTargets,
   reserveSlot,
   restoreToSlot,
   setRegionImageFocus,
@@ -143,6 +144,18 @@ import { ImageComposer, type ImageDialogMode, SlotImageDialog } from "./binder-i
 import { type PreparedImage, clearSlotImageAndFile, linkNewRegionImage, linkNewSlotImage, separateRegionAndFile } from "./binder-image-io";
 import { GapDialog, type GapDialogState, ImageShapeSwitch, RegionComposer, RegionImageDialog } from "./binder-layout-tools";
 import { PocketPicker } from "./binder-pocket-picker";
+import {
+  type ReserveCandidate,
+  type ReserveContext,
+  type ReserveExcluded,
+  type ReserveScope,
+  type ReserveTarget,
+  applyReserveFor,
+  initialReserveCollection,
+  isReserveTarget,
+  reserveForMode,
+} from "@/lib/colecoes/binder-reserve";
+import { ReservePicker } from "./binder-reserve-picker";
 import { RemovePageDialog } from "./binder-remove-page";
 import { BinderControlPanel, CONTROL_PANEL_ID } from "./binder-control";
 import { BinderOverview } from "./binder-overview";
@@ -232,6 +245,7 @@ export function BinderWorkspace({
   catalogNovelties = false,
   register = null,
   autoArrange = HIDDEN_AUTO_ARRANGE,
+  reserveScope = null,
 }: {
   variant: "overlay" | "page";
   collectionId: string;
@@ -290,6 +304,12 @@ export function BinderWorkspace({
    * aplicação (5344) só pelo "Confirmar e posicionar" da revisão (E4).
    */
   autoArrange?: AutoArrangeEntry;
+  /**
+   * V1-07: escopo de "Reservar para uma carta…" (tipo da coleção pela qual o
+   * fichário foi aberto). `null` (padrão) = ação ausente — Pokédex, tipo
+   * desconhecido. A ação só aparece com a proprietária aberta e editável.
+   */
+  reserveScope?: ReserveScope | null;
 }) {
   const reducedMotion = usePrefersReducedMotion();
   // Total de páginas vivo: cresce quando o colecionador adiciona páginas (5125).
@@ -564,6 +584,16 @@ export function BinderWorkspace({
   );
   // "Adicionar carta" no bolso vazio e "Adicionar páginas" (P2-BINDER-CAPACITY-AND-EMPTY-SLOT-01).
   const [pocketTarget, setPocketTarget] = useState<Entry | null>(null);
+  /** V1-07: bolso cujo seletor "Reservar para uma carta" / "Trocar carta reservada" está aberto. */
+  const [reserveTarget, setReserveTarget] = useState<(Entry & { mode: "reserve" | "change"; collectionId: string }) | null>(null);
+  /**
+   * V1-07 (D3 revisada): coleções deste fichário que podem receber reserva
+   * (5246, lidas uma vez ao abrir). `null` = ainda não lidas/indisponíveis —
+   * vale a regra segura de antes (só a proprietária aberta).
+   */
+  const [reserveTargets, setReserveTargets] = useState<{ targets: ReserveTarget[]; excluded: ReserveExcluded[] } | null>(null);
+  /** Última coleção escolhida no seletor — só deste fichário aberto (estado do componente, nunca persistido). */
+  const [rememberedReserveCollection, setRememberedReserveCollection] = useState<string | null>(null);
   // Imagem personalizada (C-198): bolso aberto no diálogo da imagem.
   const [imageTarget, setImageTarget] = useState<{ slotId: string; mode: ImageDialogMode } | null>(null);
   /** Prévias locais (`blob:`) mostradas nos bolsos até a releitura — revogadas ao sair. */
@@ -1525,6 +1555,71 @@ export function BinderWorkspace({
     [busy, collectionId, editable, fail, patchSlots, refreshPages],
   );
 
+  // V1-07: coleções do fichário que podem receber reserva (mesma leitura das "Coleções neste fichário").
+  useEffect(() => {
+    if (!editable) return;
+    let alive = true;
+    void readReservationTargets({ collectionId })
+      .then((result) => {
+        if (alive && result.ok) setReserveTargets({ targets: result.targets, excluded: result.excluded });
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [collectionId, editable]);
+
+  // V1-07: contexto da reserva por carta escolhida (editável; destinos do fichário ou, antes da leitura, a proprietária aberta).
+  const reserveCtx = useMemo<ReserveContext>(
+    () => ({ editable, collectionId, ownerCollectionId, scope: reserveScope, targets: reserveTargets?.targets ?? null }),
+    [collectionId, editable, ownerCollectionId, reserveScope, reserveTargets],
+  );
+  /** Destinos para o seletor: os lidos do fichário ou, antes disso, só a proprietária aberta. */
+  const pickerTargets = useMemo<ReserveTarget[]>(() => {
+    if (reserveTargets) return reserveTargets.targets;
+    if (!ownerCollectionId || !reserveScope || ownerCollectionId.toLowerCase() !== collectionId.toLowerCase()) return [];
+    return [{ collectionId: ownerCollectionId.toLowerCase(), name: ownerCollectionName ?? collectionName, role: "OWNER", scope: reserveScope }];
+  }, [collectionId, collectionName, ownerCollectionId, ownerCollectionName, reserveScope, reserveTargets]);
+
+  /**
+   * V1-07: reservar o bolso vazio (ou trocar a carta reservada) pela carta
+   * escolhida — a mesma 5128 do "Reservar este bolso para a carta", sem coleção
+   * informada (bolso sem carta → reserva da proprietária). Prévia otimista,
+   * releitura da página e, na recusa, o bolso volta como estava.
+   * D3 revisada: a coleção da reserva é a escolhida no seletor (validada pelo
+   * banco: proprietária ou convidada ativa deste fichário).
+   */
+  const runReserveFor = useCallback(
+    async (entry: Entry, candidate: ReserveCandidate, reservationCollectionId: string) => {
+      const mode = reserveForMode(entry.slot, reserveCtx);
+      if (!mode || busy || !ownerCollectionId || !isReserveTarget(reserveCtx, reservationCollectionId)) return;
+      const before = entry.slot;
+      patchSlots([applyReserveFor(before, candidate, reservationCollectionId)]);
+      setBusy(true);
+      const result = await reserveSlot({
+        collectionId,
+        slotId: before.slotId,
+        cardId: candidate.cardId,
+        variantTypeId: candidate.variantTypeId,
+        reservationCollectionId,
+      });
+      setBusy(false);
+      if (result.ok) {
+        setReserveTarget(null);
+        setToast({
+          tone: "success",
+          text: mode === "change" ? `Reserva trocada: o bolso agora guarda o lugar de ${candidate.cardName}.` : `Bolso reservado para ${candidate.cardName}.`,
+        });
+      } else {
+        patchSlots([before]);
+        setReserveTarget(null);
+        fail(result.reason);
+      }
+      await refreshPages([entry.page]);
+    },
+    [busy, collectionId, fail, ownerCollectionId, patchSlots, refreshPages, reserveCtx],
+  );
+
   const runClearReservation = useCallback(
     async (entries: Entry[]) => {
       const targets = entries.filter(({ slot }) => hasReservation(slot));
@@ -1704,8 +1799,26 @@ export function BinderWorkspace({
         setToast(null);
         setRegionTarget({ regionId, mode: editable ? mode : "view" });
       },
+      reserveForMode: (slot) => (trayIds.has(slot.slotId) ? null : reserveForMode(slot, reserveCtx)),
+      onReserveFor: (slot) => {
+        if (busy || armed || armedCard || trayIds.has(slot.slotId)) return;
+        const mode = reserveForMode(slot, reserveCtx);
+        const entry = slotIndex.get(slot.slotId);
+        if (!mode || !entry || !ownerCollectionId) return;
+        const initial = initialReserveCollection({
+          mode,
+          slot,
+          targets: pickerTargets,
+          remembered: rememberedReserveCollection,
+          openingCollectionId: collectionId,
+          ownerCollectionId,
+        });
+        if (!initial) return;
+        setToast(null);
+        setReserveTarget({ ...entry, mode, collectionId: initial });
+      },
     }),
-    [armed, armedCard, busy, editable, place, placeAvailable, runClearReservation, runLock, runReserve, selectionActive, slotIndex, startInsertGap, toTray, toggleSelect, trayIds],
+    [armed, armedCard, busy, collectionId, editable, ownerCollectionId, pickerTargets, place, placeAvailable, rememberedReserveCollection, reserveCtx, runClearReservation, runLock, runReserve, selectionActive, slotIndex, startInsertGap, toTray, toggleSelect, trayIds],
   );
 
   // ← → páginas, Home/End; Esc desfaz em camadas: confirmação → carta escolhida → Bandeja aberta → seleção → fechar.
@@ -1731,7 +1844,7 @@ export function BinderWorkspace({
         go(lastView);
       } else if (event.key === "Escape") {
         event.preventDefault();
-        if (imageTarget || pocketTarget || regionTarget || gapDialog) return;
+        if (imageTarget || pocketTarget || reserveTarget || regionTarget || gapDialog) return;
         if (confirm) setConfirm(null);
         else if (armedCard) setArmedCard(null);
         else if (armed) setArmed(null);
@@ -1746,7 +1859,7 @@ export function BinderWorkspace({
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [armed, armedCard, arrangeOpen, availableOpen, back, closeArrange, confirm, controlOpen, forward, go, gapDialog, imageTarget, lastView, onClose, overviewOpen, pocketTarget, regionTarget, registerFor, selected.size, setControl, trayOpen]);
+  }, [armed, armedCard, arrangeOpen, availableOpen, back, closeArrange, confirm, controlOpen, forward, go, gapDialog, imageTarget, lastView, onClose, overviewOpen, pocketTarget, regionTarget, registerFor, reserveTarget, selected.size, setControl, trayOpen]);
 
   // ---- arrastar e soltar (pointer/touch; teclado usa "…" → Bandeja → bolso) ----
   const sensors = useSensors(
@@ -2374,6 +2487,30 @@ export function BinderWorkspace({
                   }
                 : null
             }
+          />
+        ) : null}
+
+        {reserveTarget ? (
+          <ReservePicker
+            host={rootRef.current}
+            target={slotIndex.get(reserveTarget.slot.slotId)?.slot ?? reserveTarget.slot}
+            pageNumber={reserveTarget.page}
+            collectionId={collectionId}
+            mode={reserveTarget.mode}
+            targets={pickerTargets}
+            excluded={reserveTargets?.excluded ?? []}
+            initialCollectionId={reserveTarget.collectionId}
+            ownerCollectionId={(ownerCollectionId ?? collectionId).toLowerCase()}
+            loadedSlots={Array.from(slotIndex.values(), (entry) => entry.slot)}
+            busy={busy}
+            onConfirm={(candidate, reservationCollectionId) => void runReserveFor(reserveTarget, candidate, reservationCollectionId)}
+            onCollectionChange={setRememberedReserveCollection}
+            onRelease={() => {
+              const entry = slotIndex.get(reserveTarget.slot.slotId);
+              setReserveTarget(null);
+              if (entry) void runClearReservation([entry]);
+            }}
+            onClose={() => setReserveTarget(null)}
           />
         ) : null}
 

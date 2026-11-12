@@ -147,7 +147,17 @@ import {
   previewMyBinderAutoArrange,
 } from "@/lib/colecoes/binder-auto-arrange-queries";
 import { collectionHref, isCollectionId } from "@/lib/colecoes/colecoes";
-import { getMyCollectionsByIds } from "@/lib/colecoes/colecoes-queries";
+import { getMyCollection, getMyCollectionsByIds } from "@/lib/colecoes/colecoes-queries";
+import {
+  type ReserveCandidate,
+  type ReserveExcluded,
+  type ReserveScope,
+  type ReserveTarget,
+  candidateFromPosition,
+  reserveScopeOf,
+  reserveTargetsFrom,
+} from "@/lib/colecoes/binder-reserve";
+import { getChecklist } from "@/lib/reports/checklist-queries";
 import { createClient } from "@/lib/supabase/server";
 import { prepareBinderValue } from "@/lib/colecoes/binder-value-queries";
 import type { BinderValueSummary } from "@/lib/colecoes/binder-value";
@@ -364,21 +374,33 @@ export async function setSlotsLock(input: {
 }
 
 /**
- * Reservar o bolso para a carta que está nele (5128, granularidade carta +
- * acabamento — a mesma da montagem). Se a carta sair, o bolso fica guardado
- * para ela.
+ * Reservar o bolso (5128 `set_slot_expected_content`, a operação canônica):
+ * - para a carta que está nele (granularidade carta + acabamento — a mesma da
+ *   montagem): se a carta sair, o bolso fica guardado para ela;
+ * - V1-07: bolso vazio (ou reservado vazio, para trocar) para uma carta
+ *   escolhida, na granularidade D2 (`variantTypeId` só no Master Set).
+ * Coleção da reserva (`reservationCollectionId`, D3 revisada): omitida = o banco
+ * atribui à coleção da carta no bolso ou, sem carta, à proprietária (C-196);
+ * informada = a coleção escolhida no seletor. A autorização é do banco (5128):
+ * só a proprietária ou uma convidada DESTE fichário, do mesmo dono e ativa —
+ * qualquer outro id é recusado. Também valida dono do fichário, coleção ativa,
+ * acabamento e os gatilhos de imagem e mesclagem.
  */
 export async function reserveSlot(input: {
   collectionId: string;
   slotId: string;
   cardId: string;
   variantTypeId: string | null;
+  /** V1-07: coleção escolhida para a reserva (proprietária ou convidada do fichário). */
+  reservationCollectionId?: string | null;
 }): Promise<{ ok: true } | SlotFail> {
+  const target = input?.reservationCollectionId ?? null;
   if (
     !isCollectionId(input?.collectionId) ||
     !isUuid(input.slotId) ||
     !isUuid(input.cardId) ||
-    (input.variantTypeId !== null && !isUuid(input.variantTypeId))
+    (input.variantTypeId !== null && !isUuid(input.variantTypeId)) ||
+    (target !== null && !isCollectionId(target))
   ) {
     return { ok: false, reason: "invalid" };
   }
@@ -389,10 +411,135 @@ export async function reserveSlot(input: {
     p_card_id: input.cardId,
     p_card_variant_id: null,
     p_expected_variant_type_id: input.variantTypeId,
+    ...(target !== null ? { p_collection_id: target } : {}),
   });
-  if (error) return slotFail("set_slot_expected_content", startedAt, error);
+  if (error) {
+    // Coleção que deixou de ser participante deste fichário (ou nunca foi): o fichário mudou — releitura.
+    if ((error.message ?? "").toLowerCase().includes("not a participant")) {
+      return slotFail("set_slot_expected_content", startedAt, { code: error.code, message: "layout slot not found or not owned by caller" });
+    }
+    return slotFail("set_slot_expected_content", startedAt, error);
+  }
   slotDone("set_slot_expected_content", startedAt, input.collectionId);
   return { ok: true };
+}
+
+/**
+ * V1-07 — cartas que podem ser reservadas num bolso vazio (D1), lidas no servidor
+ * a partir da coleção (nunca do cliente): Set padrão e Master Set → todas as
+ * posições do objetivo (5169 / 5189-5198, com as que faltam); coleção livre →
+ * busca no catálogo (`search_cards`, ≥ 2 letras, 36 por vez); Pokédex e outras →
+ * `unsupported` (a reserva exige carta; nada é inferido da espécie).
+ * Somente leitura; só o titular (RPCs `get_my_*` e coleção da sessão).
+ */
+/**
+ * V1-07 (D3 revisada) — coleções do fichário que podem receber reserva por
+ * carta: a mesma leitura das "Coleções neste fichário" (5246
+ * `get_my_binder_participants` + políticas por `get_my_collections`). Nenhuma
+ * coleção fora do fichário entra; arquivadas e Pokédex ficam de fora (listadas
+ * à parte, só para explicar). Só leitura.
+ */
+async function loadReserveTargets(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  collectionId: string,
+): Promise<{ ok: true; targets: ReserveTarget[]; excluded: ReserveExcluded[] } | { ok: false }> {
+  const { data, error } = await supabase.rpc("get_my_binder_participants", { p_collection_id: collectionId });
+  if (error) return { ok: false };
+  const participants = parseBinderParticipants(data);
+  if (!participants) return { ok: false };
+  const summaries = await getMyCollectionsByIds(supabase, participants.map((p) => p.collectionId).filter(isCollectionId));
+  if (summaries === null) return { ok: false };
+  const policies = new Map<string, string | null>();
+  for (const [id, summary] of summaries) policies.set(id.toLowerCase(), summary.completionPolicy);
+  return { ok: true, ...reserveTargetsFrom(participants, policies) };
+}
+
+export async function readReservationTargets(input: {
+  collectionId: string;
+}): Promise<{ ok: true; targets: ReserveTarget[]; excluded: ReserveExcluded[] } | { ok: false; reason: "invalid" | "unavailable" }> {
+  if (!isCollectionId(input?.collectionId)) return { ok: false, reason: "invalid" };
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const result = await loadReserveTargets(supabase, input.collectionId);
+  if (!result.ok) {
+    console.error(JSON.stringify({ scope: "colecoes.binder_reserve", fn: "targets", ms: Date.now() - startedAt, code: "READ_FAILED" }));
+    return { ok: false, reason: "unavailable" };
+  }
+  console.info(JSON.stringify({ scope: "colecoes.binder_reserve", fn: "targets", ms: Date.now() - startedAt, targets: result.targets.length, excluded: result.excluded.length }));
+  return result;
+}
+
+export async function readReservationCandidates(input: {
+  collectionId: string;
+  /** Coleção escolhida no seletor; omitida = a coleção aberta. Precisa ser destino válido deste fichário. */
+  targetCollectionId?: string | null;
+  query?: string;
+  offset?: number;
+}): Promise<
+  | { ok: true; scope: ReserveScope; candidates: ReserveCandidate[]; total: number; complete: boolean }
+  | { ok: false; reason: "invalid" | "not_found" | "unsupported" | "unavailable" }
+> {
+  if (!isCollectionId(input?.collectionId)) return { ok: false, reason: "invalid" };
+  const targetId = input.targetCollectionId ?? input.collectionId;
+  if (!isCollectionId(targetId)) return { ok: false, reason: "invalid" };
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  if (targetId.toLowerCase() !== input.collectionId.toLowerCase()) {
+    // Outra coleção do fichário: só se estiver entre os destinos dele (nunca um id qualquer do cliente).
+    const targets = await loadReserveTargets(supabase, input.collectionId);
+    if (!targets.ok) return { ok: false, reason: "unavailable" };
+    if (!targets.targets.some((t) => t.collectionId === targetId.toLowerCase())) return { ok: false, reason: "not_found" };
+  }
+  const collection = await getMyCollection(supabase, targetId);
+  if (collection === undefined) return { ok: false, reason: "not_found" };
+  if (collection === null) return { ok: false, reason: "unavailable" };
+  const scope = reserveScopeOf(collection.completionPolicy);
+  if (scope === null) return { ok: false, reason: "unsupported" };
+
+  if (scope === "FREE") {
+    const query = typeof input.query === "string" ? input.query.trim().slice(0, 120) : "";
+    if (query.length < 2) return { ok: true, scope, candidates: [], total: 0, complete: true };
+    const offset = Number.isInteger(input.offset) && (input.offset as number) > 0 ? Math.min(input.offset as number, 5000) : 0;
+    const { data, error } = await supabase.rpc("search_cards", {
+      p_query: query,
+      p_card_id: null,
+      p_card_set_code: null,
+      p_category_code: null,
+      p_rarity_code: null,
+      p_limit: 36,
+      p_offset: offset,
+    });
+    if (error || !Array.isArray(data)) {
+      console.error(JSON.stringify({ scope: "colecoes.binder_reserve", fn: "search_cards", ms: Date.now() - startedAt, code: error?.code ?? "BAD_SHAPE" }));
+      return { ok: false, reason: "unavailable" };
+    }
+    type Row = { card_id?: unknown; card_name?: unknown; collector_number?: unknown; collector_total?: unknown; card_set_code?: unknown; card_set_name?: unknown; image_path_pt?: unknown; image_path_en?: unknown; total_count?: unknown };
+    const text = (v: unknown) => (typeof v === "string" && v.length > 0 ? v : null);
+    const candidates: ReserveCandidate[] = (data as Row[])
+      .filter((r) => typeof r.card_id === "string" && UUID.test(r.card_id))
+      .map((r) => ({
+        key: (r.card_id as string).toLowerCase(),
+        cardId: (r.card_id as string).toLowerCase(),
+        variantTypeId: null,
+        finishName: null,
+        cardName: text(r.card_name) ?? "Carta",
+        collectorNumber: text(r.collector_number),
+        collectorTotal: typeof r.collector_total === "number" ? r.collector_total : null,
+        setCode: text(r.card_set_code),
+        setName: text(r.card_set_name),
+        imagePath: text(r.image_path_pt) ?? text(r.image_path_en),
+        owned: null,
+      }));
+    const total = Number((data as Row[])[0]?.total_count ?? 0) || candidates.length;
+    return { ok: true, scope, candidates, total, complete: offset + candidates.length >= total };
+  }
+
+  const load = await getChecklist(supabase, collection.id, scope, "todas");
+  if (load.status !== "ready") return { ok: false, reason: "unavailable" };
+  const set = { code: collection.cardSetCode, name: collection.cardSetName, total: null };
+  const candidates = load.rows.map((row) => candidateFromPosition(scope, row, set)).filter((c): c is ReserveCandidate => c !== null);
+  console.info(JSON.stringify({ scope: "colecoes.binder_reserve", fn: "positions", ms: Date.now() - startedAt, kind: scope, count: candidates.length, complete: load.complete }));
+  return { ok: true, scope, candidates, total: load.total, complete: load.complete };
 }
 
 /** Liberar reservas (5129). A carta no bolso, se houver, continua lá. */
