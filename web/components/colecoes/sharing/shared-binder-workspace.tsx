@@ -2,13 +2,15 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { DndContext } from "@dnd-kit/core";
 import { ArrowLeft, Eye, Maximize2, Minimize2, X } from "lucide-react";
 import { readPublicBinderPages, readSharedBinderPages } from "@/app/colecoes/compartilhar/actions";
 import { FOCUS_RING, SideArrowButton, TopNavControls } from "@/components/colecoes/fichario/binder-chrome";
 import { BINDER_SPREAD_MEDIA, BinderObjectFrame } from "@/components/colecoes/fichario/binder-object";
 import { PageGrid } from "@/components/colecoes/fichario/binder-page-grid";
-import type { SlotHandlers } from "@/components/colecoes/fichario/binder-slot";
+import { CardViewTransitionContext, type SlotHandlers } from "@/components/colecoes/fichario/binder-slot";
+import { BinderCardView } from "@/components/colecoes/fichario/binder-card-view";
 import ws from "@/components/colecoes/fichario/workspace.module.css";
 import { formatCount } from "@/lib/colecoes/acervo";
 import {
@@ -24,14 +26,16 @@ import {
   viewLabel,
   viewSides,
 } from "@/lib/colecoes/binder";
+import { canViewCard } from "@/lib/colecoes/binder-card-view";
 import type { BinderFinish } from "@/lib/colecoes/binder-finish";
 import { type SharedBinderIdentity, type SharedBinderPage, sharedPageToBinderPage } from "@/lib/colecoes/sharing";
 import { usePrefersReducedMotion } from "@/lib/use-prefers-reduced-motion";
+import { canUseViewTransitions, runWithViewTransition } from "@/lib/view-transitions";
 import { cn } from "@/lib/utils";
 import styles from "./share.module.css";
 
 const NOOP = () => {};
-/** Nenhuma ação de bolso existe no modo só leitura: clicar só foca. */
+/** Nenhuma ação de bolso existe no modo só leitura: clicar só foca (V1-08: na carta, abre a lupa — só consulta). */
 const READ_ONLY_HANDLERS: SlotHandlers = {
   onActivate: NOOP,
   onToggleSelect: NOOP,
@@ -110,6 +114,30 @@ export function SharedBinderWorkspace({
 }) {
   const reducedMotion = usePrefersReducedMotion();
   const rootRef = useRef<HTMLDivElement>(null);
+  /** V1-08 D1/D3: lupa aberta ao tocar/clicar na carta (só consulta, nenhuma ação). */
+  const [cardViewSlotId, setCardViewSlotId] = useState<string | null>(null);
+  /** Morph bolso → lupa, como no titular e no Catálogo (fora da tela cheia). */
+  const [cardViewTarget, setCardViewTarget] = useState<string | null>(null);
+  const [cardViewMorph, setCardViewMorph] = useState(false);
+  const openCardView = useCallback((slotId: string) => {
+    const morph = canUseViewTransitions() && !document.fullscreenElement;
+    setCardViewMorph(morph);
+    if (!morph) {
+      setCardViewSlotId(slotId);
+      return;
+    }
+    flushSync(() => setCardViewTarget(slotId));
+    runWithViewTransition(() => setCardViewSlotId(slotId));
+  }, []);
+  const closeCardView = useCallback(() => {
+    if (cardViewMorph) runWithViewTransition(() => setCardViewSlotId(null));
+    else setCardViewSlotId(null);
+    setCardViewTarget(null);
+  }, [cardViewMorph]);
+  const handlers = useMemo<SlotHandlers>(
+    () => ({ ...READ_ONLY_HANDLERS, onActivate: (slot) => (canViewCard(slot) ? openCardView(slot.slotId) : undefined), onViewCard: (slot) => openCardView(slot.slotId) }),
+    [openCardView],
+  );
   const stageRef = useRef<HTMLElement>(null);
   const totalPages = pageCount;
   const binderName = identity?.name ?? collectionName;
@@ -201,6 +229,8 @@ export function SharedBinderWorkspace({
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
+      // V1-08: com a lupa aberta, Esc fecha só ela e as setas não viram a página.
+      if (cardViewSlotId) return;
       const target = event.target as HTMLElement | null;
       if (target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
       if (event.key === "ArrowLeft") go(view - 1);
@@ -215,7 +245,7 @@ export function SharedBinderWorkspace({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [go, view, lastView, onClose]);
+  }, [go, view, lastView, onClose, cardViewSlotId]);
 
   // ---- tela cheia (mesmo alvo do titular: a raiz do fichário) ----
   const [fullscreen, setFullscreen] = useState(false);
@@ -231,10 +261,24 @@ export function SharedBinderWorkspace({
     else void rootRef.current?.requestFullscreen?.().catch(() => setCanFullscreen(false));
   };
 
+  // V1-08: bolso da lupa, sempre lido do cache atual (se sumir, a lupa fecha).
+  const cardViewSlot = useMemo(() => {
+    if (!cardViewSlotId) return null;
+    for (const page of cache.values()) for (const slot of page.slots) if (slot.slotId === cardViewSlotId) return slot;
+    return null;
+  }, [cache, cardViewSlotId]);
+  useEffect(() => {
+    if (cardViewSlotId && !(cardViewSlot && canViewCard(cardViewSlot))) {
+      setCardViewSlotId(null);
+      setCardViewTarget(null);
+    }
+  }, [cardViewSlot, cardViewSlotId]);
+
   const label = viewLabel(view, perView, totalPages);
   const sizes = `${Math.max(1, fit.pocket)}px`;
 
   return (
+    <CardViewTransitionContext.Provider value={cardViewSlotId ? null : cardViewTarget}>
     <div ref={rootRef} className={cn("binder-nav-01-scope", ws.root)} data-variant={variant} data-fullscreen={fullscreen || undefined}>
       <div aria-hidden className={ws.glow} />
 
@@ -328,7 +372,7 @@ export function SharedBinderWorkspace({
                   placingAvailable={false}
                   focusCollectionId={null}
                   insertEnabled={false}
-                  handlers={READ_ONLY_HANDLERS}
+                  handlers={handlers}
                   onRetry={() => void load(readBatchStart(side))}
                 />
               )}
@@ -342,7 +386,15 @@ export function SharedBinderWorkspace({
       </DndContext>
 
       <div className={ws.bottom} />
+
+      <BinderCardView
+        slot={cardViewSlot && canViewCard(cardViewSlot) ? cardViewSlot : null}
+        container={rootRef.current}
+        useViewTransition={cardViewMorph}
+        onClose={closeCardView}
+      />
     </div>
+    </CardViewTransitionContext.Provider>
   );
 }
 

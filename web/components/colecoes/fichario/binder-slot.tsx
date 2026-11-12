@@ -22,10 +22,12 @@ import {
   Trash2,
   Undo2,
   Ungroup,
+  ZoomIn,
   type LucideIcon,
 } from "lucide-react";
 import { cardFrontUrl, formatCollectorNumber } from "@/lib/colecoes/acervo";
 import { type BinderSlot, type RegionImage, type SlotImage, canReserveCurrent, hasReservation, isOccupied, slotDescription } from "@/lib/colecoes/binder";
+import { canViewCard, cardViewTransitionName } from "@/lib/colecoes/binder-card-view";
 import { regionObjectPosition } from "@/lib/colecoes/binder-region";
 import { type SpeciesReference, formatNationalNumber, shouldShowSpeciesReference, speciesReferenceLabel } from "@/lib/colecoes/binder-species";
 import { speciesArtworkUrl } from "@/lib/pokedex/artwork";
@@ -58,6 +60,13 @@ export const AutoArrangeProjectionContext = createContext<ReadonlySet<string> | 
  * vitrine pública usam o valor padrão `null` — nenhuma etiqueta (D3).
  */
 export const BinderPriceContext = createContext<{ prices: ReadonlyMap<string, VariantPrice>; now: number } | null>(null);
+
+/**
+ * V1-08: bolso que empresta o `view-transition-name` à carta durante o morph
+ * para a lupa ("Ver carta") — o mesmo princípio da miniatura do Catálogo.
+ * `null` (padrão) = nenhum bolso marcado.
+ */
+export const CardViewTransitionContext = createContext<string | null>(null);
 
 /** Onde menus flutuantes são montados: dentro do diálogo do fichário (foco e tela cheia). */
 export const BinderPortalContext = createContext<RefObject<HTMLElement | null> | null>(null);
@@ -92,6 +101,11 @@ export type SlotHandlers = {
   reserveForMode?: (slot: BinderSlot) => "reserve" | "change" | null;
   /** V1-07: abre o seletor "Reservar para uma carta" / "Trocar carta reservada". */
   onReserveFor?: (slot: BinderSlot) => void;
+  /**
+   * V1-08: "Ver carta" — lupa da carta presente ou da reservada (só consulta).
+   * Opcional: sem ele, nenhuma ação nova aparece.
+   */
+  onViewCard?: (slot: BinderSlot) => void;
 };
 
 export type RegionDialogMode = "view" | "frame" | "replace" | "separate";
@@ -208,7 +222,7 @@ export function BinderSlotView({
   const wishShown = wishTarget !== null && wished !== null;
   // Spike binder-nav-01 (EmptySlotQuickActions): bolso vazio e solto convida a "Adicionar carta".
   const addable = editable && !occupied && !image && !slot.locked && !selectionActive && !placing && !inTray;
-  const label = [slotDescription(slot), projected ? "prévia: receberia uma carta na organização automática" : null, priceShown && priceCtx ? priceAccessibleText(price, priceCtx.now) : null, speciesRef ? speciesReferenceLabel(speciesRef) : null, addable ? "Enter para adicionar carta" : null, dimmed ? "de outra coleção" : null, slot.locked ? "bolso fixado" : null, inTray ? "carta na Bandeja" : null, selected ? "selecionada" : null]
+  const label = [slotDescription(slot), projected ? "prévia: receberia uma carta na organização automática" : null, priceShown && priceCtx ? priceAccessibleText(price, priceCtx.now) : null, speciesRef ? speciesReferenceLabel(speciesRef) : null, addable ? "Enter para adicionar carta" : null, !editable && handlers.onViewCard && canViewCard(slot) ? "Enter para ver a carta" : null, dimmed ? "de outra coleção" : null, slot.locked ? "bolso fixado" : null, inTray ? "carta na Bandeja" : null, selected ? "selecionada" : null]
     .filter(Boolean)
     .join(", ");
   const validDrop = drop.isOver && canDrop && !isSource;
@@ -220,6 +234,9 @@ export function BinderSlotView({
   const control = Math.round(Math.min(26, Math.max(18, pocket * 0.2)));
   // Com o marcador no canto superior direito, cadeado e divergência descem logo abaixo dele.
   const badgeShift = wishShown ? control + 4 : 0;
+
+  // V1-08: morph bolso → lupa (só enquanto o fichário marca este bolso).
+  const viewTransitionSource = useContext(CardViewTransitionContext) === slot.slotId;
 
   const activate = (event: React.MouseEvent | React.KeyboardEvent) => {
     const additive = "ctrlKey" in event && (event.ctrlKey || event.metaKey || event.shiftKey);
@@ -265,6 +282,7 @@ export function BinderSlotView({
           "absolute inset-0 overflow-hidden outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[hsl(40_70%_62%)]",
           canDrag ? "cursor-grab active:cursor-grabbing" : image && placing ? "cursor-not-allowed" : "cursor-pointer",
         )}
+        style={viewTransitionSource ? ({ viewTransitionName: cardViewTransitionName(slot.slotId) } as React.CSSProperties) : undefined}
         {...(canDrag ? (drag.listeners as DraggableSyntheticListeners) : undefined)}
       >
         {occupied ? (
@@ -848,6 +866,7 @@ function QuickActions({
           style={{ background: "hsl(0 0% 0% / 0.62)", boxShadow: "0 2px 8px rgba(0,0,0,0.5), inset 0 1px 0 hsl(0 0% 100% / 0.06)" }}
         >
           {canInsertGap ? <QuickButton icon={BetweenVerticalStart} label="Abrir espaço antes deste bolso" onClick={() => handlers.onInsertGap(slot)} size={size} /> : null}
+          {handlers.onViewCard && canViewCard(slot) ? <QuickButton icon={ZoomIn} label="Ver carta" onClick={() => handlers.onViewCard?.(slot)} size={size} /> : null}
           {occupied ? (
             inTray ? (
               <QuickButton icon={Undo2} label="Devolver da Bandeja a este bolso" onClick={() => handlers.onReturnFromTray(slot)} size={size} active tone="tray" />

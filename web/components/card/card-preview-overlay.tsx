@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 
 /**
  * Backdrop/moldura do preview ampliado de uma carta — fonte única extraída
@@ -28,6 +29,7 @@ export function CardPreviewOverlay({
   onClose,
   title,
   useViewTransition = false,
+  container,
   children,
 }: {
   open: boolean;
@@ -43,6 +45,14 @@ export function CardPreviewOverlay({
    * está disponível ou `prefers-reduced-motion: reduce` está ativo.
    */
   useViewTransition?: boolean;
+  /**
+   * Onde o preview monta (padrão: `document.body`, como sempre no Catálogo).
+   * V1-08: o Fichário passa a própria raiz — em tela cheia e na sobreposição
+   * um diálogo no <body> ficaria invisível/inerte. Com ele, o preview sobe à
+   * camada do fichário e cuida do próprio foco (`data-focus-trap`). Sem ele,
+   * nada muda.
+   */
+  container?: HTMLElement | null;
   children: ReactNode;
 }) {
   return (
@@ -51,7 +61,10 @@ export function CardPreviewOverlay({
         hideClose
         animated={!useViewTransition}
         aria-describedby={undefined}
-        className="w-full max-w-[380px] border-none bg-transparent p-0 shadow-none sm:max-w-[460px]"
+        container={container}
+        overlayClassName={container ? "z-[96]" : undefined}
+        data-focus-trap={container ? "self" : undefined}
+        className={cn("w-full max-w-[380px] border-none bg-transparent p-0 shadow-none sm:max-w-[460px]", container && "z-[96]")}
       >
         <DialogTitle className="sr-only">{title}</DialogTitle>
         {children}

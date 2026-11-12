@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
+import { flushSync } from "react-dom";
 import {
   DndContext,
   DragOverlay,
@@ -156,12 +157,16 @@ import {
   reserveForMode,
 } from "@/lib/colecoes/binder-reserve";
 import { ReservePicker } from "./binder-reserve-picker";
+import { BinderCardView } from "./binder-card-view";
+import { canViewCard } from "@/lib/colecoes/binder-card-view";
+import { canUseViewTransitions, runWithViewTransition } from "@/lib/view-transitions";
 import { RemovePageDialog } from "./binder-remove-page";
 import { BinderControlPanel, CONTROL_PANEL_ID } from "./binder-control";
 import { BinderOverview } from "./binder-overview";
 import {
   AutoArrangeProjectionContext,
   BinderPortalContext,
+  CardViewTransitionContext,
   BinderPriceContext,
   type RegionDialogMode,
   type SlotDragData,
@@ -592,6 +597,27 @@ export function BinderWorkspace({
    * vale a regra segura de antes (só a proprietária aberta).
    */
   const [reserveTargets, setReserveTargets] = useState<{ targets: ReserveTarget[]; excluded: ReserveExcluded[] } | null>(null);
+  /** V1-08: bolso cuja lupa ("Ver carta") está aberta — só consulta. */
+  const [cardViewSlotId, setCardViewSlotId] = useState<string | null>(null);
+  /** V1-08: morph bolso → lupa (mesma orquestração do Catálogo: alvo marcado antes do snapshot). */
+  const [cardViewTarget, setCardViewTarget] = useState<string | null>(null);
+  const [cardViewMorph, setCardViewMorph] = useState(false);
+  const openCardView = useCallback((slotId: string) => {
+    // Em tela cheia o morph não é usado (o fichário é a camada superior): zoom+fade do Catálogo.
+    const morph = canUseViewTransitions() && !document.fullscreenElement;
+    setCardViewMorph(morph);
+    if (!morph) {
+      setCardViewSlotId(slotId);
+      return;
+    }
+    flushSync(() => setCardViewTarget(slotId));
+    runWithViewTransition(() => setCardViewSlotId(slotId));
+  }, []);
+  const closeCardView = useCallback(() => {
+    if (cardViewMorph) runWithViewTransition(() => setCardViewSlotId(null));
+    else setCardViewSlotId(null);
+    setCardViewTarget(null);
+  }, [cardViewMorph]);
   /** Última coleção escolhida no seletor — só deste fichário aberto (estado do componente, nunca persistido). */
   const [rememberedReserveCollection, setRememberedReserveCollection] = useState<string | null>(null);
   // Imagem personalizada (C-198): bolso aberto no diálogo da imagem.
@@ -1581,6 +1607,16 @@ export function BinderWorkspace({
     return [{ collectionId: ownerCollectionId.toLowerCase(), name: ownerCollectionName ?? collectionName, role: "OWNER", scope: reserveScope }];
   }, [collectionId, collectionName, ownerCollectionId, ownerCollectionName, reserveScope, reserveTargets]);
 
+  // V1-08: a carta saiu do bolso (releitura, outra tela) — a lupa fecha e o teclado do fichário volta.
+  const cardViewSlot = cardViewSlotId ? (slotIndex.get(cardViewSlotId)?.slot ?? null) : null;
+  useEffect(() => {
+    if (cardViewSlotId && !(cardViewSlot && canViewCard(cardViewSlot))) {
+      setCardViewSlotId(null);
+      setCardViewTarget(null);
+    }
+  }, [cardViewSlot, cardViewSlotId]);
+
+
   /**
    * V1-07: reservar o bolso vazio (ou trocar a carta reservada) pela carta
    * escolhida — a mesma 5128 do "Reservar este bolso para a carta", sem coleção
@@ -1746,6 +1782,11 @@ export function BinderWorkspace({
           setImageTarget({ slotId: slot.slotId, mode: "view" });
           return;
         }
+        // V1-08 D1: fichário somente leitura (arquivado) — tocar/clicar na carta abre a lupa (só consulta).
+        if (!editable && canViewCard(slot)) {
+          openCardView(slot.slotId);
+          return;
+        }
         // Spike binder-nav-01: tocar um bolso vazio e solto abre "Adicionar carta".
         if (editable && !busy && isAddablePocket(slot) && !trayIds.has(slot.slotId)) {
           const entry = slotIndex.get(slot.slotId);
@@ -1799,6 +1840,11 @@ export function BinderWorkspace({
         setToast(null);
         setRegionTarget({ regionId, mode: editable ? mode : "view" });
       },
+      // V1-08 D1: "Ver carta" na cápsula do bolso (editável); nada grava.
+      onViewCard: (slot) => {
+        if (justDragged.current || !canViewCard(slot)) return;
+        openCardView(slot.slotId);
+      },
       reserveForMode: (slot) => (trayIds.has(slot.slotId) ? null : reserveForMode(slot, reserveCtx)),
       onReserveFor: (slot) => {
         if (busy || armed || armedCard || trayIds.has(slot.slotId)) return;
@@ -1818,15 +1864,15 @@ export function BinderWorkspace({
         setReserveTarget({ ...entry, mode, collectionId: initial });
       },
     }),
-    [armed, armedCard, busy, collectionId, editable, ownerCollectionId, pickerTargets, place, placeAvailable, rememberedReserveCollection, reserveCtx, runClearReservation, runLock, runReserve, selectionActive, slotIndex, startInsertGap, toTray, toggleSelect, trayIds],
+    [armed, armedCard, busy, collectionId, editable, openCardView, ownerCollectionId, pickerTargets, place, placeAvailable, rememberedReserveCollection, reserveCtx, runClearReservation, runLock, runReserve, selectionActive, slotIndex, startInsertGap, toTray, toggleSelect, trayIds],
   );
 
   // ← → páginas, Home/End; Esc desfaz em camadas: confirmação → carta escolhida → Bandeja aberta → seleção → fechar.
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
       if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
-      // A visão geral e o cadastro cuidam do próprio teclado (Esc fecha só eles).
-      if (overviewOpen || registerFor) return;
+      // A visão geral, o cadastro e a lupa (V1-08) cuidam do próprio teclado (Esc fecha só eles; setas não viram a página).
+      if (overviewOpen || registerFor || cardViewSlotId) return;
       const target = event.target as HTMLElement | null;
       if (target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
       if (target?.closest("[role='menu']")) return;
@@ -1859,7 +1905,7 @@ export function BinderWorkspace({
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [armed, armedCard, arrangeOpen, availableOpen, back, closeArrange, confirm, controlOpen, forward, go, gapDialog, imageTarget, lastView, onClose, overviewOpen, pocketTarget, regionTarget, registerFor, reserveTarget, selected.size, setControl, trayOpen]);
+  }, [armed, armedCard, arrangeOpen, availableOpen, back, closeArrange, confirm, controlOpen, forward, go, gapDialog, imageTarget, lastView, onClose, overviewOpen, pocketTarget, regionTarget, registerFor, reserveTarget, selected.size, setControl, trayOpen, cardViewSlotId]);
 
   // ---- arrastar e soltar (pointer/touch; teclado usa "…" → Bandeja → bolso) ----
   const sensors = useSensors(
@@ -1963,6 +2009,7 @@ export function BinderWorkspace({
     <BinderPortalContext.Provider value={portalRef}>
       <BinderPriceContext.Provider value={priceContext}>
       <SpeciesReferenceVisibleContext.Provider value={speciesVisible}>
+      <CardViewTransitionContext.Provider value={cardViewSlotId ? null : cardViewTarget}>
       <AutoArrangeProjectionContext.Provider value={arrangeProjection}>
       <div
         ref={rootRef}
@@ -2141,6 +2188,8 @@ export function BinderWorkspace({
               />
             ) : null}
           </section>
+          {/* V1-08: a ampliação do Catálogo, montada na raiz do fichário (tela cheia/overlay). */}
+          <BinderCardView slot={cardViewSlot} container={rootRef.current} useViewTransition={cardViewMorph} onClose={closeCardView} />
           </BinderWishLayer>
 
           <div className={ws.next}>
@@ -2598,6 +2647,7 @@ export function BinderWorkspace({
         </p>
       </div>
       </AutoArrangeProjectionContext.Provider>
+      </CardViewTransitionContext.Provider>
       </SpeciesReferenceVisibleContext.Provider>
       </BinderPriceContext.Provider>
     </BinderPortalContext.Provider>
