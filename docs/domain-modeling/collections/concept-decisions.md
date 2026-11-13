@@ -5,7 +5,7 @@
 | **Documento** | Collection — Concept Decisions (Modelagem Conceitual) |
 | **Arquivo** | `docs/domain-modeling/collections/concept-decisions.md` |
 | **Origem** | Produzido em repositório de modelagem paralelo (`mimikyu-modelagem-de-dados`), incorporado a `project-mimikyu` como fonte canônica em 2026-08-28 (pedido explícito de Fabrício). |
-| **Decision Register** | C-01 a C-37 (núcleo Collection); C-38 a C-46 (bloco complementar Collection Layout, 2026-08-30); C-47 a C-48 (bloco complementar Physical Card & Inventory, 2026-08-30); C-49 a C-54 (bloco complementar Custody & Availability, 2026-08-30); C-55 a C-66 (bloco complementar Storage, 2026-08-30); C-67 a C-81 (bloco complementar Physical Card Lifecycle & Provenance, 2026-08-30); C-82 a C-90 (bloco complementar Favorite, 2026-08-30); C-91 a C-102 (bloco complementar Wishlist, 2026-08-30); C-103 a C-120 (bloco complementar Physical Card Condition, 2026-08-30); C-121 a C-140 (bloco complementar Grading / Certification, 2026-08-30); C-141 a C-165 (bloco complementar Collection Collaboration / Permissions, 2026-08-30); C-166 a C-186 (bloco complementar Collection Activity History / Audit, 2026-08-30); C-187 a C-190 (bloco complementar Master Set por acabamento, 2026-10-18 — substitui parcialmente C-01 e B.4); C-191 a C-194 (bloco complementar Fichário Digital — montagem automática, exemplares adicionais e desmontagem, 2026-10-22 — decisões aprovadas, implementação física EXECUTADA; estende C-42; C-191/C-192 parcialmente superadas em 2026-10-24 pela Elegibilidade por Local Físico); C-195 a C-197 (bloco complementar Fichário Digital compartilhado, 2026-10-23 — emenda C-38/C-191; implementação física EXECUTADA; C-195/C-197 parcialmente superadas em 2026-10-24 pela Elegibilidade por Local Físico); C-198 (imagem personalizada do bolso, 2026-10-23); C-199 (referência de espécie nos bolsos do fichário da Pokédex, 2026-10-24 — implementação local, contratos não executados); C-200 (novidades do Catálogo no fichário Master Set, 2026-10-25 — implementada, canônica e homologada); C-201 a C-209 (bloco complementar Histórico de Atividades do Fichário, 2026-10-25 — aprovadas; implementação física proposta, não aplicada); C-210 a C-219 (bloco complementar Lista de desejos — decisões de produto do V1-11, 2026-10-31 — aprovadas; sem modelo físico); C-220 a C-226 (bloco complementar Organização automática do fichário, 2026-11-01 — aprovadas; fundação SQL 5341–5344 EXECUTADA, canônica e homologada; interface não iniciada) |
+| **Decision Register** | C-01 a C-37 (núcleo Collection); C-38 a C-46 (bloco complementar Collection Layout, 2026-08-30); C-47 a C-48 (bloco complementar Physical Card & Inventory, 2026-08-30); C-49 a C-54 (bloco complementar Custody & Availability, 2026-08-30); C-55 a C-66 (bloco complementar Storage, 2026-08-30); C-67 a C-81 (bloco complementar Physical Card Lifecycle & Provenance, 2026-08-30); C-82 a C-90 (bloco complementar Favorite, 2026-08-30); C-91 a C-102 (bloco complementar Wishlist, 2026-08-30); C-103 a C-120 (bloco complementar Physical Card Condition, 2026-08-30); C-121 a C-140 (bloco complementar Grading / Certification, 2026-08-30); C-141 a C-165 (bloco complementar Collection Collaboration / Permissions, 2026-08-30); C-166 a C-186 (bloco complementar Collection Activity History / Audit, 2026-08-30); C-187 a C-190 (bloco complementar Master Set por acabamento, 2026-10-18 — substitui parcialmente C-01 e B.4); C-191 a C-194 (bloco complementar Fichário Digital — montagem automática, exemplares adicionais e desmontagem, 2026-10-22 — decisões aprovadas, implementação física EXECUTADA; estende C-42; C-191/C-192 parcialmente superadas em 2026-10-24 pela Elegibilidade por Local Físico); C-195 a C-197 (bloco complementar Fichário Digital compartilhado, 2026-10-23 — emenda C-38/C-191; implementação física EXECUTADA; C-195/C-197 parcialmente superadas em 2026-10-24 pela Elegibilidade por Local Físico); C-198 (imagem personalizada do bolso, 2026-10-23); C-199 (referência de espécie nos bolsos do fichário da Pokédex, 2026-10-24 — implementação local, contratos não executados); C-200 (novidades do Catálogo no fichário Master Set, 2026-10-25 — implementada, canônica e homologada); C-201 a C-209 (bloco complementar Histórico de Atividades do Fichário, 2026-10-25 — aprovadas; implementação física proposta, não aplicada); C-210 a C-219 (bloco complementar Lista de desejos — decisões de produto do V1-11, 2026-10-31 — aprovadas; sem modelo físico); C-220 a C-226 (bloco complementar Organização automática do fichário, 2026-11-01 — aprovadas; fundação SQL 5341–5344 EXECUTADA, canônica e homologada; interface não iniciada); C-227 a C-233 (bloco complementar Condição física na V1.0 — V1-16, 2026-11-13 — aprovadas; banco aplicado no LIVE, frontend implementado localmente e não publicado) |
 | **Status** | FECHADA / APROVADA PARA MODELAGEM LÓGICA (núcleo); bloco complementar de Layout também Aprovado; bloco complementar Physical Card & Inventory também Aprovado; bloco complementar Custody & Availability também Aprovado; bloco complementar Storage também Aprovado; bloco complementar Physical Card Lifecycle & Provenance também Aprovado; bloco complementar Favorite também Aprovado; bloco complementar Wishlist também Aprovado; bloco complementar Physical Card Condition também Aprovado; bloco complementar Grading / Certification também Aprovado; bloco complementar Collection Collaboration / Permissions também Aprovado; bloco complementar Collection Activity History / Audit também Aprovado |
 | **Escopo** | Modelagem conceitual da entidade `Collection` (colecionador), desde 2026-08-30 de `Collection Layout`/`Page`/`Slot`, desde 2026-08-30 da identidade `Physical Card` e do agregado `Inventory`, desde 2026-08-30 das dimensões `Custody`/`Custodian`/`Availability`, desde 2026-08-30 de `Storage`/`Storage Container` (incluindo hierarquia opcional), desde 2026-08-30 de `Lifecycle`/`Provenance` (Ownership Entry/Transfer/Exit), desde 2026-08-30 de `Favorite` (preferência do User por Card), desde 2026-08-30 de `Wishlist` (intenção do User por Card Variant), desde 2026-08-30 de `Physical Card Condition` (classificação padronizada do estado físico, referenciando a escala canônica compartilhada `card_condition`), desde 2026-08-30 de `Grading`/`Certification` (resultado formal de avaliação externa, com exclusividade de aplicabilidade corrente frente a Condition), desde 2026-08-30 de `Collection Collaboration`/`Permissions` (Owner estrutural, Collection Membership, roles EDITOR/VIEWER, fronteira Collection-scoped × Owner/Inventory-scoped), e desde 2026-08-30 de `Collection Activity History`/`Audit Log` (três camadas — Lifecycle/Provenance, Activity History, Audit — conceitualmente distintas) — não contém SQL nem modelo físico. |
 | **Documentos Relacionados** | `../../04-domain-model.md` (seções Collection/Collection Entry/Collection Item — ver nota de superação), `adr/ADR-013-collection-item-identity-model.md` e `adr/ADR-014-collection-and-collection-entry-model.md` (ambas **Substituídas** por este documento e por `logical-model.md`), `logical-model.md`, `pkmnbindr-benchmark.md`, `checkpoint-2026-08-28.md`, `checkpoint-2026-08-29.md`, `checkpoint-2026-08-30.md`, `ux-exploration-2026-08-29.md`. |
@@ -1185,6 +1185,8 @@ Wishlist pertence ao `User`. Não pertence a `Collection`, `Inventory` nem a uma
 ## Bloco complementar — Physical Card Condition (2026-08-30)
 
 > **Escopo de lançamento (2026-10-29, `COLLECTION-SCOPE-CONSOLIDATION-01`, decisão do proprietário):** condição real do exemplar fica no **backlog V2.0** e não bloqueia a V1.0. Na V1.0, preços usam Near Mint como **referência de precificação**, sem declarar a condição física do exemplar (ROADMAP 2.55; North Star NS-20). Decisões C-103–C-120 preservadas.
+>
+> **Revisão de escopo (2026-11-13, `CARD CONDITION CONTRACT-01`, decisão do proprietário):** a condição física por exemplar foi **antecipada para a V1.0** como requisito V1-16 (bloco C-227–C-233). A nota acima continua como registro histórico; graduação/certificação (C-121–C-140) permanece no backlog V2.0. C-108 está **substituída** por C-228 e C-120 está **parcialmente revisada** por C-228/C-229; as demais (C-103–C-107, C-109–C-119) continuam vigentes.
 
 Adicionado ao final de `COLLECTIONS-PHYSICAL-CARD-CONDITION-CONSOLIDATION-01`, encerrando a subfrente `Collections — Physical Card Condition conceptual modeling`, conduzida por um memo conceitual (`COLLECTIONS-PHYSICAL-CARD-CONDITION-MODELING-01`) e um complemento de evidência de mercado brasileiro (entregue como `COMPLEMENTO — CONDITION / EVIDÊNCIA DE MERCADO BRASILEIRO`). Nota de divergência sinalizada explicitamente, não aplicada silenciosamente: o pedido de consolidação refere-se a "memos CONDITION-MODELING-01, CONDITION-MODELING-02 e o complemento"; nesta sessão não houve uma rodada entregue literalmente como `CONDITION-MODELING-02` — o complemento de evidência de mercado cumpriu, em conteúdo, o papel equivalente de um refinamento de segunda rodada (evidência de mercado brasileiro, code vs. label, filter semantics), e é tratado aqui como tal. Ambos previamente registrados sem edição de arquivo. Nenhuma decisão de conteúdo nova é introduzida além do que já havia sido explorado nesses dois textos e revisado por Fabrício — este bloco só dá a essas decisões um lugar canônico que antes não existia. C-01–C-102 não são reabertas — em particular, `Lifecycle`/`Provenance` (C-67–C-81, especialmente C-69/C-80/C-81) e `Wishlist` (C-91–C-102, especialmente C-100) permanecem integralmente vigentes. Grading/Certification em detalhe, Damage/Defects, Condition History, Valuation e Wishlist refinement permanecem explicitamente fora de escopo. Achado central desta rodada: a tabela física `card_condition`, já `CONFIRMADO EXECUTADO` em Pricing (Incremento P1, 2026-08-16 — ver `docs/05f-pricing.md`), é reconhecida e ratificada conceitualmente como a referência canônica compartilhada de Condition (C-104), sem propor ou alterar schema nesta rodada.
 
@@ -1224,7 +1226,7 @@ Registra-se como evidência de alinhamento de mercado o vocabulário observado e
 
 ## C-108 — Opcionalidade
 
-**Status:** Aprovada
+**Status:** **Substituída por C-228 (2026-11-13, `CARD CONDITION CONTRACT-01`)** — texto original preservado abaixo como histórico.
 
 Condition é opcional. Não bloqueia cadastro básico, bulk import nem Ownership Entry (C-70). Ausência de Condition significa "não informada" — não se cria um valor `UNKNOWN` apenas para representar essa ausência.
 
@@ -1296,7 +1298,7 @@ Wishlist V1 (C-91–C-102) permanece sem Condition. A possibilidade futura de re
 
 ## C-120 — Escopo mínimo V1
 
-**Status:** Aprovada
+**Status:** Aprovada — **parcialmente revisada por C-228/C-229 (2026-11-13)**: "Current Condition opcional" e "sem obrigatoriedade de preenchimento" deixam de valer (condição obrigatória, padrão NM); o restante continua vigente.
 
 O escopo mínimo V1 de Condition é: Current Condition opcional; escala canônica compartilhada (`card_condition`); código independente de idioma, com label localizado; sem defects detalhados; sem histórico; sem evidence levels; sem obrigatoriedade de preenchimento; sem derivação automática a partir de Grade.
 
@@ -2030,6 +2032,66 @@ Uma confirmação cria no máximo 500 posições. Acima disso, a prévia informa
 
 Cada organização aplicada gera um único evento no histórico do fichário (categoria Cartas), com um item por carta posicionada indicando o bolso de destino (C-205). Prévia, plano vazio, limite excedido, divergência e repetição não geram evento.
 
+
+---
+
+## Bloco complementar — Condição física na V1.0 (V1-16, 2026-11-13)
+
+Adicionado por `COLLECTION V1-16 — CARD CONDITION CONTRACT-01`, a partir do diagnóstico `CARD CONDITION READINESS-01` e das decisões do proprietário. Antecipa para a V1.0 a condição física por exemplar (C-103–C-120), sem criar escala, entidade ou conceito paralelo. Nenhuma alteração física nesta rodada.
+
+### C-227 — Condição física por exemplar na V1.0 (V1-16)
+
+**Status:** Aprovada
+
+A condição física do exemplar passa a integrar a Collection V1.0 como requisito V1-16, antes do V1-13. A entidade-alvo continua sendo exclusivamente a `Physical Card` (C-103): nunca `Card`, `Card Variant`, `Collection`, alocação, bolso do fichário, reserva, `Favorite` ou `Wishlist`. Duas cópias da mesma carta podem ter condições diferentes. Graduação/certificação (C-121–C-140) não faz parte do V1-16.
+
+### C-228 — Condição obrigatória, padrão NM (substitui C-108)
+
+**Status:** Aprovada
+
+Todo exemplar físico possui condição. O valor padrão é `NM`. Não existe estado "não informada" nem valor `UNKNOWN`. Substitui C-108 (opcionalidade) e revisa os trechos correspondentes de C-120. Cadastro básico, cadastro em lote e inclusão rápida continuam sem exigir ação adicional do usuário: na ausência de escolha, vale `NM`.
+
+### C-229 — Escala oferecida e rótulos de exibição
+
+**Status:** Aprovada
+
+São oferecidas as seis condições da escala canônica (C-105), na ordem de `condition_order`. Os códigos canônicos `M`, `NM`, `LP`, `MP`, `HP`, `DMG` não mudam (C-106: código é identidade estável); a interface exibe a sigla e o nome de referência do proprietário:
+
+| Código canônico | Sigla exibida | Nome exibido |
+|---|---|---|
+| `M` | M | Mint |
+| `NM` | NM | Near Mint |
+| `LP` | **SP** | **Slightly Played** |
+| `MP` | MP | Moderately Played |
+| `HP` | HP | Heavily Played |
+| `DMG` | **DM** | **Damaged** |
+
+`SP`/Slightly Played e `LP`/Lightly Played designam o mesmo degrau da escala (segundo melhor estado de uso; mesma posição já registrada como evidência de mercado em C-107, "SP-LP/Usada Levemente"); `DM` é abreviação de exibição de `DMG`. As siglas exibidas são **rótulos**, não códigos: nunca são gravadas, nunca entram em `pricing_condition_mapping` e não alteram o mapeamento das fontes de Pricing (a fonte que publica "Lightly Played" continua mapeada para `LP`). `card_condition.name` (registro administrativo, "Lightly Played"/"Damaged") não é alterado por esta decisão. Mapeamento código → rótulo é responsabilidade única da interface (um único ponto de definição).
+
+### C-230 — Classificação inicial presumida (compatibilidade com C-109)
+
+**Status:** Aprovada
+
+Os exemplares já cadastrados recebem `NM` como **classificação inicial presumida**: premissa operacional do proprietário, não inspeção física nem declaração exemplar a exemplar. É compatível com C-109 (condição é classificação registrada/declarada, nunca certificada): a premissa é registrada em documentação; no V1.0 não há marcação técnica de origem ("presumida" × "declarada") nem histórico (C-113). Editar a condição de um exemplar substitui a classificação presumida. A inicialização não altera identidade, quantidades, alocações, localização, bolsos, histórico ou datas de atualização dos exemplares.
+
+### C-231 — Cadastro
+
+**Status:** Aprovada
+
+Em todo cadastro de exemplares, a condição começa em `NM` e pode ser alterada antes de salvar. Operações em lote usam **uma condição por linha** (carta + variante + idioma + quantidade): cópias com condições diferentes são linhas diferentes ou ajuste posterior. Set inteiro usa uma única condição para todos os exemplares criados. A inclusão rápida (+1, "Quantos você tem?") usa `NM` sem perguntar. A condição informada é gravada na mesma operação atômica que cria os exemplares — nunca em etapa posterior separada.
+
+### C-232 — Edição
+
+**Status:** Aprovada
+
+O usuário consulta e altera a condição de exemplares **seus**, individualmente ou vários de uma vez. A alteração não muda identidade, quantidade possuída, variante, idioma, alocação, localização, bolso, reserva, Favorito ou Lista de desejos (reafirma C-114). Repetir a mesma alteração não muda nada (idempotente). Não há histórico de condição (C-113).
+
+### C-233 — Independência e superfícies da V1.0
+
+**Status:** Aprovada
+
+A condição não altera completude, reservas, Favoritos, Lista de desejos, localização, organização do fichário nem o **preço NM de referência** (C-117; Pricing V1 não é reaberto — sem recálculo por condição). Interface do V1-16: **cadastro** e **detalhe do Meu acervo** (consulta e edição). Fora do V1-16: fichário, relatórios por condição, valoração por condição, filtros por condição (C-118 continua válida para o futuro), graduação, defeitos detalhados (C-110). Superfícies compartilhadas e públicas (V1-12) **não exibem** a condição dos exemplares de outro usuário.
+
 ---
 
 # PARTE B — ESTADO CANÔNICO CONSOLIDADO
@@ -2379,3 +2441,4 @@ Antes do handoff final para implementação, o modelo deverá ser reconciliado c
 | 1.32 | **C-219 e esclarecimentos em C-212/C-216 (2026-10-31, `V1-11 W0 DOCUMENTATION AUDIT CLOSEOUT-03`).** C-219 decide a inclusão a partir de conteúdo compartilhado (pessoal, privada, sem alterar o compartilhado nem ampliar permissões). C-212 explicita que posição só com espécie, referência incompleta ou carta ambígua não autoriza inclusão automática e que nenhuma posição faltante vira desejo automaticamente; C-216 explicita a cobertura sobre variantes distintas com cotação válida e a natureza da referência NM. Pacote W0 ainda não publicado; C-91–C-102 inalteradas. |
 | 1.33 | **C-220 a C-226 — Organização automática do fichário (2026-11-01, `Binder · P2 AUTO-ARRANGE SQL FOUNDATION-06`).** Registra as 13 decisões finais do proprietário: Set/Master Set na proprietária; candidatos e destinos elegíveis; 1:1 estrito sem desempate; só acrescenta posições; prévia, confirmação e token; limite 500 sem execução parcial; um evento por operação. Especializa C-42–C-44, C-191–C-197 e C-205 sem reabri-las. Implementação física PROPOSTA (5341–5344, harness 5872), não executada. |
 | 1.34 | **C-220 a C-226 — fundação SQL homologada (2026-11-01, `P2 SQL FOUNDATION CLOSEOUT-16`).** Só estado de implementação: 5341–5344 executadas no LIVE, canônicas em `database/schema/`, harness 5872 v1.5 54/54, postcheck e medição ME3 PASS. Texto das decisões inalterado. K-M1–K-M3 e `55P03` não provados; uso real depende da interface homologada e de autorização do proprietário. |
+| 1.35 | **C-227 a C-233 — Condição física por exemplar na V1.0 (V1-16) (2026-11-13, `COLLECTION V1-16 — CARD CONDITION CONTRACT-01`).** Antecipa a condição (C-103–C-120) do backlog V2.0 para a V1.0 por decisão do proprietário. C-228 **substitui** C-108 (condição obrigatória, padrão NM) e revisa parcialmente C-120; C-229 oferece as seis condições canônicas com rótulos de exibição (SP para `LP`, DM para `DMG`) sem mudar códigos nem Pricing; C-230 registra a classificação inicial presumida NM (compatível com C-109); C-231 cadastro; C-232 edição; C-233 independência e superfícies. Textos de C-108/C-120 preservados com status atualizado. Sem alteração física. |
