@@ -1227,6 +1227,54 @@
   grid-template-columns: 3.25rem 5rem minmax(0, 1fr) auto 1rem;
 }
 
+/* V1-16 UX-B — distribuição das condições declaradas ("NM ×2 · SP ×1"). */
+.conditionMix {
+  display: block;
+  margin-top: 0.375rem;
+}
+
+.conditionMix[data-compact] {
+  margin-top: 0.25rem;
+}
+
+.conditionMixItems {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.625rem;
+  font-size: 0.75rem;
+  line-height: 1.125rem;
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--foreground) / 0.85);
+}
+
+.conditionMixItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  white-space: nowrap;
+}
+
+.conditionMixItem[data-unrecognized] {
+  color: hsl(var(--muted-foreground));
+  font-style: italic;
+}
+
+.conditionMixCode {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 1.125rem;
+  min-width: 1.75rem;
+  padding: 0 0.375rem;
+  border-radius: 5px;
+  font-size: 0.65625rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: hsl(var(--foreground) / 0.85);
+  background: hsl(var(--surface-muted));
+  border: 1px solid hsl(var(--border));
+}
+
 .foundRow[data-unlocated] {
   color: hsl(var(--muted-foreground));
 }

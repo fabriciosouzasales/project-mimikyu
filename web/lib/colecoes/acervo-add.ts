@@ -15,6 +15,8 @@
  * tradução de códigos/erros para a linguagem do colecionador.
  */
 
+import { type CardConditionCode, DEFAULT_CARD_CONDITION, isCardConditionCode } from "./card-condition.ts";
+
 /** Teto por operação — o mesmo dos contratos B1/B2 (o banco é a autoridade; aqui só evita uma ida inútil). */
 export const ADD_MAX_TOTAL = 1000;
 /** Limite de quantidade por linha na interface (o banco aceita mais; acima disso, quem tem tantas cópias usa várias linhas). */
@@ -44,12 +46,20 @@ export type DraftLine = {
   isDefaultVariant: boolean;
   languageId: string;
   quantity: number;
+  /** V1-16 (C-231): condição física de todos os exemplares desta linha; NM por padrão (C-228). */
+  conditionCode: CardConditionCode;
 };
 
-export type RegisterItem = { card_variant_id: string; language_id: string; quantity: number };
+/**
+ * Item dos contratos B1 (5155/5158 após a 5362). `condition_code` só existe
+ * quando difere de NM: ausente ≡ NM, e assim o pedido NM é byte a byte o
+ * histórico (mesmo `request_hash`, mesmas chaves de idempotência).
+ */
+export type RegisterItem = { card_variant_id: string; language_id: string; quantity: number; condition_code?: CardConditionCode };
 
-export function lineKey(line: Pick<DraftLine, "variantId" | "languageId">): string {
-  return `${line.variantId}:${line.languageId}`;
+/** Identidade da linha (V1-16): variante + idioma + condição — a mesma do banco (trio, 5362). */
+export function lineKey(line: Pick<DraftLine, "variantId" | "languageId" | "conditionCode">): string {
+  return `${line.variantId}:${line.languageId}:${line.conditionCode}`;
 }
 
 function clampQuantity(value: number): number {
@@ -58,8 +68,9 @@ function clampQuantity(value: number): number {
 }
 
 /**
- * Acrescenta uma linha. Se a mesma variante+idioma já está na seleção, soma as
- * quantidades (multiplicidade é só por quantidade, nunca por linha repetida).
+ * Acrescenta uma linha. Se a mesma variante+idioma+condição já está na seleção,
+ * soma as quantidades (multiplicidade é só por quantidade, nunca por linha
+ * repetida). A mesma carta em outra condição é outra linha.
  */
 export function addLine(lines: readonly DraftLine[], line: DraftLine): DraftLine[] {
   const key = lineKey(line);
@@ -71,15 +82,13 @@ export function addLine(lines: readonly DraftLine[], line: DraftLine): DraftLine
 }
 
 /**
- * Altera variante, idioma ou quantidade da linha `index`. Se a troca colidir
- * com outra linha (mesma variante+idioma), as duas se fundem na posição da
- * primeira — nunca ficam duas linhas iguais.
+ * Altera variante, idioma, condição ou quantidade da linha `index`. Se a troca
+ * colidir com outra linha (mesma variante+idioma+condição), as duas se fundem
+ * na posição da primeira — nunca ficam duas linhas iguais.
  */
-export function updateLine(
-  lines: readonly DraftLine[],
-  index: number,
-  patch: Partial<Pick<DraftLine, "variantId" | "variantLabel" | "isDefaultVariant" | "languageId" | "quantity">>,
-): DraftLine[] {
+export type LinePatch = Partial<Pick<DraftLine, "variantId" | "variantLabel" | "isDefaultVariant" | "languageId" | "quantity" | "conditionCode">>;
+
+export function updateLine(lines: readonly DraftLine[], index: number, patch: LinePatch): DraftLine[] {
   const current = lines[index];
   if (!current) return [...lines];
   const updated: DraftLine = {
@@ -104,8 +113,32 @@ export function totalQuantity(lines: readonly Pick<DraftLine, "quantity">[]): nu
   return lines.reduce((sum, line) => sum + line.quantity, 0);
 }
 
+/** Itens do pedido; `condition_code` só quando difere de NM (NM escolhido explicitamente também é omitido). */
 export function toRegisterItems(lines: readonly DraftLine[]): RegisterItem[] {
-  return lines.map((line) => ({ card_variant_id: line.variantId, language_id: line.languageId, quantity: line.quantity }));
+  return lines.map((line) => registerItem(line.variantId, line.languageId, line.quantity, line.conditionCode));
+}
+
+function registerItem(variantId: string, languageId: string, quantity: number, condition: CardConditionCode | undefined): RegisterItem {
+  const item: RegisterItem = { card_variant_id: variantId, language_id: languageId, quantity };
+  if (condition !== undefined && condition !== DEFAULT_CARD_CONDITION) item.condition_code = condition;
+  return item;
+}
+
+/**
+ * Normalização ÚNICA autorizada dos itens já validados (`validRegisterItems`),
+ * aplicada no servidor antes da prévia E da confirmação (mesmo pedido nas
+ * duas): `condition_code` NM explícito sai do item — ausente ≡ NM, e o
+ * pedido NM fica idêntico ao histórico. Nada mais muda: M/LP/MP/HP/DMG
+ * seguem como vieram (canônicos) e qualquer outra propriedade é repassada
+ * intacta, para o banco recusá-la como sempre ("aceita exatamente as
+ * chaves…", 22023) — a validação estrita continua sendo a do contrato.
+ */
+export function canonicalRegisterItems(items: readonly RegisterItem[]): RegisterItem[] {
+  return items.map((item) => {
+    const copy: RegisterItem = { ...item };
+    if (copy.condition_code === DEFAULT_CARD_CONDITION) delete copy.condition_code;
+    return copy;
+  });
 }
 
 /** Motivo para não seguir para a revisão, em linguagem do colecionador; `null` = pode revisar. */
@@ -125,10 +158,12 @@ export function validRegisterItems(items: unknown): items is RegisterItem[] {
   const seen = new Set<string>();
   for (const item of items) {
     if (typeof item !== "object" || item === null) return false;
-    const { card_variant_id, language_id, quantity } = item as Record<string, unknown>;
+    const { card_variant_id, language_id, quantity, condition_code } = item as Record<string, unknown>;
     if (!isUuid(card_variant_id) || !isUuid(language_id)) return false;
     if (typeof quantity !== "number" || !Number.isInteger(quantity) || quantity < 1 || quantity > ADD_MAX_QUANTITY) return false;
-    const key = `${card_variant_id}:${language_id}`;
+    // V1-16: condição opcional; presente = um dos seis códigos canônicos. Duplicidade pelo trio (ausente ≡ NM, como no banco).
+    if (condition_code !== undefined && !isCardConditionCode(condition_code)) return false;
+    const key = `${card_variant_id}:${language_id}:${condition_code ?? DEFAULT_CARD_CONDITION}`;
     if (seen.has(key)) return false;
     seen.add(key);
     total += quantity;
@@ -166,14 +201,40 @@ export function confirmCardsRequest(
   };
 }
 
-export function previewSetRequest(cardSetId: string, languageId: string, collectionId: string | null = null, storageId: string | null = null) {
-  return {
-    operation_type: "REGISTER_CARD_SET",
-    card_set_id: cardSetId,
-    language_id: languageId,
-    collection_id: collectionId,
-    storage_container_id: storageId,
-  };
+/**
+ * Condição do Set inteiro (V1-16, B2 — 5157/5158 após a 5362): UMA condição no
+ * nível do pedido, aplicada a todas as cartas criadas. Ausente, `null` ou `NM`
+ * (inclusive explícito) → `null` = a chave não vai (pedido idêntico ao
+ * histórico); M/LP/MP/HP/DMG → o código canônico; qualquer outro valor →
+ * `false` (recusa antes do banco).
+ */
+export function setRequestCondition(value: unknown): CardConditionCode | null | false {
+  if (value === undefined || value === null || value === DEFAULT_CARD_CONDITION) return null;
+  return isCardConditionCode(value) ? value : false;
+}
+
+function withSetCondition<T extends object>(request: T, conditionCode: CardConditionCode | null): T & { condition_code?: CardConditionCode } {
+  // Chave por ÚLTIMO e só quando ≠ NM: o envelope NM é byte a byte o histórico.
+  return conditionCode === null || conditionCode === DEFAULT_CARD_CONDITION ? request : { ...request, condition_code: conditionCode };
+}
+
+export function previewSetRequest(
+  cardSetId: string,
+  languageId: string,
+  collectionId: string | null = null,
+  storageId: string | null = null,
+  conditionCode: CardConditionCode | null = null,
+) {
+  return withSetCondition(
+    {
+      operation_type: "REGISTER_CARD_SET",
+      card_set_id: cardSetId,
+      language_id: languageId,
+      collection_id: collectionId,
+      storage_container_id: storageId,
+    },
+    conditionCode,
+  );
 }
 
 export function confirmSetRequest(
@@ -183,15 +244,19 @@ export function confirmSetRequest(
   languageId: string,
   collectionId: string | null = null,
   storageId: string | null = null,
+  conditionCode: CardConditionCode | null = null,
 ) {
-  return {
-    idempotency_key: idempotencyKey,
-    preview_fingerprint: previewFingerprint,
-    card_set_id: cardSetId,
-    language_id: languageId,
-    collection_id: collectionId,
-    storage_container_id: storageId,
-  };
+  return withSetCondition(
+    {
+      idempotency_key: idempotencyKey,
+      preview_fingerprint: previewFingerprint,
+      card_set_id: cardSetId,
+      language_id: languageId,
+      collection_id: collectionId,
+      storage_container_id: storageId,
+    },
+    conditionCode,
+  );
 }
 
 // ---- respostas ----
@@ -273,6 +338,7 @@ export type AddFailure =
   | "allocated"
   | "not_authenticated"
   | "invalid"
+  | "invalid_condition"
   | "unavailable";
 
 /**
@@ -291,6 +357,8 @@ export function classifyFailure(code: string | null | undefined, message: string
   if (text === "card set not found") return "set_not_found";
   if (text === "card set has no active cards") return "set_empty";
   if (text.startsWith("PHYSICAL_CARD_ALLOCATED")) return "allocated";
+  // V1-16 (5362): condição fora da escala (5153 passo 6.6) ou condição informada vazia/não-texto.
+  if (text.startsWith("CONDITION_NOT_FOUND") || text.startsWith("condition_code, quando informado")) return "invalid_condition";
   if (code === "22023" || code === "22P02" || code === "P0002") return "invalid";
   return "unavailable";
 }
@@ -317,6 +385,8 @@ export function failureMessage(reason: AddFailure): string {
       return "Sua sessão expirou. Entre de novo para continuar.";
     case "invalid":
       return "Não conseguimos entender este pedido. Revise a seleção e tente de novo.";
+    case "invalid_condition":
+      return "Uma das condições escolhidas não é válida. Revise a condição das cartas e tente de novo.";
     case "unavailable":
       return "Não conseguimos concluir agora. Suas cartas não foram alteradas — tente novamente.";
   }
@@ -337,6 +407,8 @@ export function issueMessage(issue: PreviewIssue): string {
       return "Um dos idiomas escolhidos não está disponível.";
     case "DUPLICATE_ITEM":
       return "A mesma carta aparece repetida na seleção.";
+    case "CONDITION_NOT_FOUND":
+      return "Uma das condições escolhidas não é válida. Revise a condição das cartas.";
     case "INVENTORY_NOT_FOUND":
       return "Seu acervo ainda não está pronto. Saia e entre de novo; se continuar, fale com o suporte.";
     case "CARD_SET_NOT_FOUND":
@@ -373,6 +445,19 @@ export function selectionLabel({ copies, distinct }: AddCardsTotals): string {
 /** Idioma inicial da seleção: português, se existir; senão o primeiro da lista. */
 export function defaultLanguageId(languages: readonly AddLanguage[]): string | null {
   return (languages.find((language) => language.code === "pt-BR") ?? languages[0])?.id ?? null;
+}
+
+/**
+ * Rótulo de uma versão no seletor do cadastro (UX-A). A padrão é "Padrão" e,
+ * quando o catálogo traz um rótulo diferente, "Padrão (rótulo)" — nunca
+ * "Padrão (Padrão)". As demais mostram o rótulo, ou "Outra versão".
+ */
+export function variantOptionLabel(variant: Pick<AddVariant, "label" | "isDefault">): string {
+  const label = variant.label?.trim() ?? "";
+  if (variant.isDefault) {
+    return label && label.toLocaleLowerCase("pt-BR") !== "padrão" ? `Padrão (${label})` : "Padrão";
+  }
+  return label || "Outra versão";
 }
 
 /** Variante inicial de uma carta: a padrão; senão a primeira (o banco já ordena padrão primeiro). */

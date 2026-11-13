@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { type AcervoItemKey, type AcervoState, toItemsRpcParams } from "./acervo.ts";
 import type { AddLanguage } from "./acervo-add.ts";
+import { type CardConditionCode, toCardConditionCode } from "./card-condition.ts";
 
 /**
  * Leituras de Meu acervo (MY-INVENTORY-IMPLEMENTATION-01) — contrato das
@@ -69,6 +70,12 @@ export type AcervoCopy = {
   collectionId: string | null;
   collectionName: string | null;
   storageName: string | null;
+  /**
+   * V1-16 (5363, 21ª coluna): condição física declarada do exemplar, código
+   * canônico. `null` = valor ausente ou inesperado (a interface não mostra
+   * condição em vez de inventar uma).
+   */
+  conditionCode: CardConditionCode | null;
 };
 
 export type AcervoItemDetail = {
@@ -181,7 +188,22 @@ type CopyRow = ItemCore & {
   collection_id: string | null;
   collection_name: string | null;
   storage_name: string | null;
+  /** 5363: condição física do exemplar (`physical_card.condition_code`). */
+  condition_code?: string | null;
 };
+
+/** Uma linha de `get_my_inventory_item_copies` → exemplar do detalhe (função pura, testada). */
+export function toAcervoCopy(row: Pick<CopyRow, "physical_card_id" | "copy_number" | "added_at" | "collection_id" | "collection_name" | "storage_name" | "condition_code">): AcervoCopy {
+  return {
+    physicalCardId: row.physical_card_id,
+    copyNumber: row.copy_number,
+    addedAt: row.added_at,
+    collectionId: row.collection_id ?? null,
+    collectionName: row.collection_name,
+    storageName: row.storage_name,
+    conditionCode: toCardConditionCode(row.condition_code),
+  };
+}
 
 /**
  * Detalhe de um grupo. `undefined` = grupo inexistente ou de outro usuário
@@ -209,14 +231,7 @@ export async function getAcervoItemDetail(
   return {
     item,
     copiesTotal: Number(first.copies_total),
-    copies: rows.map((row) => ({
-      physicalCardId: row.physical_card_id,
-      copyNumber: row.copy_number,
-      addedAt: row.added_at,
-      collectionId: row.collection_id ?? null,
-      collectionName: row.collection_name,
-      storageName: row.storage_name,
-    })),
+    copies: rows.map(toAcervoCopy),
   };
 }
 

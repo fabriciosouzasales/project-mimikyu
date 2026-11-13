@@ -51,6 +51,29 @@
   color: hsl(var(--muted-foreground));
 }
 
+/* V1-16: condição declarada do exemplar — selo neutro e discreto (mesmos tokens do matchPill),
+   sem cor semântica nem dourado: não é graduação, não é alerta e não muda o preço NM. */
+.condition {
+  color: hsl(var(--foreground) / 0.85);
+}
+
+.conditionCode {
+  display: inline-flex;
+  align-items: center;
+  height: 1.125rem;
+  min-width: 1.75rem;
+  justify-content: center;
+  padding: 0 0.375rem;
+  border-radius: 5px;
+  font-size: 0.65625rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--foreground) / 0.85);
+  background: hsl(var(--surface-muted));
+  border: 1px solid hsl(var(--border));
+}
+
 .preference {
   display: flex;
   align-items: center;
@@ -144,6 +167,55 @@
 
 :global(.dark) .bar {
   box-shadow: 0 -18px 36px -24px hsl(0 0% 0% / 0.9);
+}
+
+/* V1-16 FRONTEND-02: escolha da ação do rodapé (Local | Condição) — segmentado neutro;
+   o estado ativo usa o anel/realce padrão (aria-pressed), sem dourado em área grande. */
+.modeSwitch {
+  display: inline-flex;
+  align-self: flex-start;
+  gap: 0.25rem;
+  padding: 0.1875rem;
+  border-radius: 0.5rem;
+  background: hsl(var(--surface-muted));
+  border: 1px solid hsl(var(--border));
+}
+
+.modeButton {
+  min-height: 2.75rem;
+  min-width: 5.5rem;
+  padding: 0 0.875rem;
+  border-radius: 0.375rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.modeButton:hover {
+  color: hsl(var(--foreground));
+}
+
+.modeButton[aria-pressed="true"] {
+  color: hsl(var(--foreground));
+  background: hsl(var(--background));
+  box-shadow: 0 1px 2px hsl(0 0% 0% / 0.12);
+}
+
+.modeButton:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+.modeButton[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modeButton {
+    transition: none;
+  }
 }
 
 .barHead {

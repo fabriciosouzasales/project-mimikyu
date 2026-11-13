@@ -10,6 +10,7 @@ import {
   type PreviewResult,
   type RegisterItem,
   type RegisterResult,
+  canonicalRegisterItems,
   classifyFailure,
   confirmCardsRequest,
   confirmSetRequest,
@@ -18,10 +19,12 @@ import {
   parseRegister,
   previewCardsRequest,
   previewSetRequest,
+  setRequestCondition,
   validRegisterItems,
 } from "@/lib/colecoes/acervo-add";
 import { COLECOES_PATH } from "@/lib/colecoes/colecoes";
 import { type CopyStorageFailure, copyStorageFailureFromError, normalizeStorageBatch } from "@/lib/colecoes/copy-storage";
+import { type SetCopiesConditionOutcome, setCopiesCondition } from "@/lib/colecoes/copy-condition";
 import { MOVE_COPIES_MAX, type MoveFailure, normalizeMoveKeys, scopeFromSignature } from "@/lib/colecoes/acervo-move";
 import {
   type ExecuteResult,
@@ -112,7 +115,8 @@ export async function previewAddCards(
   const target = targetCollection(collectionId);
   const storage = targetCollection(storageId);
   if (!validRegisterItems(items) || target === false || storage === false) return { ok: false, reason: "invalid" };
-  return preview(previewCardsRequest(items, target, storage));
+  // V1-16: mesma forma canônica na prévia e na confirmação (NM omitido → pedido NM idêntico ao histórico).
+  return preview(previewCardsRequest(canonicalRegisterItems(items), target, storage));
 }
 
 export async function confirmAddCards(input: {
@@ -135,7 +139,7 @@ export async function confirmAddCards(input: {
   }
   return register(
     "register_physical_cards_bulk",
-    confirmCardsRequest(input.idempotencyKey, input.fingerprint, input.items, target, storage),
+    confirmCardsRequest(input.idempotencyKey, input.fingerprint, canonicalRegisterItems(input.items), target, storage),
     target,
   );
 }
@@ -145,11 +149,15 @@ export async function previewAddSet(input: {
   languageId: string;
   collectionId?: string | null;
   storageId?: string | null;
+  /** V1-16: condição de todas as cartas do Set; ausente/NM → pedido histórico (sem a chave). */
+  conditionCode?: string | null;
 }): Promise<{ ok: true; preview: PreviewResult } | Fail> {
   const target = targetCollection(input?.collectionId);
   const storage = targetCollection(input?.storageId);
+  const condition = setRequestCondition(input?.conditionCode);
   if (!isUuid(input?.cardSetId) || !isUuid(input.languageId) || target === false || storage === false) return { ok: false, reason: "invalid" };
-  return preview(previewSetRequest(input.cardSetId, input.languageId, target, storage));
+  if (condition === false) return { ok: false, reason: "invalid_condition" };
+  return preview(previewSetRequest(input.cardSetId, input.languageId, target, storage, condition));
 }
 
 export async function confirmAddSet(input: {
@@ -159,9 +167,12 @@ export async function confirmAddSet(input: {
   languageId: string;
   collectionId?: string | null;
   storageId?: string | null;
+  /** V1-16: a MESMA condição da prévia (o hash de idempotência a inclui quando ≠ NM). */
+  conditionCode?: string | null;
 }): Promise<{ ok: true; result: RegisterResult } | Fail> {
   const target = targetCollection(input?.collectionId);
   const storage = targetCollection(input?.storageId);
+  const condition = setRequestCondition(input?.conditionCode);
   if (
     !isUuid(input?.idempotencyKey) ||
     !validFingerprint(input.fingerprint) ||
@@ -172,9 +183,10 @@ export async function confirmAddSet(input: {
   ) {
     return { ok: false, reason: "invalid" };
   }
+  if (condition === false) return { ok: false, reason: "invalid_condition" };
   return register(
     "register_card_set_bulk",
-    confirmSetRequest(input.idempotencyKey, input.fingerprint, input.cardSetId, input.languageId, target, storage),
+    confirmSetRequest(input.idempotencyKey, input.fingerprint, input.cardSetId, input.languageId, target, storage, condition),
     target,
   );
 }
@@ -368,6 +380,41 @@ export async function setMyCopiesStorage(input: {
   revalidatePath(LOCAIS_PATH);
   revalidatePath(COLECOES_PATH, "layout");
   return { ok: true, updated: data.length, storageContainerId: target };
+}
+
+// ---------------------------------------------------------------------------
+// V1-16 FRONTEND-02 — condição física dos exemplares (5364)
+// ---------------------------------------------------------------------------
+
+/**
+ * Altera a condição física declarada de exemplares do próprio acervo — só
+ * `set_my_physical_cards_condition` (5364 v1.1). 1 a 500 por vez, todos ou
+ * nenhum (exemplar alheio ou removido → nada muda), grava só onde muda e
+ * devolve quantos de fato mudaram (`changed`, que pode ser menor que
+ * `requested`). Só a condição muda: preço de referência NM, local, coleção,
+ * reservas, Favoritos e fichário ficam como estão — por isso só o Meu acervo
+ * é revalidado.
+ */
+export async function setMyCopiesCondition(input: {
+  physicalCardIds: string[];
+  conditionCode: string;
+}): Promise<SetCopiesConditionOutcome> {
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const outcome = await setCopiesCondition(supabase, input);
+  if (!outcome.ok) {
+    // Sem dados do usuário: só função, duração, código e a classe do erro.
+    console.error(
+      JSON.stringify({ scope: "colecoes.write", fn: "set_my_physical_cards_condition", ms: Date.now() - startedAt, code: outcome.code ?? "NO_CALL", reason: outcome.reason }),
+    );
+    if (outcome.reason === "copies_gone") revalidatePath(ACERVO_PATH);
+    return { ok: false, reason: outcome.reason };
+  }
+  console.info(
+    JSON.stringify({ scope: "colecoes.copy_condition", ms: Date.now() - startedAt, requested: outcome.requested, changed: outcome.changed }),
+  );
+  revalidatePath(ACERVO_PATH);
+  return outcome;
 }
 
 // ---------------------------------------------------------------------------

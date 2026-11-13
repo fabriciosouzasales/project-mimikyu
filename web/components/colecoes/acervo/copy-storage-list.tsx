@@ -8,8 +8,15 @@ import { Button } from "@/components/ui/button";
 import { InlineFeedback } from "@/components/ui/feedback";
 import { Select } from "@/components/ui/select";
 import { type AcervoStorageFilter, formatCount, pluralize } from "@/lib/colecoes/acervo";
+import { type CardConditionCode, cardConditionAccessibleText, cardConditionLabel } from "@/lib/colecoes/card-condition";
 import { activeProvisional } from "@/lib/colecoes/acervo-refresh";
 import { copyMatchesStorageFilter } from "@/lib/colecoes/acervo-storage-filter";
+import {
+  type CopyConditionFailure,
+  conditionApplySuccess,
+  conditionSignature,
+  copyConditionFailureMessage,
+} from "@/lib/colecoes/copy-condition";
 import {
   type CopyStorageFailure,
   STORAGE_BATCH_MAX,
@@ -20,6 +27,7 @@ import {
 } from "@/lib/colecoes/copy-storage";
 import { LOCAIS_PATH, type StorageLocation } from "@/lib/colecoes/storage-locations";
 import { useDetailSheetLock } from "./acervo-detail-sheet";
+import { CopyConditionAction } from "./copy-condition-action";
 import { CopyRemoveButton } from "./copy-remove-button";
 import styles from "./acervo.module.css";
 import local from "./copy-storage.module.css";
@@ -52,12 +60,16 @@ export type StorageCopy = {
   collectionId: string | null;
   collectionName: string | null;
   storageName: string | null;
+  /** V1-16: condição física declarada (exibida e editável pela ação "Condição"); `null` = sem condição conhecida → nada é mostrado. */
+  conditionCode: CardConditionCode | null;
 };
 
 const CLEAR = "__clear__";
 const ARIA_DISABLED_BUTTON = "aria-disabled:pointer-events-none aria-disabled:opacity-50";
 
 type Step = { kind: "choose" } | { kind: "confirm" };
+/** V1-16 FRONTEND-02: qual ação o rodapé mostra para a seleção. Sem contexto de local, só "condition". */
+type BarMode = "storage" | "condition";
 
 export function CopyStorageList({
   copies,
@@ -88,6 +100,8 @@ export function CopyStorageList({
   const confirmTitleId = useId();
   const confirmRef = useRef<HTMLHeadingElement>(null);
   const editable = storage !== null;
+  // A seleção não depende do contexto de local: a condição pode ser alterada mesmo sem ele (FRONTEND-02).
+  const selectable = copies.length > 0;
   // Um único exemplar já vem marcado: a escolha de local aparece direto, sem passo extra.
   const initialSelection = (): string[] => (copies.length === 1 && copies[0] ? [copies[0].physicalCardId] : []);
   const [selected, setSelected] = useState<string[]>(initialSelection);
@@ -110,6 +124,25 @@ export function CopyStorageList({
   } | null>(null);
   const activePatch = activeProvisional(patch, storage);
   const inFlight = useRef(false);
+  const [mode, setMode] = useState<BarMode>("storage");
+  const barMode: BarMode = editable ? mode : "condition";
+  // Condição provisória (FRONTEND-02): aplicada ao iniciar o envio, desfeita em erro e mantida até a
+  // leitura nova do servidor — vale só enquanto as condições exibidas forem as de quando o envio começou.
+  const shownConditions = conditionSignature(copies);
+  const [conditionOverlay, setConditionOverlay] = useState<{
+    ids: string[];
+    code: CardConditionCode;
+    basis: string;
+  } | null>(null);
+  const liveCondition = activeProvisional(conditionOverlay, shownConditions);
+  const [conditionError, setConditionError] = useState<CopyConditionFailure | null>(null);
+  // Envio de condição em andamento: a seleção fica congelada até a resposta (CORRECTION-01).
+  const [conditionPending, setConditionPending] = useState(false);
+  const busy = pending || conditionPending;
+  const conditionOf = (id: string): CardConditionCode | null => {
+    if (liveCondition?.ids.includes(id)) return liveCondition.code;
+    return copies.find((copy) => copy.physicalCardId === id)?.conditionCode ?? null;
+  };
 
   // Lista nova do servidor: ela é a verdade — sai o resultado provisório e saem
   // da seleção exemplares que não existem mais (ex.: removidos na lixeira).
@@ -168,9 +201,10 @@ export function CopyStorageList({
   const allSelected = selected.length === copies.length && copies.length > 0;
 
   const toggle = (id: string) => {
-    if (pending) return;
+    if (busy) return;
     setNotice(null);
     setError(null);
+    setConditionError(null);
     setStep({ kind: "choose" });
     setBinderConfirm(false);
     setSelected((current) => (current.includes(id) ? current.filter((x) => x !== id) : [...current, id]));
@@ -233,15 +267,16 @@ export function CopyStorageList({
     <>
       <div className={styles.sectionHead}>
         <h3 className={styles.sectionTitle}>Seus exemplares</h3>
-        {editable && copies.length > 1 ? (
+        {selectable && copies.length > 1 ? (
           <button
             type="button"
             className={local.selectAll}
-            aria-disabled={pending || undefined}
+            aria-disabled={busy || undefined}
             onClick={() => {
-              if (pending) return;
+              if (busy) return;
               setNotice(null);
               setError(null);
+              setConditionError(null);
               setStep({ kind: "choose" });
               setSelected(allSelected ? [] : copies.slice(0, STORAGE_BATCH_MAX).map((copy) => copy.physicalCardId));
             }}
@@ -251,10 +286,12 @@ export function CopyStorageList({
         ) : null}
       </div>
       {editable && copies.length > 1 ? (
-        <p className={local.hint}>Marque os exemplares para escolher onde estão guardados.</p>
+        <p className={local.hint}>Marque os exemplares para escolher onde estão guardados ou alterar a condição.</p>
       ) : null}
       {!editable ? (
-        <p className={local.hint}>Não foi possível carregar seus locais agora — a localização aparece só para consulta.</p>
+        <p className={local.hint}>
+          Não foi possível carregar seus locais agora — a localização aparece só para consulta. A condição continua podendo ser alterada.
+        </p>
       ) : null}
 
       {storageFilter ? (
@@ -280,21 +317,23 @@ export function CopyStorageList({
           const storedName = nameOf(copy);
           const preferredId = copy.collectionId ? storage?.collectionDefaults[copy.collectionId] : undefined;
           const preferred = preferredId ? locationsById.get(preferredId) ?? null : null;
+          const shownCondition = conditionOf(copy.physicalCardId);
+          const condition = cardConditionLabel(shownCondition);
           return (
             <li
               key={copy.physicalCardId}
-              className={[styles.copy, editable ? local.copySelectable : null, isMatch ? local.copyMatch : null]
+              className={[styles.copy, selectable ? local.copySelectable : null, isMatch ? local.copyMatch : null]
                 .filter(Boolean)
                 .join(" ")}
               data-selected={isSelected || undefined}
               data-match={isMatch || undefined}
             >
-              {editable ? (
+              {selectable ? (
                 <label className={local.check}>
                   <input
                     type="checkbox"
                     checked={isSelected}
-                    aria-disabled={pending || undefined}
+                    aria-disabled={busy || undefined}
                     onChange={() => toggle(copy.physicalCardId)}
                     aria-label={`Marcar exemplar ${copy.copyNumber}`}
                   />
@@ -314,6 +353,16 @@ export function CopyStorageList({
                   ) : null}
                 </div>
                 <div className={styles.copyFacts}>
+                  {condition ? (
+                    // V1-16: condição DECLARADA pelo colecionador (C-229) — selo discreto, sigla visível e
+                    // descrição completa para leitor de tela; não é graduação nem altera o preço NM de referência.
+                    <span className={local.condition} title={`Condição declarada: ${condition.label}`}>
+                      <span className={local.conditionCode} aria-hidden="true">
+                        {condition.short}
+                      </span>
+                      <span className="sr-only">{cardConditionAccessibleText(shownCondition)}</span>
+                    </span>
+                  ) : null}
                   <span>
                     <Globe className="h-3 w-3" aria-hidden="true" />
                     {languageName}
@@ -346,6 +395,7 @@ export function CopyStorageList({
                 inCollection={copy.collectionName !== null}
                 isLastCopy={copiesTotal === 1}
                 closeHref={closeHref}
+                blocked={conditionPending}
               />
             </li>
           );
@@ -357,13 +407,70 @@ export function CopyStorageList({
         </p>
       ) : null}
 
-      {editable && (selected.length > 0 || error) ? (
+      {selectable && (selected.length > 0 || (editable && error) || conditionError) ? (
         <section
           className={local.bar}
-          aria-label="Onde estão guardados os exemplares marcados"
+          aria-label={barMode === "storage" ? "Onde estão guardados os exemplares marcados" : "Condição dos exemplares marcados"}
           aria-busy={pending || undefined}
         >
-          {step.kind === "choose" || !confirmation ? (
+          {editable && !(barMode === "storage" && step.kind === "confirm" && confirmation) ? (
+            <div className={local.modeSwitch} role="group" aria-label="O que alterar nos exemplares marcados">
+              {(["storage", "condition"] as const).map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={local.modeButton}
+                  aria-pressed={barMode === value}
+                  aria-disabled={busy || undefined}
+                  onClick={() => {
+                    if (busy) return;
+                    setMode(value);
+                    setError(null);
+                    setConditionError(null);
+                    setNotice(null);
+                    setStep({ kind: "choose" });
+                    setBinderConfirm(false);
+                  }}
+                >
+                  {value === "storage" ? "Local" : "Condição"}
+                </button>
+              ))}
+            </div>
+          ) : null}
+          {barMode === "condition" ? (
+            <>
+              <div className={local.barHead}>
+                <span className={local.barCount}>
+                  {selected.length === 0
+                    ? "Nenhum exemplar marcado"
+                    : `${pluralize(selected.length, "exemplar marcado", "exemplares marcados")}`}
+                </span>
+              </div>
+              <CopyConditionAction
+                selected={selected}
+                conditionOf={conditionOf}
+                onStart={(ids, code) => {
+                  setConditionError(null);
+                  setNotice(null);
+                  setConditionOverlay({ ids, code, basis: shownConditions });
+                }}
+                onSuccess={(result, code) => {
+                  setNotice(conditionApplySuccess(result, code));
+                  setSelected(initialSelection());
+                }}
+                onBusyChange={setConditionPending}
+                onFailure={(reason) => {
+                  // Nada mudou no banco: o selo volta ao que o servidor mostra.
+                  setConditionOverlay(null);
+                  setConditionError(reason);
+                  if (reason === "copies_gone") setSelected([]);
+                }}
+              />
+              <div aria-live="assertive">
+                {conditionError ? <InlineFeedback tone="error">{copyConditionFailureMessage(conditionError)}</InlineFeedback> : null}
+              </div>
+            </>
+          ) : !editable ? null : step.kind === "choose" || !confirmation ? (
             <>
               <div className={local.barHead}>
                 <span className={local.barCount}>
@@ -471,7 +578,9 @@ export function CopyStorageList({
               </div>
             </div>
           )}
-          <div aria-live="assertive">{error ? <InlineFeedback tone="error">{copyStorageFailureMessage(error)}</InlineFeedback> : null}</div>
+          {barMode === "storage" ? (
+            <div aria-live="assertive">{error ? <InlineFeedback tone="error">{copyStorageFailureMessage(error)}</InlineFeedback> : null}</div>
+          ) : null}
         </section>
       ) : null}
     </>

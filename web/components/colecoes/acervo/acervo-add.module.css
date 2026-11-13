@@ -224,6 +224,9 @@
 
 .lineMain {
   min-width: 0;
+  /* UX-A: a grade de campos da linha responde à largura da própria linha (painel), não da janela. */
+  container-type: inline-size;
+  container-name: acervo-add-line;
 }
 
 .lineHead {
@@ -261,9 +264,28 @@
 
 .lineControls {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.625rem 0.75rem;
+  flex-direction: column;
+  gap: 0.625rem;
   margin-top: 0.625rem;
+}
+
+/* UX-A: duas colunas por linha (Versão | Idioma, Condição | Cópias). Campo sozinho ocupa a linha inteira. */
+.lineRow {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.625rem 0.75rem;
+  align-items: end;
+}
+
+.lineRow > :only-child {
+  grid-column: 1 / -1;
+}
+
+/* Painel estreito: uma coluna — os rótulos das versões e das seis condições não são cortados. */
+@container acervo-add-line (max-width: 24rem) {
+  .lineRow {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .field {
@@ -274,9 +296,14 @@
   flex: 1 1 8rem;
 }
 
-.lineControls .field:last-child {
-  flex: 0 0 auto;
+/* Dentro da grade da linha, o campo segue a coluna (sem largura mínima própria, que cortaria os rótulos). */
+.lineRow > .field {
   min-width: 0;
+}
+
+/* Cópias: o seletor de quantidade mantém o próprio tamanho, alinhado à esquerda. */
+.lineRow > .field:has(> .stepper) {
+  justify-self: start;
 }
 
 .fieldLabel {

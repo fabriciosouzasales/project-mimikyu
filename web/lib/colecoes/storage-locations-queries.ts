@@ -11,6 +11,7 @@ import {
 } from "./storage-locations.ts";
 import { readRarityCatalog } from "../reports/distribution-queries.ts";
 import { type BinderOccupancy, parseBinderOccupancy } from "./binder-identity.ts";
+import { type ConditionTally, summarizeCopyPlacement } from "./condition-distribution.ts";
 
 /**
  * Leituras de "Meus locais" (WHERE-02) — só com a sessão do usuário, nunca
@@ -316,6 +317,8 @@ export async function searchAcervoCards(supabase: SupabaseClient, query: string)
  * cada um (`physical_card.storage_container_id`, RLS select-own, pelos ids da
  * própria 5162). Localização física apenas — alocação em coleção não conta.
  * `undefined` = identidade inexistente/alheia; `null` = falha.
+ * V1-16 UX-B: a condição de cada exemplar já vem na mesma 5162/5363
+ * (`condition_code`) — a distribuição é agregada aqui, sem leitura nova.
  */
 export type CardLocations = {
   item: AcervoItemDetail["item"];
@@ -323,6 +326,12 @@ export type CardLocations = {
   /** id do local → exemplares; `none` = sem localização. */
   byStorage: Record<string, number>;
   unlocated: number;
+  /** Condições de todos os exemplares da identidade (Σ = `total`). */
+  conditions: ConditionTally;
+  /** id do local → condições dos exemplares ali (Σ = `byStorage[id]`). */
+  conditionsByStorage: Record<string, ConditionTally>;
+  /** Condições dos exemplares sem localização (Σ = `unlocated`). */
+  unlocatedConditions: ConditionTally;
 };
 
 export async function locateCardCopies(supabase: SupabaseClient, key: AcervoItemKey): Promise<CardLocations | null | undefined> {
@@ -345,14 +354,12 @@ export async function locateCardCopies(supabase: SupabaseClient, key: AcervoItem
     logRead("physical_card.storage", startedAt, { code: "MISMATCH" });
     return null;
   }
-  const byStorage: Record<string, number> = {};
-  let unlocated = 0;
-  for (const id of ids) {
-    const where = storage.get(id) ?? null;
-    if (where === null) unlocated += 1;
-    else byStorage[where] = (byStorage[where] ?? 0) + 1;
+  const placement = summarizeCopyPlacement(detail.copies, storage);
+  if (!placement) {
+    logRead("physical_card.storage", startedAt, { code: "MISMATCH" });
+    return null;
   }
-  return { item: detail.item, total: ids.length, byStorage, unlocated };
+  return { item: detail.item, ...placement };
 }
 
 /**

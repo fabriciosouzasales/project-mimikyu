@@ -11,6 +11,7 @@ import {
   getAcervoItems,
   getAcervoSummary,
 } from "@/lib/colecoes/acervo-queries";
+import { getPageConditionMix } from "@/lib/colecoes/acervo-condition-queries";
 import { getCopyStorageContext, getMyStorageLocations } from "@/lib/colecoes/storage-locations-queries";
 import { getMyCardFavoritesByVariant } from "@/lib/favorites/card-favorites-queries";
 import { getMyWishedVariants } from "@/lib/wishlist/wishlist-queries";
@@ -20,8 +21,8 @@ import { getCachedUser, getCachedUserProfile } from "@/lib/supabase/request-auth
 
 export const metadata: Metadata = { title: "Meu acervo · Coleções" };
 
-/** E0: auth.getUser + user_profile + is_admin, 5159–5161 + idiomas + 5219, preço + favoritos + desejos. */
-const ACERVO_RENDER_READS_BASE = 11;
+/** E0: auth.getUser + user_profile + is_admin, 5159–5161 + idiomas + 5219, preço + favoritos + desejos + condições (V1-16 UX-C). */
+const ACERVO_RENDER_READS_BASE = 12;
 /** E0: 5162 + local de cada exemplar (`physical_card`) + local padrão das coleções (`collection`). */
 const ACERVO_RENDER_READS_DETAIL = 3;
 
@@ -83,17 +84,20 @@ export default async function AcervoPage({
   // (uma leitura em lote, 5336). Falha = grade sem corações, nunca erro na página.
   const pageVariantIds = (page?.items ?? []).map((item) => item.cardVariantId);
   // V1-11 W1: variantes da página na Lista de desejos (5346), na mesma rodada paralela.
-  const [prices, favorites, wishedVariants] = await Promise.all([
+  // V1-16 UX-C (G1): exemplares não-NM das variantes da página (RLS), na mesma rodada.
+  // Falha = grade sem chips de condição, nunca erro na página.
+  const [prices, favorites, wishedVariants, conditionMix] = await Promise.all([
     getVariantPrices(supabase, [...pageVariantIds, state.detail?.cardVariantId]),
     getMyCardFavoritesByVariant(supabase, pageVariantIds),
     getMyWishedVariants(supabase, pageVariantIds),
+    getPageConditionMix(supabase, page?.items ?? [], addLanguages),
   ]);
   const priceNow = Date.now();
 
   // INCIDENT-01 E0: uma linha por renderização completa da página (sem dados do usuário). Com as
   // linhas das mutações (`acervo.add`, `acervo.remove`, `colecoes.copy_storage`, `acervo.move`), mostra
   // quantas renderizações cada operação provoca. `plannedReads` = leituras ao banco previstas
-  // pelo caminho do código (3 de sessão/casca + 5 da 1ª rodada + 3 com o detalhe + 3 da 2ª rodada).
+  // pelo caminho do código (3 de sessão/casca + 5 da 1ª rodada + 3 com o detalhe + 4 da 2ª rodada).
   console.info(
     JSON.stringify({
       scope: "acervo.render",
@@ -118,6 +122,7 @@ export default async function AcervoPage({
         priceNow={priceNow}
         favorites={favorites}
         wishedVariants={wishedVariants}
+        conditionMix={conditionMix}
       />
     </AppShell>
   );

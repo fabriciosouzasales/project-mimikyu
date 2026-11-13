@@ -61,9 +61,19 @@ import { CopyQuantityControl } from "./copy-quantity-control";
 import { CopyStorageList } from "./copy-storage-list";
 import { AcervoPriceCompact, AcervoPriceTag } from "./acervo-price";
 import { type VariantPrice, priceAccessibleText } from "@/lib/pricing/variant-pricing";
+import {
+  type ConditionTally,
+  GRID_CONDITION_CHIPS_NARROW,
+  type GridConditionDisplay,
+  conditionDistributionAccessible,
+  conditionDistributionText,
+  conditionGroupKey,
+  gridConditionDisplay,
+} from "@/lib/colecoes/condition-distribution";
 import regionStyles from "../colecoes/library-modes.module.css";
 import styles from "./acervo.module.css";
 import selectionStyles from "./acervo-selection.module.css";
+import conditionStyles from "./copy-storage.module.css";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 
@@ -103,6 +113,7 @@ export function AcervoView({
   priceNow = 0,
   favorites = null,
   wishedVariants = null,
+  conditionMix = null,
 }: {
   state: AcervoState;
   summary: AcervoSummary | null;
@@ -124,6 +135,13 @@ export function AcervoView({
   favorites?: Map<string, VariantFavorite> | null;
   /** V1-11 W1: variantes com algum desejo (5346); `null` = leitura indisponível (sem marcadores). */
   wishedVariants?: Set<string> | null;
+  /**
+   * V1-16 UX-C: condições por grupo (variante + idioma) sobre todos os exemplares
+   * da identidade (D2), inclusive grupos todos NM (UX-C CORRECTION-01, substitui a D1).
+   * Grupo ausente = leitura indisponível, incompleta ou incoerente (sem chips).
+   * `null` = leitura indisponível ou incompleta (grade sem chips).
+   */
+  conditionMix?: Map<string, ConditionTally> | null;
 }) {
   const canAdd = addLanguages.length > 0;
   const isEmptyAcervo = summary !== null && summary.totalCopies === 0;
@@ -235,6 +253,7 @@ export function AcervoView({
                               priority={state.page === 1 && index < PRIORITY_CARD_COUNT}
                               price={prices?.get(item.cardVariantId.toLowerCase()) ?? null}
                               priceNow={priceNow}
+                              conditions={conditionMix?.get(conditionGroupKey(item.cardVariantId, item.languageCode)) ?? null}
                             />
                             {/* V1-10: coração irmão do link do cartão (canto superior direito da arte). */}
                             {favorite ? (
@@ -360,6 +379,7 @@ function AcervoTile({
   priority,
   price,
   priceNow,
+  conditions = null,
 }: {
   item: AcervoItem;
   state: AcervoState;
@@ -369,6 +389,8 @@ function AcervoTile({
   /** V1-09: preço NM da variante (unitário). */
   price: VariantPrice | null;
   priceNow: number;
+  /** V1-16 UX-C: condições declaradas da identidade inteira (D2); `null` = indisponível (nunca NM presumido). */
+  conditions?: ConditionTally | null;
 }) {
   const number = formatCollectorNumber(item.collectorNumber, item.collectorTotal);
   // Variante sempre visível, inclusive a padrão ("Holográfica"), para distinguir versões irmãs.
@@ -377,6 +399,8 @@ function AcervoTile({
   // Com filtro de local, a pilha e o ×N mostram o que o colecionador TEM (copies_owned);
   // o recorte do local vem na linha própria, sem substituir o total possuído.
   const copies = storageKind ? item.copiesOwned : item.copiesCount;
+  // Só apresentação sobre o tally já validado pela leitura G1 (sem dado → sem condição).
+  const display = gridConditionDisplay(conditions);
   const accessibleName = [
     item.cardName,
     caption,
@@ -388,6 +412,7 @@ function AcervoTile({
         ? "1 exemplar"
         : `${formatCount(copies)} exemplares`,
     priceAccessibleText(price, priceNow),
+    conditions ? conditionDistributionAccessible(conditions) : null,
   ]
     .filter(Boolean)
     .join(", ");
@@ -416,18 +441,29 @@ function AcervoTile({
           <AcervoPriceTag price={price} now={priceNow} />
         </div>
       </div>
-      <div className={styles.meta} aria-hidden="true">
+      {/* GRID VISUAL REFINEMENT-01: hierarquia compacta só do Meu acervo (`.meta` compartilhado
+          continua igual; `.tileMeta` acrescenta o container da troca 2/3 chips). O bloco é
+          decorativo para leitor de tela: tudo (inclusive o que trunca) está no nome acessível. */}
+      <div className={`${styles.meta} ${styles.tileMeta}`} aria-hidden="true">
         {/* V1-10 REFINEMENT-06: "×N" na linha do nome, fora da arte (o nome acessível do cartão já diz as cópias). */}
         <div className={styles.nameRow}>
-          <div className={styles.name}>{item.cardName}</div>
+          <div className={styles.name} title={item.cardName}>{item.cardName}</div>
           {copies > 1 ? <span className={styles.qtyInline}>×{formatCount(copies)}</span> : null}
         </div>
-        <div className={styles.sub}>
-          <span>{caption}</span>
-          {/* Idioma antes da variante: o idioma cabe na linha do Set/número e a variante ocupa a seguinte. */}
-          <span className={styles.tag}>{item.languageCode}</span>
-          <span className={styles.tag}>{tag}</span>
+        <div className={styles.tileSub} title={`${caption} · ${item.languageName}`}>
+          {caption} · {item.languageCode}
         </div>
+        <div className={styles.tileVariantRow}>
+          <span className={styles.tileVariant} title={tag}>
+            {tag}
+          </span>
+          {display?.kind === "uniform" ? (
+            <span className={`${conditionStyles.conditionCode} ${styles.tileCondition}`} title={display.part.name}>
+              {display.part.short}
+            </span>
+          ) : null}
+        </div>
+        {display?.kind === "mixed" && conditions ? <GridConditionChips display={display} title={conditionDistributionText(conditions)} /> : null}
         {storageKind ? (
           <div className={styles.storageMatch} data-partial={item.copiesCount < item.copiesOwned || undefined}>
             {storageMatchLabel(storageKind, item.copiesCount, item.copiesOwned)}
@@ -435,6 +471,36 @@ function AcervoTile({
         ) : null}
       </div>
     </AcervoTileShell>
+  );
+}
+
+/**
+ * V1-16 — condições MISTAS na grade (GRID VISUAL REFINEMENT-01): chips com a
+ * quantidade (mesmo selo de "Seus exemplares"), ordem M, NM, SP, MP, HP, DM.
+ * Cartão estreito: 2 chips + "+n"; largo: 3 + "+n" — o 3º chip e os dois
+ * "+n" alternam por container query (`.tileMeta`). "+n" = condições ocultas.
+ * Condição uniforme não passa por aqui (só a sigla, na linha da variante).
+ * Puramente visual: a leitura completa está no nome acessível do cartão.
+ */
+function GridConditionChips({ display, title }: { display: Extract<GridConditionDisplay, { kind: "mixed" }>; title: string }) {
+  return (
+    <div className={styles.conditionChips} title={title}>
+      {display.chips.map((chip, index) => (
+        <span key={chip.code} className={styles.conditionChip} data-wide-only={index >= GRID_CONDITION_CHIPS_NARROW ? "" : undefined}>
+          <span className={conditionStyles.conditionCode}>{chip.short}</span>×{formatCount(chip.count)}
+        </span>
+      ))}
+      {display.moreNarrow > 0 ? (
+        <span className={styles.conditionMore} data-width="narrow">
+          +{formatCount(display.moreNarrow)}
+        </span>
+      ) : null}
+      {display.moreWide > 0 ? (
+        <span className={styles.conditionMore} data-width="wide">
+          +{formatCount(display.moreWide)}
+        </span>
+      ) : null}
+    </div>
   );
 }
 
@@ -760,6 +826,7 @@ function DetailContent({
           collectionId: copy.collectionId,
           collectionName: copy.collectionName,
           storageName: copy.storageName,
+          conditionCode: copy.conditionCode,
         }))}
         languageName={item.languageName}
         variantName={variant}

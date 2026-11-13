@@ -18,11 +18,19 @@ import { Select } from "@/components/ui/select";
 import { formatCollectorNumber, formatCount, pluralize } from "@/lib/colecoes/acervo";
 import { addCommitNeedsClientRefresh } from "@/lib/colecoes/acervo-refresh";
 import {
+  type CardConditionCode,
+  DEFAULT_CARD_CONDITION,
+  cardConditionLabel,
+  cardConditionOptions,
+  isCardConditionCode,
+} from "@/lib/colecoes/card-condition";
+import {
   ADD_MAX_QUANTITY,
   type AddFailure,
   type AddLanguage,
   type AddVariant,
   type DraftLine,
+  type LinePatch,
   type PreviewResult,
   type RegisterResult,
   addLine,
@@ -32,11 +40,13 @@ import {
   failureMessage,
   isRetryable,
   issueMessage,
+  lineKey,
   removeLine,
   selectionLabel,
   toRegisterItems,
   totalQuantity,
   updateLine,
+  variantOptionLabel,
 } from "@/lib/colecoes/acervo-add";
 import { CardArt } from "./card-art";
 import styles from "./acervo-add.module.css";
@@ -560,6 +570,8 @@ function CardsFlow({
         isDefaultVariant: variant.isDefault,
         languageId,
         quantity: 1,
+        // V1-16 (C-228/C-231): toda carta entra em NM; o colecionador muda na linha, se quiser.
+        conditionCode: DEFAULT_CARD_CONDITION,
       }),
     );
   }
@@ -609,7 +621,7 @@ function CardsFlow({
         details={
           <ul className={styles.reviewList} aria-label="Cartas que serão adicionadas">
             {lines.map((line) => (
-              <li key={`${line.variantId}:${line.languageId}`} className={styles.reviewItem}>
+              <li key={lineKey(line)} className={styles.reviewItem}>
                 <span className={styles.reviewQty}>×{line.quantity}</span>
                 <span className={styles.reviewName}>{line.cardName}</span>
                 <span className={styles.reviewMeta}>
@@ -617,6 +629,10 @@ function CardsFlow({
                   {line.variantLabel?.trim() ? ` · ${line.variantLabel.trim()}` : ""}
                   {" · "}
                   {languages.find((language) => language.id === line.languageId)?.code ?? ""}
+                  {/* V1-16: condição declarada da linha (sigla visível; rótulo completo para leitor de tela). */}
+                  {" · "}
+                  <span aria-hidden="true">{cardConditionLabel(line.conditionCode)?.short ?? line.conditionCode}</span>
+                  <span className="sr-only">condição {cardConditionLabel(line.conditionCode)?.label ?? line.conditionCode}</span>
                 </span>
               </li>
             ))}
@@ -645,7 +661,7 @@ function CardsFlow({
             <ul className={styles.lines}>
               {lines.map((line, index) => (
                 <SelectionLine
-                  key={`${line.variantId}:${line.languageId}`}
+                  key={lineKey(line)}
                   line={line}
                   variants={variants[line.cardId]}
                   languages={languages}
@@ -797,7 +813,7 @@ function SelectionLine({
   line: DraftLine;
   variants: VariantState | undefined;
   languages: AddLanguage[];
-  onChange: (patch: Partial<Pick<DraftLine, "variantId" | "variantLabel" | "isDefaultVariant" | "languageId" | "quantity">>) => void;
+  onChange: (patch: LinePatch) => void;
   onRemove: () => void;
 }) {
   const id = useId();
@@ -821,75 +837,104 @@ function SelectionLine({
             <Trash2 className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
+        {/* UX-A: grade de 2 colunas — Versão + Idioma, depois Condição + Cópias; uma coluna em painel estreito.
+            Versão só aparece com mais de uma opção (a escolha única já está na linha); campo sozinho ocupa a linha. */}
         <div className={styles.lineControls}>
-          {list.length > 1 ? (
+          {list.length > 1 || languages.length > 1 ? (
+            <div className={styles.lineRow}>
+              {list.length > 1 ? (
+                <div className={styles.field}>
+                  <label htmlFor={`${id}-variant`} className={styles.fieldLabel}>
+                    Versão
+                  </label>
+                  <Select
+                    id={`${id}-variant`}
+                    value={line.variantId}
+                    onChange={(event) => {
+                      const next = list.find((variant) => variant.id === event.target.value);
+                      if (next) onChange({ variantId: next.id, variantLabel: next.label, isDefaultVariant: next.isDefault });
+                    }}
+                  >
+                    {list.map((variant) => (
+                      <option key={variant.id} value={variant.id}>
+                        {variantOptionLabel(variant)}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+              ) : null}
+              {languages.length > 1 ? (
+                <div className={styles.field}>
+                  <label htmlFor={`${id}-language`} className={styles.fieldLabel}>
+                    Idioma
+                  </label>
+                  <Select id={`${id}-language`} value={line.languageId} onChange={(event) => onChange({ languageId: event.target.value })}>
+                    {languages.map((language) => (
+                      <option key={language.id} value={language.id}>
+                        {language.name}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          <div className={styles.lineRow}>
             <div className={styles.field}>
-              <label htmlFor={`${id}-variant`} className={styles.fieldLabel}>
-                Versão
+              <label htmlFor={`${id}-condition`} className={styles.fieldLabel}>
+                Condição
               </label>
+              {/* V1-16: condição DECLARADA de todos os exemplares da linha; NM por padrão. Código canônico no
+                  valor, rótulo (SP/DM) só na exibição. Não é graduação nem muda o preço de referência NM. */}
               <Select
-                id={`${id}-variant`}
-                value={line.variantId}
+                id={`${id}-condition`}
+                value={line.conditionCode}
                 onChange={(event) => {
-                  const next = list.find((variant) => variant.id === event.target.value);
-                  if (next) onChange({ variantId: next.id, variantLabel: next.label, isDefaultVariant: next.isDefault });
+                  const value = event.target.value;
+                  if (isCardConditionCode(value)) onChange({ conditionCode: value });
                 }}
               >
-                {list.map((variant) => (
-                  <option key={variant.id} value={variant.id}>
-                    {variant.isDefault ? `Padrão${variant.label ? ` (${variant.label})` : ""}` : (variant.label ?? "Outra versão")}
+                {cardConditionOptions().map((option) => (
+                  <option key={option.code} value={option.code}>
+                    {option.label}
                   </option>
                 ))}
               </Select>
             </div>
-          ) : null}
-          {languages.length > 1 ? (
             <div className={styles.field}>
-              <label htmlFor={`${id}-language`} className={styles.fieldLabel}>
-                Idioma
-              </label>
-              <Select id={`${id}-language`} value={line.languageId} onChange={(event) => onChange({ languageId: event.target.value })}>
-                {languages.map((language) => (
-                  <option key={language.id} value={language.id}>
-                    {language.name}
-                  </option>
-                ))}
-              </Select>
-            </div>
-          ) : null}
-          <div className={styles.field}>
-            <span id={`${id}-qty`} className={styles.fieldLabel}>
-              Cópias
-            </span>
-            <div className={styles.stepper} role="group" aria-labelledby={`${id}-qty`}>
-              <button
-                type="button"
-                className={styles.stepButton}
-                onClick={() => onChange({ quantity: line.quantity - 1 })}
-                disabled={line.quantity <= 1}
-                aria-label="Menos uma cópia"
-              >
-                <Minus className="h-3.5 w-3.5" aria-hidden="true" />
-              </button>
-              <input
-                className={styles.stepValue}
-                inputMode="numeric"
-                aria-label={`Cópias de ${line.cardName}`}
-                value={line.quantity}
-                onChange={(event) => {
-                  const value = Number.parseInt(event.target.value.replace(/\D/g, ""), 10);
-                  if (Number.isFinite(value)) onChange({ quantity: value });
-                }}
-              />
-              <button
-                type="button"
-                className={styles.stepButton}
-                onClick={() => onChange({ quantity: line.quantity + 1 })}
-                disabled={line.quantity >= ADD_MAX_QUANTITY}
-                aria-label="Mais uma cópia"
-              >
-                <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-              </button>
+              <span id={`${id}-qty`} className={styles.fieldLabel}>
+                Cópias
+              </span>
+              <div className={styles.stepper} role="group" aria-labelledby={`${id}-qty`}>
+                <button
+                  type="button"
+                  className={styles.stepButton}
+                  onClick={() => onChange({ quantity: line.quantity - 1 })}
+                  disabled={line.quantity <= 1}
+                  aria-label="Menos uma cópia"
+                >
+                  <Minus className="h-3.5 w-3.5" aria-hidden="true" />
+                </button>
+                <input
+                  className={styles.stepValue}
+                  inputMode="numeric"
+                  aria-label={`Cópias de ${line.cardName}`}
+                  value={line.quantity}
+                  onChange={(event) => {
+                    const value = Number.parseInt(event.target.value.replace(/\D/g, ""), 10);
+                    if (Number.isFinite(value)) onChange({ quantity: value });
+                  }}
+                />
+                <button
+                  type="button"
+                  className={styles.stepButton}
+                  onClick={() => onChange({ quantity: line.quantity + 1 })}
+                  disabled={line.quantity >= ADD_MAX_QUANTITY}
+                  aria-label="Mais uma cópia"
+                >
+                  <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -920,6 +965,7 @@ function SetFlow({
   const filterId = useId();
   const storageId = storage.value;
   const languageFieldId = useId();
+  const conditionFieldId = useId();
   // Coleção de Set: o Set já é o da coleção — sem lista para escolher.
   const fixedSet = target?.cardSet ?? null;
   const collectionId = target?.collectionId ?? null;
@@ -929,6 +975,8 @@ function SetFlow({
   const [filter, setFilter] = useState("");
   const [setCode, setSetCode] = useState<string | null>(fixedSet?.code ?? null);
   const [languageId, setLanguageId] = useState<string | null>(defaultLanguageId(languages));
+  // V1-16 (C-231): UMA condição para todas as cartas do Set; NM por padrão.
+  const [conditionCode, setConditionCode] = useState<CardConditionCode>(DEFAULT_CARD_CONDITION);
   const [reviewing, setReviewing] = useState(false);
   const resolved = useRef<{ code: string; id: string } | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
@@ -958,16 +1006,16 @@ function SetFlow({
       cardSetId = response.cardSetId;
       resolved.current = { code: setCode, id: cardSetId };
     }
-    return previewAddSet({ cardSetId, languageId, collectionId, storageId });
-  }, [setCode, languageId, collectionId, storageId]);
+    return previewAddSet({ cardSetId, languageId, collectionId, storageId, conditionCode });
+  }, [setCode, languageId, collectionId, storageId, conditionCode]);
 
   const runCommit = useCallback(
     async (key: string, fingerprint: string) => {
       const cardSetId = resolved.current?.code === setCode ? resolved.current.id : null;
       if (!cardSetId || !languageId) return { ok: false as const, reason: "invalid" as const };
-      return confirmAddSet({ idempotencyKey: key, fingerprint, cardSetId, languageId, collectionId, storageId });
+      return confirmAddSet({ idempotencyKey: key, fingerprint, cardSetId, languageId, collectionId, storageId, conditionCode });
     },
-    [setCode, languageId, collectionId, storageId],
+    [setCode, languageId, collectionId, storageId, conditionCode],
   );
 
   const flow = useConfirmFlow({ runPreview, runCommit, onBusy, afterCommit: target?.afterRegister, hasTarget: target !== undefined });
@@ -1016,7 +1064,8 @@ function SetFlow({
             <span className={styles.reviewCount}>{formatCount(preview.totalQuantity)}</span>
             <span className={styles.reviewLabel}>
               {preview.totalQuantity === 1 ? "carta será adicionada" : "cartas serão adicionadas"} — uma de cada carta de{" "}
-              <strong>{chosen?.name ?? setCode}</strong>, na versão padrão, em {language?.name ?? "idioma escolhido"}.
+              <strong>{chosen?.name ?? setCode}</strong>, na versão padrão, em {language?.name ?? "idioma escolhido"}, na condição{" "}
+              <strong>{cardConditionLabel(conditionCode)?.label ?? conditionCode}</strong>.
             </span>
           </>
         )}
@@ -1041,6 +1090,28 @@ function SetFlow({
             {languages.map((option) => (
               <option key={option.id} value={option.id}>
                 {option.name}
+              </option>
+            ))}
+          </Select>
+        </div>
+
+        <div className={styles.field}>
+          <label htmlFor={conditionFieldId} className={styles.sectionTitle}>
+            Condição das cartas
+          </label>
+          {/* V1-16: condição DECLARADA aplicada a todas as cartas do Set; NM por padrão. Código canônico no valor,
+              rótulo (SP/DM) só na exibição. Não é graduação nem muda o preço de referência NM. */}
+          <Select
+            id={conditionFieldId}
+            value={conditionCode}
+            onChange={(event) => {
+              const value = event.target.value;
+              if (isCardConditionCode(value)) setConditionCode(value);
+            }}
+          >
+            {cardConditionOptions().map((option) => (
+              <option key={option.code} value={option.code}>
+                {option.label}
               </option>
             ))}
           </Select>

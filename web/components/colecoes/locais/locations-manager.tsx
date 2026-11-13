@@ -40,6 +40,7 @@ import { binderHref } from "@/lib/colecoes/binder";
 import { collectionHref } from "@/lib/colecoes/colecoes";
 import type { AcervoItem } from "@/lib/colecoes/acervo-queries";
 import type { CardLocations, LocationContents } from "@/lib/colecoes/storage-locations-queries";
+import { type ConditionTally, conditionDistributionAccessible, conditionDistributionText, conditionParts } from "@/lib/colecoes/condition-distribution";
 import {
   LOCATION_SORT_OPTIONS,
   type LocationKindFilter,
@@ -1144,6 +1145,7 @@ function CardFinder({ locations, totalCards }: { locations: StorageLocation[]; t
               <p className={styles.foundTotal}>
                 {located?.status === "ready" ? pluralize(located.result.total, "exemplar no acervo", "exemplares no acervo") : "…"}
               </p>
+              {located?.status === "ready" ? <ConditionMix tally={located.result.conditions} /> : null}
             </div>
             <Button variant="ghost" className="min-h-11 shrink-0" onClick={() => { setSelected(null); setLocated(null); }}>
               Trocar carta
@@ -1175,6 +1177,8 @@ function CardFinder({ locations, totalCards }: { locations: StorageLocation[]; t
               <ul className={styles.index}>
                 {rows.map(({ id, n, location }) => {
                   const split = location ? splitLocationCode(location.name) : null;
+                  const mix = located.result.conditionsByStorage?.[id] ?? null;
+                  const mixSpoken = mix ? conditionDistributionAccessible(mix) : "";
                   return (
                     <li key={id} className={styles.entry}>
                       {location ? (
@@ -1183,7 +1187,7 @@ function CardFinder({ locations, totalCards }: { locations: StorageLocation[]; t
                           className={`${styles.entryRow} ${styles.foundRow}`}
                           onClick={() => open({ kind: "view", location, focus: { cardVariantId: selected.cardVariantId, languageCode: selected.languageCode } })}
                           aria-haspopup="dialog"
-                          aria-label={`Abrir ${location.name} mostrando esta carta: ${pluralize(n, "exemplar desta carta", "exemplares desta carta")}`}
+                          aria-label={`Abrir ${location.name} mostrando esta carta: ${pluralize(n, "exemplar desta carta", "exemplares desta carta")}${mixSpoken ? `. ${mixSpoken}` : ""}`}
                         >
                           <span className={styles.entryGlyph} aria-hidden="true">
                             <StorageGlyph kindCode={location.kindCode} />
@@ -1196,6 +1200,7 @@ function CardFinder({ locations, totalCards }: { locations: StorageLocation[]; t
                             <span className={styles.entrySub}>
                               <span>{location.kindLabel ?? "Sem tipo definido"}</span>
                             </span>
+                            {mix ? <ConditionMix tally={mix} compact /> : null}
                           </span>
                           <span className={styles.foundCount}>
                             <b>{formatCount(n)}</b> {n === 1 ? "exemplar" : "exemplares"}
@@ -1210,6 +1215,7 @@ function CardFinder({ locations, totalCards }: { locations: StorageLocation[]; t
                           <span />
                           <span className={styles.entryName}>
                             <span className={styles.entryTitle}>Local indisponível</span>
+                            {mix ? <ConditionMix tally={mix} compact /> : null}
                           </span>
                           <span className={styles.foundCount}>
                             <b>{formatCount(n)}</b>
@@ -1234,6 +1240,7 @@ function CardFinder({ locations, totalCards }: { locations: StorageLocation[]; t
                         <span className={styles.entrySub}>
                           <span>Exemplares ainda sem local definido</span>
                         </span>
+                        {located.result.unlocatedConditions ? <ConditionMix tally={located.result.unlocatedConditions} compact /> : null}
                       </span>
                       <span className={styles.foundCount}>
                         <b>{formatCount(located.result.unlocated)}</b> {located.result.unlocated === 1 ? "exemplar" : "exemplares"}
@@ -1307,6 +1314,35 @@ function CardFinder({ locations, totalCards }: { locations: StorageLocation[]; t
       )}
       {totalCards === 0 ? <p className={styles.finderHint}>Seu acervo ainda não tem exemplares.</p> : null}
     </div>
+  );
+}
+
+/**
+ * V1-16 UX-B — distribuição das condições declaradas ("NM ×2 · SP ×1"), na
+ * ordem e com os rótulos do mapa canônico. Exemplar com código ausente ou
+ * fora da escala aparece como "não reconhecida" — nunca como uma condição.
+ * Visual curto (sigla em selo + quantidade) com leitura por extenso para
+ * leitor de tela; frase (não lista) para caber também dentro de um botão.
+ */
+function ConditionMix({ tally, compact = false }: { tally: ConditionTally; compact?: boolean }) {
+  if (!tally || tally.total <= 0) return null;
+  const parts = conditionParts(tally);
+  return (
+    <span className={styles.conditionMix} data-compact={compact ? "" : undefined} title={conditionDistributionText(tally)}>
+      <span className={styles.conditionMixItems} aria-hidden="true">
+        {parts.map((part) => (
+          <span key={part.code} className={styles.conditionMixItem}>
+            <span className={styles.conditionMixCode}>{part.short}</span>×{formatCount(part.count)}
+          </span>
+        ))}
+        {tally.unrecognized > 0 ? (
+          <span className={styles.conditionMixItem} data-unrecognized="">
+            Condição não reconhecida ×{formatCount(tally.unrecognized)}
+          </span>
+        ) : null}
+      </span>
+      <span className="sr-only">{conditionDistributionAccessible(tally)}</span>
+    </span>
   );
 }
 

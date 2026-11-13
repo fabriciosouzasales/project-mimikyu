@@ -24,12 +24,15 @@ export function CopyRemoveButton({
   inCollection,
   isLastCopy,
   closeHref,
+  blocked = false,
 }: {
   physicalCardId: string;
   copyNumber: number;
   inCollection: boolean;
   isLastCopy: boolean;
   closeHref: string;
+  /** V1-16 FRONTEND-02: outra alteração dos exemplares em andamento — a lixeira espera (padrão: livre). */
+  blocked?: boolean;
 }) {
   const router = useRouter();
   const [confirming, setConfirming] = useState(false);
@@ -75,7 +78,11 @@ export function CopyRemoveButton({
       <button
         type="button"
         className={styles.copyRemove}
-        onClick={() => setConfirming(true)}
+        aria-disabled={blocked || undefined}
+        onClick={() => {
+          if (blocked) return;
+          setConfirming(true);
+        }}
         aria-label={`Remover exemplar ${copyNumber}`}
         title="Remover exemplar"
       >
@@ -94,7 +101,7 @@ export function CopyRemoveButton({
         <Button variant="outline" size="sm" onClick={() => setConfirming(false)} disabled={pending} autoFocus>
           Cancelar
         </Button>
-        <Button variant="destructive" size="sm" className={styles.copyConfirmRemove} onClick={() => void remove()} disabled={pending}>
+        <Button variant="destructive" size="sm" className={styles.copyConfirmRemove} onClick={() => void remove()} disabled={pending || blocked}>
           {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : null}
           {pending ? "Removendo…" : "Remover"}
         </Button>

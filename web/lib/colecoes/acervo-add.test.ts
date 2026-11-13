@@ -50,6 +50,7 @@ function line(overrides: Partial<DraftLine> = {}): DraftLine {
     isDefaultVariant: true,
     languageId: PT,
     quantity: 1,
+    conditionCode: "NM",
     ...overrides,
   };
 }
