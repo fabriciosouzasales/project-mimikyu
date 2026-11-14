@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Roadmap |
 | **Arquivo** | `docs/ROADMAP.md` |
-| **Versão** | 3.65 |
+| **Versão** | 3.66 |
 | **Status** | Aprovado |
 | **Objetivo** | Consolidar, em uma única fonte de verdade, a trajetória macro do Project Mimikyu — o que já foi concluído, o que está em andamento e o que é direção futura provável, mas ainda não comprometida. |
 | **Escopo** | Marcos de alto nível (Fases/Sub-Fases/Blocos). Não substitui `docs/README.md` (estado atual detalhado), `05-modelo-de-dados.md` (execução física) nem `06-pipeline-importacao.md` (estratégia de importação). |
@@ -968,3 +968,4 @@ Itens reais, já identificados em auditoria ou por decisão explícita de adiame
 | 3.63 | **V1-16 — homologado; pacote de release preparado (2026-11-13, `RELEASE PACKAGE READINESS-01`).** Lint/Build PASS, visual 10/10, funcional 6/6, suíte 1278/1278; S1–S4 sem ledger de migrations e não promovidas; publicação depende de autorização. |
 | 3.64 | **V1-16 — concluído e publicado (2026-11-13, `RELEASE CLOSEOUT-01`).** Commits `b51dcc4`/`34eee12` em `origin/main`; smoke test de produção 9/9 PASS. Pendências PR-01 (reconciliação S1–S4 com schema canônico e ledger — alta), PR-02 (observabilidade/performance G1), PR-03 (REPLAY/CONFLICT), PR-04 (isolamento entre contas e concorrência) registradas em `05d`. ME6 segue como frente independente, aguardando variantes explícitas da TCGdex. |
 | 3.65 | **PR-01 — reconciliação canônica (2026-11-13, alternativa A).** Evidência da 5361 v1.0 preservada (G0); 5361 v1.1 (não executada) e 5362–5364 promovidas para `database/schema/`; versões superadas marcadas (só informativo); R1–R4 obsoletos após o release. Reconstrução limpa não comprovada; S1–S4 seguem fora do ledger; PR-02 a PR-04 abertas. |
+| 3.66 | **PR-02 — performance do Meu acervo encerrada por monitoramento (2026-11-14).** Leitura de condições desprezível (1,6 ms no banco); preços do Meu acervo p50 ~50 ms, p95 611 ms, 4/101 acima de 1 s (baseline M1 em `05d`); sem duplicação demonstrada; fallback por carta e escala de 5159–5161 como hipóteses. Sem alteração funcional; gatilhos de reabertura em `05d`. PR-03 e PR-04 continuam abertas (PR-04A em observação T0/T1). |
