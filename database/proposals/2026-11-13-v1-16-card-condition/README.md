@@ -2,7 +2,7 @@
 
 | Campo | Valor |
 |---|---|
-| **Estado** | **S1–S4 APLICADAS NO LIVE em 2026-11-13** (projeto `qjfutqujxrbzgrtkpgkg`), STRUCTURAL PASS em cada etapa; **sem registro no ledger de migrations do Supabase** (ver "Execução no LIVE"). Frontend homologado pelo proprietário (6/6 cenários). Ainda **não promovidas** para `database/schema/` — promoção só por decisão posterior. Histórico da preparação: `SQL PREPARATION-01`, `INDEPENDENT SQL AUDIT-01`, `INDEPENDENT AUDIT CORRECTIONS-01`. |
+| **Estado** | **S1–S4 APLICADAS NO LIVE em 2026-11-13** (projeto `qjfutqujxrbzgrtkpgkg`), STRUCTURAL PASS em cada etapa; **sem registro no ledger de migrations do Supabase** (ver "Execução no LIVE"). Frontend homologado pelo proprietário (6/6 cenários). **Promovidas para `database/schema/` em 2026-11-13** (`PR-01 | CANONICAL RECONCILIATION IMPLEMENTATION-01`; ver "Promoção canônica (PR-01)"). Histórico da preparação: `SQL PREPARATION-01`, `INDEPENDENT SQL AUDIT-01`, `INDEPENDENT AUDIT CORRECTIONS-01`. |
 | **Contrato** | `docs/domain-modeling/collections/concept-decisions.md` C-227–C-233 (C-108 substituída por C-228); `docs/05d-colecoes-e-usuarios.md` v3.01, seção "Condição física por exemplar (V1-16) — contrato". |
 | **Plano** | `V1-16 \| DATABASE IMPLEMENTATION PLAN-01` (aprovado) e decisões de `SQL PREPARATION-01`. |
 | **Execução** | Pelo proprietário, **uma etapa por vez**, só depois do GO da etapa anterior (STD-001 §10). Comandos, canais, STOP/GO, classificação dos testes e recuperação: `CONTROLLED-EXECUTION-PROTOCOL.md` (prevalece sobre as seções "Ordem de execução" e "Recuperação" abaixo). |
@@ -119,3 +119,16 @@ Todas as etapas recusam reaplicação com mensagem explícita (`PRECHECK …: J�
 **Ledger de migrations.** Nenhuma das quatro etapas está em `supabase_migrations.schema_migrations` (último registro: `20261110010926 pokedex_binder_auto_arrange`). Divergência conhecida e aceita; não corrigida automaticamente. Registrar ou promover exige decisão própria do proprietário.
 
 **Integridade.** `controlled-execution/MANIFEST.sha256` confere 29/29 arquivos (20 derivados + 9 fontes, incluindo 5361 v1.1–5364).
+
+## Promoção canônica (PR-01, 2026-11-13)
+
+`PR-01 | CANONICAL RECONCILIATION IMPLEMENTATION-01` (alternativa A: só repositório; nada no LIVE nem no ledger).
+
+- **Promovidas** para `database/schema/`: 5361 (forma **1.1, não executada** — a v1.0 é a que rodou no LIVE; evidência em `pr01-evidence/`), 5362, 5363 e 5364. Cada cópia é o arquivo desta pasta no commit `b51dcc4`, byte a byte, exceto o bloco `Status`. Os arquivos desta pasta não mudaram (`MANIFEST.sha256` 29/29).
+- **Marcadas como superadas** (só o bloco `Status`): 5153, 5155, 5157 e 5158 pela 5362; 5262 pela 5363. **A marcação é só informativa** — não impede execução. 5155 e 5158 são `CREATE OR REPLACE` sem precheck: reexecutadas, voltariam o LIVE aos corpos anteriores ao V1-16 sem erro.
+- **Alcance:** equivalência estática com o LIVE (md5 dos corpos, coluna, FK, comentário e retorno conferidos por leitura). **Reconstrução limpa a partir de `database/schema/` não comprovada.** Ordem de reconstrução: `migrations/3010` → `migrations/3701` → `schema/5010`/`5023` → `5150`–`5158` → `5162` → `5262` → `5361` → `5362` → `5363` → `5364`.
+- **Ledger:** S1–S4 continuam **fora** de `supabase_migrations.schema_migrations` (alternativa D não decidida).
+
+### R1–R4 — obsoletos para reversão rotineira após o release
+
+`controlled-execution/R1…R4_rollback_*.sql` foram preparados para recuperação **durante** a execução controlada. Com o V1-16 publicado, **não devem ser usados como reversão rotineira**: a sequência R4→R1 removeria a funcionalidade em produção, e a trava do R1 contra apagar condições declaradas só dispara se houver exemplar diferente de NM. Qualquer reversão exige proposta nova, com dados e frontend considerados. Os arquivos ficam inalterados (fazem parte do manifesto).

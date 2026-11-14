@@ -13,8 +13,11 @@ Status......: EXECUTADA / CANÔNICA. Aplicada no LIVE mimikyu-core em 2026-10-24
               dele só neste bloco Status. Validação 5858: B 8/8 PASS; C original
               INCONCLUSIVA (cadastros concorrentes) e revalidada com acervo pausado
               (estável ×2); D PASS. Homologada visualmente em produção por Fabrício
-              (ACERVO-HOLOGRAPHIC-FINISH-FINAL-CLOSEOUT-01). Definição vigente de
-              public.get_my_inventory_item_copies.
+              (ACERVO-HOLOGRAPHIC-FINISH-FINAL-CLOSEOUT-01). Foi a definição vigente de
+              public.get_my_inventory_item_copies até 2026-11-13.
+              SUPERADA em 2026-11-13 pela 5363 (V1-16) — definição vigente:
+              database/schema/5363_evolve_get_my_inventory_item_copies_condition.sql. Marcação só informativa:
+              NÃO impede execução; o corpo deste arquivo não é o vigente — não reexecutar.
 Autor.......: Fabrício Sales / Claude
 Data........: 2026-10-24
 

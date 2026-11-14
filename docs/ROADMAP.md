@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Roadmap |
 | **Arquivo** | `docs/ROADMAP.md` |
-| **Versão** | 3.64 |
+| **Versão** | 3.65 |
 | **Status** | Aprovado |
 | **Objetivo** | Consolidar, em uma única fonte de verdade, a trajetória macro do Project Mimikyu — o que já foi concluído, o que está em andamento e o que é direção futura provável, mas ainda não comprometida. |
 | **Escopo** | Marcos de alto nível (Fases/Sub-Fases/Blocos). Não substitui `docs/README.md` (estado atual detalhado), `05-modelo-de-dados.md` (execução física) nem `06-pipeline-importacao.md` (estratégia de importação). |
@@ -967,3 +967,4 @@ Itens reais, já identificados em auditoria ou por decisão explícita de adiame
 | 3.62 | **V1-16 — frontend pronto para homologação (2026-11-13, `FINAL RELEASE READINESS-01`).** FRONTEND-01–04 e UX-A/B/C implementados localmente (suíte web 1271/1271, typecheck PASS); D1 substituída (`NM ×N` também em grupos todos NM, `05d` v3.03); pendentes: Lint/Build e homologação visual/mínima do proprietário, commit e publicação autorizados. |
 | 3.63 | **V1-16 — homologado; pacote de release preparado (2026-11-13, `RELEASE PACKAGE READINESS-01`).** Lint/Build PASS, visual 10/10, funcional 6/6, suíte 1278/1278; S1–S4 sem ledger de migrations e não promovidas; publicação depende de autorização. |
 | 3.64 | **V1-16 — concluído e publicado (2026-11-13, `RELEASE CLOSEOUT-01`).** Commits `b51dcc4`/`34eee12` em `origin/main`; smoke test de produção 9/9 PASS. Pendências PR-01 (reconciliação S1–S4 com schema canônico e ledger — alta), PR-02 (observabilidade/performance G1), PR-03 (REPLAY/CONFLICT), PR-04 (isolamento entre contas e concorrência) registradas em `05d`. ME6 segue como frente independente, aguardando variantes explícitas da TCGdex. |
+| 3.65 | **PR-01 — reconciliação canônica (2026-11-13, alternativa A).** Evidência da 5361 v1.0 preservada (G0); 5361 v1.1 (não executada) e 5362–5364 promovidas para `database/schema/`; versões superadas marcadas (só informativo); R1–R4 obsoletos após o release. Reconstrução limpa não comprovada; S1–S4 seguem fora do ledger; PR-02 a PR-04 abertas. |

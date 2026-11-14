@@ -9,6 +9,9 @@ Status......: CONFIRMADO EXECUTADO / LIVE / PROMOVIDO (2026-10-16,
               Supabase, que envolve a migration em transacao propria
               (BEGIN/COMMIT deste arquivo omitidos no envio); corpo
               conferido byte a byte com o LIVE (md5 de prosrc).
+              SUPERADA em 2026-11-13 pela 5362 (V1-16) — definição vigente:
+              database/schema/5362_extend_bulk_registration_with_condition.sql. Marcação só informativa:
+              NÃO impede execução; o corpo deste arquivo não é o vigente — não reexecutar.
 Autor.......: Fabrício Sales / Claude
 Data........: 2026-10-16 (BULK04-B2-IMPLEMENTATION-PROPOSAL-01)
 Pré-req.....: 5152 e 5153 aplicadas.
