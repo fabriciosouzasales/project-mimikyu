@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Roadmap |
 | **Arquivo** | `docs/ROADMAP.md` |
-| **Versão** | 3.67 |
+| **Versão** | 3.69 |
 | **Status** | Aprovado |
 | **Objetivo** | Consolidar, em uma única fonte de verdade, a trajetória macro do Project Mimikyu — o que já foi concluído, o que está em andamento e o que é direção futura provável, mas ainda não comprometida. |
 | **Escopo** | Marcos de alto nível (Fases/Sub-Fases/Blocos). Não substitui `docs/README.md` (estado atual detalhado), `05-modelo-de-dados.md` (execução física) nem `06-pipeline-importacao.md` (estratégia de importação). |
@@ -970,3 +970,5 @@ Itens reais, já identificados em auditoria ou por decisão explícita de adiame
 | 3.65 | **PR-01 — reconciliação canônica (2026-11-13, alternativa A).** Evidência da 5361 v1.0 preservada (G0); 5361 v1.1 (não executada) e 5362–5364 promovidas para `database/schema/`; versões superadas marcadas (só informativo); R1–R4 obsoletos após o release. Reconstrução limpa não comprovada; S1–S4 seguem fora do ledger; PR-02 a PR-04 abertas. |
 | 3.66 | **PR-02 — performance do Meu acervo encerrada por monitoramento (2026-11-14).** Leitura de condições desprezível (1,6 ms no banco); preços do Meu acervo p50 ~50 ms, p95 611 ms, 4/101 acima de 1 s (baseline M1 em `05d`); sem duplicação demonstrada; fallback por carta e escala de 5159–5161 como hipóteses. Sem alteração funcional; gatilhos de reabertura em `05d`. PR-03 e PR-04 continuam abertas (PR-04A em observação T0/T1). |
 | 3.67 | **PR-03 — idempotência do cadastro com condição encerrada por aceitação de risco e monitoramento (2026-11-14).** Mecanismo comprovado antes do V1-16 e inalterado; condição na impressão digital coerente por análise estática, sem defeito; REPLAY/CONFLICT com condição (5887 B07/B08/B09/B23) não executados — prova isolada fica como oportunidade futura. Gatilhos de reabertura em `05d`. PR-04 continua aberta (PR-04A em observação T0/T1). |
+| 3.68 | **PR-04A — 5365 executada no LIVE (2026-11-14).** EXECUTE de `authenticated` revogado em 3 funções legadas de `physical_card` não usadas pelo app; 5 vigentes inalteradas; G-D dispensado por decisão expressa do proprietário com aceitação de risco; R5365 disponível. Smoke test do proprietário e monitoramento de 7 dias pendentes; PR-04B (isolamento e concorrência da 5364 por execução) continua aberta. |
+| 3.69 | **PR-04A — concluída (2026-11-14).** Homologação funcional informada pelo proprietário 6/6 PASS, sem erros de permissão; monitoramento de 7 dias; R5365 preservado; dependência de reconstrução registrada. PR-04B continua aberta. |
