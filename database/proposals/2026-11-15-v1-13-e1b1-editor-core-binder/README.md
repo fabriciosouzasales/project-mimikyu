@@ -16,7 +16,7 @@
 | `5372_allow_editor_actor_in_binder_activity.sql` | `CREATE OR REPLACE` de `binder_activity_add_item` (5268): aceita ator EDITOR ativo da coleção do evento. **Dependência declarada** (ver abaixo). |
 | `5373_create_get_shared_binder_placeable_cards.sql` | Leitura dos exemplares que o EDITOR pode colocar. |
 | `5374_create_editor_binder_core_writes.sql` | `editor_place_card_in_binder`, `editor_move_binder_card` e `editor_remove_binder_card`. |
-| `5889_validate_editor_core_binder_HARNESS.sql` | Prova dinâmica v1.1: 55 verificações + F.2 (GATE 56). **Não executada.** |
+| `5889_validate_editor_core_binder_HARNESS.sql` | Prova dinâmica v1.2: 55 verificações + F.2 (GATE 56). **Não executada.** A v1.2 (E1-B3, `HISTORY INTEGRITY REVIEW-02`) só faz o 0.4 aceitar a gravação da 5372 ou da 5379, para a 5889 valer também como regressão depois da E1-B3. |
 | `ROLLBACK_E1B1.sql` | Reversão R5374 → R5371; devolve a 5268 byte a byte. |
 | `static_check_e1b1.py` | Verificação estática (sem banco), 61 verificações. |
 

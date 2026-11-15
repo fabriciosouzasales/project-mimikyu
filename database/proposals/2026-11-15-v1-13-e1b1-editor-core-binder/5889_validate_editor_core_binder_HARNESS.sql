@@ -5,8 +5,11 @@ Query.......: 5889 - Harness V1-13 · E1-B1 (5371–5374): autorização do EDIT
               classificação de bolsos, exemplares elegíveis, colocar, mover/trocar,
               retirar, histórico com ator EDITOR, titular intocado, sem efeito
               patrimonial, resíduo zero
-Versão......: 1.1 (2026-11-15, `CORE BINDER SECURITY REVIEW-02`: seção 10 — imagem,
-              mesclagem, estado composto e convidada arquivada). 1.0 (2026-11-15)
+Versão......: 1.2 (2026-11-15, `V1-13 / E1-B3 | HISTORY INTEGRITY REVIEW-02`: 0.4 aceita
+              a gravação da 5372 ou a da 5379, que a estende, para a 5889 continuar
+              válida como regressão depois da E1-B3). 1.1 (2026-11-15,
+              `CORE BINDER SECURITY REVIEW-02`: seção 10 — imagem, mesclagem, estado
+              composto e convidada arquivada). 1.0 (2026-11-15)
 Status......: PROPOSTA — NÃO EXECUTADA. Prova DINÂMICA da E1-B1. Sem ambiente
               isolado (C-244): executar SOMENTE sob protocolo controlado
               equivalente ao P1 da E1-A (transação explícita READ WRITE
@@ -169,9 +172,12 @@ begin
     'detail','5122 e funções do titular 5272–5274 byte a byte canônicas');
   res := res || jsonb_build_object('id','0.4','ok',
     (select md5(q.prosrc) from pg_proc q
-      where q.oid = to_regprocedure('public.binder_activity_add_item(text, text, uuid, uuid, uuid, uuid, integer, integer, jsonb)')) = '59ec5791e514026b7a8340e104d66f30'
+      where q.oid = to_regprocedure('public.binder_activity_add_item(text, text, uuid, uuid, uuid, uuid, integer, integer, jsonb)'))
+        in ('59ec5791e514026b7a8340e104d66f30',   -- 5372 (estágio E1-B1/E1-B2)
+            'f8cfba40e442e85056e7c8ce7954d4f4')   -- 5379 (E1-B3: mesma regra do ator + coleção por item)
+    and not has_function_privilege('authenticated', to_regprocedure('public.binder_activity_add_item(text, text, uuid, uuid, uuid, uuid, integer, integer, jsonb)'), 'EXECUTE')
     and not has_function_privilege('authenticated', to_regprocedure('public.binder_activity_begin(uuid, text, text, uuid, jsonb)'), 'EXECUTE'),
-    'detail','5372: gravação do histórico com a mudança mínima; continua sem EXECUTE para a API');
+    'detail','gravação do histórico da 5372 (ou da 5379, que a estende); continua sem EXECUTE para a API');
 
   select array[(select count(*) from auth.users), (select count(*) from public.collection),
                (select count(*) from public.collection_allocation), (select count(*) from public.physical_card),
