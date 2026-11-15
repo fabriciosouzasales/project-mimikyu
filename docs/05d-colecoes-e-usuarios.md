@@ -4,7 +4,8 @@
 |--------|-------|
 | **Documento** | Modelo de Dados — Coleções e Usuários |
 | **Arquivo** | `docs/05d-colecoes-e-usuarios.md` |
-| **Versão** | 3.11 | **V1-16 — encerramento final (2026-11-14): CONCLUÍDA / PUBLICADA / HOMOLOGADA; PR-04B segue aberta como pendência independente.** Anterior (3.10): PR-04A concluída. |
+| **Versão** | 3.12 | **V1-13 — contrato EDITOR formalizado (2026-11-14); nada implementado. V1-12 corrigida como publicada e concluída.** Anterior (3.11): V1-16 encerrada. |
+| 3.12 | **V1-13 — contrato EDITOR formalizado e V1-12 corrigida como publicada (2026-11-14, `V1-13 \| EDITOR CONTRACT FORMALIZATION-01`).** Nova seção "Compartilhamento com EDITOR (V1-13)": ponto de partida no LIVE, plano da E1 (7 entregas, dependências, critérios de aceite), cenários de segurança S1–S10 em PostgreSQL isolado e escopo de E2–E4; regras normativas em C-234–C-244 (sem duplicação). Seção V1-12: status corrigido para publicado e concluído (commits `feb605c`/`46d211d`; confirmação do proprietário), pendências atualizadas; `5323`/`5324` passam à V1-13. Sem SQL, sem LIVE, sem código. |
 | 3.11 | **V1-16 — encerramento final (2026-11-14, `V1-16 \| FINAL RELEASE CLOSEOUT-01`).** Declaração executiva na seção V1-16: concluída, publicada e homologada; riscos residuais de PR-01 a PR-04 registrados como acompanhamento; PR-04B não bloqueia por aceitação documentada e provisória, sem aprovar cenários não executados, com reavaliação obrigatória antes de expansão multiusuário. Nada novo executado ou testado. |
 | 3.10 | **PR-04A — encerramento (2026-11-14, `PR-04A \| HARDENING CLOSEOUT AND COMMIT READINESS-01`).** Homologação funcional informada pelo proprietário: 6/6 PASS, sem erros de permissão (Meu acervo; mover entre locais; organizar coleção; cadastro avulso; editar condição; Meus Locais e Encontrar carta) — cadastro por Set, +1/−1 e concorrência não fizeram parte. Monitoramento de 7 dias (401/403 e 42501 nos três endpoints) e R5365 preservado. Dependência de reconstrução registrada no README da proposta: a 5365 vem depois de 5012/5024/5222, 5287/5288/5289, 5362 e 5364; reconstrução limpa não comprovada. PR-04B continua aberta. |
 | 3.09 | **PR-04A — hardening dos escritores legados executado (2026-11-14, `PR-04A \| 5365 LIVE CONTROLLED EXECUTION-01`).** Revogado o EXECUTE de `authenticated` em `set_physical_cards_storage(uuid, uuid[])` (5024), `organize_my_collection_storage(uuid, uuid, text, integer, text)` (5222) e `add_physical_cards(jsonb)` (5012); corpos, donos e as 5 funções vigentes inalterados (consulta 1 PRE = T0; POST conforme). **G-D (T0/T1) dispensado por decisão expressa do proprietário**, com aceitação do risco de consumidor externo não identificado e da incompatibilidade dos harnesses 5800/5801/5803; controle compensatório nos logs da API sem chamadas a `/rpc/add_physical_cards`. Via `execute_sql`, sem ledger; promovida para `database/schema/`. R5365 disponível, não executada. Smoke test do proprietário pendente; PR-04B continua aberta. |
@@ -1343,7 +1344,7 @@ Ordem de aplicação **5225 → 5223 → 5224 → 5226 → 5227 → 5228**. Depo
 
 ## Status
 
-Aplicado no LIVE em 2026-10-30 e promovido para `database/schema/` (`5300`–`5322`: `V1-12 SCHEMA RECONCILIATION & VISUAL HANDOFF-01`; `5325`–`5331`: `V1-12 FINAL SCHEMA RECONCILIATION & VISUAL HANDOFF`; só o bloco Status das canônicas difere das propostas). Texto do ledger ≡ arquivo da proposta (md5 23/23 + 7/7); corpo efetivo das funções no LIVE ≡ último arquivo canônico de cada uma. Evidência comportamental, todas com resíduo zero: `5861` v1.3 51/51 PASS (5300–5319), `5862` v2.1 33/33 PASS (5320–5322), `5863` v1.2 37/37 PASS (5325–5329, após 5331) e `5864` 7/7 PASS (5330). **Homologação visual aprovada** (`database/proposals/2026-10-30-v1-12-viewer-parity/HOMOLOGATION.md`: A–D, H.1–H.6 e I — coleções compartilhadas na mesma Biblioteca, Cards/Lista/Carrossel). **Não publicado:** commit, `next lint`/`next build` na máquina de Fabrício e deploy pendentes. Autoridade: C-15, C-141–C-165, C-198. Propostas e harnesses: `database/proposals/2026-10-30-v1-12-collection-sharing/`, `…-v1-12-viewer-parity/`, `…-v1-12-shared-binder-visual-assets/` e `…-card-set-logo-public-read/`.
+Aplicado no LIVE em 2026-10-30 e promovido para `database/schema/` (`5300`–`5322`: `V1-12 SCHEMA RECONCILIATION & VISUAL HANDOFF-01`; `5325`–`5331`: `V1-12 FINAL SCHEMA RECONCILIATION & VISUAL HANDOFF`; só o bloco Status das canônicas difere das propostas). Texto do ledger ≡ arquivo da proposta (md5 23/23 + 7/7); corpo efetivo das funções no LIVE ≡ último arquivo canônico de cada uma. Evidência comportamental, todas com resíduo zero: `5861` v1.3 51/51 PASS (5300–5319), `5862` v2.1 33/33 PASS (5320–5322), `5863` v1.2 37/37 PASS (5325–5329, após 5331) e `5864` 7/7 PASS (5330). **Homologação visual aprovada** (`database/proposals/2026-10-30-v1-12-viewer-parity/HOMOLOGATION.md`: A–D, H.1–H.6 e I — coleções compartilhadas na mesma Biblioteca, Cards/Lista/Carrossel). **Publicado e concluído:** commits `feb605c` e `46d211d` (2026-10-30), presentes em `origin/main`; a V1-12 foi declarada concluída pelo proprietário em 2026-11-14 (`V1-13 | EDITOR SHARING CONTRACT DIAGNOSIS-01`). A data exata do deploy não está registrada. *(Corrigido em 2026-11-14 pela revisão 3.12; o texto anterior dizia "não publicado" por desatualização documental. A V1-12 não foi reaberta.)* Autoridade: C-15, C-141–C-165, C-198. Propostas e harnesses: `database/proposals/2026-10-30-v1-12-collection-sharing/`, `…-v1-12-viewer-parity/`, `…-v1-12-shared-binder-visual-assets/` e `…-card-set-logo-public-read/`.
 
 ## Contratos (canônicos em `database/schema/`)
 
@@ -1376,10 +1377,137 @@ URLs assinadas para terceiros com TTL de 10 min (`SHARED_VISUAL_URL_TTL`); URL j
 
 ## Pendências
 
-- Publicação do frontend V1-12 e commit — aguardam autorização do proprietário (homologação visual aprovada).
+- ~~Publicação do frontend V1-12 e commit~~ — **resolvida**: publicada nos commits `feb605c` e `46d211d` (ver Status).
 - Hardening (não bloqueador): políticas de escrita admin (INSERT/UPDATE/DELETE) de `card-front`, `card-set-logo`, `expansion-logo` e `pokemon-species-artwork` seguem `TO public` com `(SELECT is_admin())` — fail-closed para anon, sem exposição; alinhar a `authenticated` em rodada própria.
-- Wrappers participantes de Master Set (`5323`) e Pokédex (`5324`) — não escritos/aplicados.
-- EDITOR (V1-13) fora do escopo.
+- Wrappers participantes de Master Set (`5323`) e Pokédex (`5324`) — não escritos/aplicados; **passam ao escopo obrigatório da V1-13** (C-242, entrega E1.6 na seção seguinte).
+- EDITOR — contrato formalizado na V1-13 (C-234–C-244); ver a seção "Compartilhamento com EDITOR (V1-13)".
+
+---
+
+# Compartilhamento com EDITOR (V1-13) — CONTRATO FORMALIZADO, NÃO IMPLEMENTADO
+
+## Status
+
+Contrato funcional formalizado em 2026-11-14 (`V1-13 | EDITOR CONTRACT FORMALIZATION-01`), a partir das decisões D1–D8 e DR-1 do proprietário. A fonte normativa é `domain-modeling/collections/concept-decisions.md`, **C-234 a C-244**, que inclui a matriz TITULAR × EDITOR × VIEWER em C-234. Esta seção só traz o plano físico e os critérios de aceite, sem repetir as regras.
+
+**Nada implementado:** não há SQL, harness, ambiente, frontend nem aplicação no LIVE. Sequência aprovada: **V1-13 → V1-15 → encerramento da Collection V1.0**. Entregas: **E1** (fundação de dados e autorização), **E2** (curadoria no fichário compartilhado), **E3** (metadados e interface por papel) e **E4** (homologação). Só a E1 está planejada abaixo, e cada entrega precisa de autorização própria.
+
+## Ponto de partida (V1-12 no LIVE)
+
+- `collection_membership` (`5300`) aceita só VIEWER (CHECK).
+- `collection_share_role` (`5302`) devolve OWNER/VIEWER/PUBLIC.
+- O convite `5303` grava VIEWER fixo.
+- As leituras de participante (`5312`, `5313`, `5316`, `5320`, `5326`, `5328`, `5310`) e a política de Storage `5329` testam OWNER/VIEWER.
+- Escritas do fichário e da coleção:
+  - as operações de layout `5123`–`5135` passam pelo ajudante `5122` (`assert_collection_layout_mutable`);
+  - as demais exigem `owner_user_id = auth.uid()` dentro da própria função. Entram aqui: metadados `5035`, colocar `5250`, mover `5273`, retirar `5274`, reservas `5276`/`5277`, fixar `5278`, páginas e espaços `5280`–`5284`, referências de espécie `5258`, novidades `5266`, organização automática `5343`/`5344` e Pokédex `6122`/`6124`/`6125`.
+- O histórico grava em `5268`, que recusa ator diferente do titular ("actor is not the binder owner"). As leituras `5269` são só do titular. Os itens de evento não têm coleção.
+- As leituras de participante de Master Set (`5323`) e Pokédex (`5324`) nunca foram escritas.
+
+## E1 — Fundação de dados e autorização (planejamento; sem SQL nesta rodada)
+
+**Entregas obrigatórias.** Cada uma é uma proposta SQL no padrão STD-001, com harness `ROLLBACK`.
+
+1. **Papel EDITOR na participação.**
+   - Ampliar o CHECK de papel para EDITOR/VIEWER.
+   - Convite com parâmetro de papel, padrão VIEWER e compatível com a chamada atual de `5303`.
+   - Nova operação do titular para trocar o papel de membro ativo (C-240).
+   - `collection_share_role` passa a devolver EDITOR.
+   - O painel do titular (`5308`) mostra o papel, e a caixa de convites (`5309`) mostra o papel oferecido.
+2. **Leituras aceitam EDITOR com o mesmo recorte.**
+   - Inventário completo de toda leitura e política que testa OWNER/VIEWER, para incluir EDITOR sem ampliar o retorno (C-243).
+   - Estão no inventário: `5310`, `5312`, `5313`, `5316`, `5320`, `5326`, `5328` e `5329`.
+   - Nenhuma leitura nova expõe local, condição, acervo ou valores.
+3. **Ajudante interno de autorização do EDITOR.**
+   - **Interface:** `SECURITY DEFINER`, `search_path = ''`, sem EXECUTE para a API.
+   - **Entradas:** coleção, operação (lista fechada de C-234/C-237) e bolsos afetados.
+   - **Retorno:** decide titular ou EDITOR ativo e aplica a classificação de bolsos de C-237 sob a trava do fichário.
+   - **O que não pode mudar:** `5122` (titular) não é ampliado, e o caminho do titular não muda de comportamento.
+4. **Entradas de escrita do EDITOR.** Cobrem exatamente as operações ✔ da matriz C-234. A forma (variantes dedicadas ou ramo explícito nas funções atuais) fica para a proposta, com prova de que o caminho do titular não muda.
+   - **Escritas:**
+     - metadados permitidos (C-239), com capa enviada sob autorização própria no Storage;
+     - colocar com DR-1 (C-235);
+     - retirar, mover e trocar;
+     - reservar, liberar e fixar;
+     - mesclar;
+     - páginas e espaços;
+     - organização automática;
+     - novidades do Catálogo;
+     - referências de espécie;
+     - posição e representante Pokédex (C-242).
+   - **Leitura nova:** exemplares elegíveis para colocar (alocados a X **e** guardados no fichário), sem nome de local e sem contagens do acervo.
+5. **Histórico.**
+   - A gravação aceita EDITOR ativo da coleção do evento como ator.
+   - O titular do evento continua sendo o dono do fichário.
+   - Nova leitura para membros, com a lista de permissão de eventos de C-241.
+   - Itens filtrados por coleção, o que exige registrar ou derivar a coleção de cada item.
+   - Ator exibido pelo nome de exibição público. Sem e-mail, identificador ou nome de usuário.
+6. **Leituras de participante de Master Set e Pokédex** (`5323`/`5324`), para EDITOR e VIEWER, sem `copies_available` nem dados do acervo.
+7. **Harness de autorização entre contas (D8),** preparado na E1 e **executado só em PostgreSQL isolado**, com autorização específica. Cobre os cenários S1–S10 abaixo.
+
+**Fora da E1:**
+
+- interface (E2/E3);
+- aplicação no LIVE, que exige autorização específica depois da prova isolada;
+- grade (Backlog V2.0);
+- membros contribuindo cartas dos próprios acervos (não reaberto);
+- transferência de titularidade da coleção.
+
+**Dependências e ordem:**
+
+1. Proposta da E1.
+2. Auditoria independente.
+3. Autorização do ambiente isolado, das contas de teste e da execução.
+4. Prova S1–S10.
+5. Reavaliação da **PR-04B**, obrigatória antes de expansão multiusuário (encerramento da V1-16, seção V1-16 acima). O mesmo ambiente isolado pode executar os cenários pendentes da `5364`, com autorização própria.
+6. Autorização de aplicação no LIVE.
+7. E2/E3.
+
+O monitoramento da PR-04A (até 21/11/2026) não bloqueia a E1.
+
+**Critérios de aceite da E1:**
+
+- Todas as entregas 1–7 propostas, auditadas e com harness `ROLLBACK`, sem resíduo.
+- Matriz C-234 coberta célula a célula: cada ✔ tem caso positivo e cada ✘ tem caso negativo pelo acesso direto à RPC.
+- O caminho do titular não muda: a regressão das funções afetadas e dos harnesses existentes passa.
+- Funções novas e alteradas: `SECURITY DEFINER`, `search_path = ''`, objetos qualificados, EXECUTE só para `authenticated` (revogado de PUBLIC e `anon`), recusas sem revelar conteúdo de terceiros.
+- Idempotência e reexecução previsíveis. Concorrência entre titular e EDITOR resolvida pela trava do fichário: sem impasse e sem gravação parcial.
+- Desempenho: as verificações de bolsos usam índices existentes ou propostos, sem varrer o fichário inteiro por operação simples.
+
+## Critérios de autorização e segurança (D8, C-244)
+
+Cenários obrigatórios entre contas, executados em PostgreSQL isolado antes da publicação. **Nenhum** deles pode ser encerrado por aceitação de risco.
+
+| # | Cenário | Esperado |
+|---|---|---|
+| S1 | EDITOR de X escreve em X, em cada operação ✔ de C-234 | Aceito, com histórico com o EDITOR como ator |
+| S2 | EDITOR de X tenta escrever em outra coleção do mesmo titular, em coleção de outro titular ou em coleção onde é VIEWER | Recusado, sem revelar a existência ou o conteúdo |
+| S3 | EDITOR de X opera bolsos de terceiros num fichário de várias coleções: carta, reserva, referência ou imagem de outra coleção, exemplar sem coleção, bolso que parece vazio mas está ocupado | Recusado. Nada de terceiros muda |
+| S4 | EDITOR de X faz operação de página ou em massa num fichário de várias coleções, ou num de uma coleção que deslocaria conteúdo de terceiros | Recusado |
+| S5 | EDITOR coloca exemplar não alocado a X, alocado mas em outro local, de outro titular ou com identificador forjado | Recusado. Alocação, local e acervo intactos |
+| S6 | EDITOR tenta alocar, desalocar, mudar local, condição, visibilidade, membros, papel, arquivamento, exclusão, âncora, identidade ou imagens | Recusado |
+| S7 | VIEWER, não membro, convite pendente ou recusado, ex-membro e `anon` tentam qualquer escrita | Recusado |
+| S8 | Troca de papel EDITOR → VIEWER, saída e remoção | A próxima escrita é recusada imediatamente, e a leitura de quem saiu ou foi removido também |
+| S9 | Leituras e histórico do EDITOR e do VIEWER | Sem local, condição, acervo fora de X, valores, `copies_available`, e-mail, nome de usuário, identificadores do titular, eventos ou itens de outras coleções, eventos estruturais ou de acervo |
+| S10 | Titular e EDITOR escrevem ao mesmo tempo no mesmo fichário | Serializado pela trava. Sem impasse, sem estado parcial e sem violar a classificação de bolsos |
+
+## E2–E4 (escopo, não planejado em detalhe)
+
+- **E2, curadoria no fichário compartilhado:**
+  - operações ✔ de C-234 na rota `colecoes/compartilhada/[id]/fichario`, reaproveitando as ferramentas do titular;
+  - controles conforme o papel;
+  - recusa do servidor com mensagem neutra.
+- **E3, interface por papel:**
+  - metadados;
+  - selo de papel na Biblioteca e em "Compartilhadas com você";
+  - escolha e troca de papel em "Compartilhar";
+  - histórico no escopo do membro;
+  - as quatro modalidades;
+  - Design System atual, desktop e celular, temas claro e escuro.
+- **E4, homologação:**
+  - funcional com titular, EDITOR e VIEWER nas quatro modalidades;
+  - visual;
+  - segurança: confere que a prova S1–S10 da E1 foi executada e aprovada antes da publicação (C-244).
 
 ---
 

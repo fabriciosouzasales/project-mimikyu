@@ -5,7 +5,7 @@
 | **Documento** | Collection — Concept Decisions (Modelagem Conceitual) |
 | **Arquivo** | `docs/domain-modeling/collections/concept-decisions.md` |
 | **Origem** | Produzido em repositório de modelagem paralelo (`mimikyu-modelagem-de-dados`), incorporado a `project-mimikyu` como fonte canônica em 2026-08-28 (pedido explícito de Fabrício). |
-| **Decision Register** | C-01 a C-37 (núcleo Collection); C-38 a C-46 (bloco complementar Collection Layout, 2026-08-30); C-47 a C-48 (bloco complementar Physical Card & Inventory, 2026-08-30); C-49 a C-54 (bloco complementar Custody & Availability, 2026-08-30); C-55 a C-66 (bloco complementar Storage, 2026-08-30); C-67 a C-81 (bloco complementar Physical Card Lifecycle & Provenance, 2026-08-30); C-82 a C-90 (bloco complementar Favorite, 2026-08-30); C-91 a C-102 (bloco complementar Wishlist, 2026-08-30); C-103 a C-120 (bloco complementar Physical Card Condition, 2026-08-30); C-121 a C-140 (bloco complementar Grading / Certification, 2026-08-30); C-141 a C-165 (bloco complementar Collection Collaboration / Permissions, 2026-08-30); C-166 a C-186 (bloco complementar Collection Activity History / Audit, 2026-08-30); C-187 a C-190 (bloco complementar Master Set por acabamento, 2026-10-18 — substitui parcialmente C-01 e B.4); C-191 a C-194 (bloco complementar Fichário Digital — montagem automática, exemplares adicionais e desmontagem, 2026-10-22 — decisões aprovadas, implementação física EXECUTADA; estende C-42; C-191/C-192 parcialmente superadas em 2026-10-24 pela Elegibilidade por Local Físico); C-195 a C-197 (bloco complementar Fichário Digital compartilhado, 2026-10-23 — emenda C-38/C-191; implementação física EXECUTADA; C-195/C-197 parcialmente superadas em 2026-10-24 pela Elegibilidade por Local Físico); C-198 (imagem personalizada do bolso, 2026-10-23); C-199 (referência de espécie nos bolsos do fichário da Pokédex, 2026-10-24 — implementação local, contratos não executados); C-200 (novidades do Catálogo no fichário Master Set, 2026-10-25 — implementada, canônica e homologada); C-201 a C-209 (bloco complementar Histórico de Atividades do Fichário, 2026-10-25 — aprovadas; implementação física proposta, não aplicada); C-210 a C-219 (bloco complementar Lista de desejos — decisões de produto do V1-11, 2026-10-31 — aprovadas; sem modelo físico); C-220 a C-226 (bloco complementar Organização automática do fichário, 2026-11-01 — aprovadas; fundação SQL 5341–5344 EXECUTADA, canônica e homologada; interface não iniciada); C-227 a C-233 (bloco complementar Condição física na V1.0 — V1-16, 2026-11-13 — aprovadas; implementado e publicado em 2026-11-13) |
+| **Decision Register** | C-01 a C-37 (núcleo Collection); C-38 a C-46 (bloco complementar Collection Layout, 2026-08-30); C-47 a C-48 (bloco complementar Physical Card & Inventory, 2026-08-30); C-49 a C-54 (bloco complementar Custody & Availability, 2026-08-30); C-55 a C-66 (bloco complementar Storage, 2026-08-30); C-67 a C-81 (bloco complementar Physical Card Lifecycle & Provenance, 2026-08-30); C-82 a C-90 (bloco complementar Favorite, 2026-08-30); C-91 a C-102 (bloco complementar Wishlist, 2026-08-30); C-103 a C-120 (bloco complementar Physical Card Condition, 2026-08-30); C-121 a C-140 (bloco complementar Grading / Certification, 2026-08-30); C-141 a C-165 (bloco complementar Collection Collaboration / Permissions, 2026-08-30); C-166 a C-186 (bloco complementar Collection Activity History / Audit, 2026-08-30); C-187 a C-190 (bloco complementar Master Set por acabamento, 2026-10-18 — substitui parcialmente C-01 e B.4); C-191 a C-194 (bloco complementar Fichário Digital — montagem automática, exemplares adicionais e desmontagem, 2026-10-22 — decisões aprovadas, implementação física EXECUTADA; estende C-42; C-191/C-192 parcialmente superadas em 2026-10-24 pela Elegibilidade por Local Físico); C-195 a C-197 (bloco complementar Fichário Digital compartilhado, 2026-10-23 — emenda C-38/C-191; implementação física EXECUTADA; C-195/C-197 parcialmente superadas em 2026-10-24 pela Elegibilidade por Local Físico); C-198 (imagem personalizada do bolso, 2026-10-23); C-199 (referência de espécie nos bolsos do fichário da Pokédex, 2026-10-24 — implementação local, contratos não executados); C-200 (novidades do Catálogo no fichário Master Set, 2026-10-25 — implementada, canônica e homologada); C-201 a C-209 (bloco complementar Histórico de Atividades do Fichário, 2026-10-25 — aprovadas; implementação física proposta, não aplicada); C-210 a C-219 (bloco complementar Lista de desejos — decisões de produto do V1-11, 2026-10-31 — aprovadas; sem modelo físico); C-220 a C-226 (bloco complementar Organização automática do fichário, 2026-11-01 — aprovadas; fundação SQL 5341–5344 EXECUTADA, canônica e homologada; interface não iniciada); C-227 a C-233 (bloco complementar Condição física na V1.0 — V1-16, 2026-11-13 — aprovadas; implementado e publicado em 2026-11-13); C-234 a C-244 (bloco complementar Compartilhamento com EDITOR na V1.0 — V1-13, 2026-11-14 — aprovadas; contrato formalizado, sem implementação) |
 | **Status** | FECHADA / APROVADA PARA MODELAGEM LÓGICA (núcleo); bloco complementar de Layout também Aprovado; bloco complementar Physical Card & Inventory também Aprovado; bloco complementar Custody & Availability também Aprovado; bloco complementar Storage também Aprovado; bloco complementar Physical Card Lifecycle & Provenance também Aprovado; bloco complementar Favorite também Aprovado; bloco complementar Wishlist também Aprovado; bloco complementar Physical Card Condition também Aprovado; bloco complementar Grading / Certification também Aprovado; bloco complementar Collection Collaboration / Permissions também Aprovado; bloco complementar Collection Activity History / Audit também Aprovado |
 | **Escopo** | Modelagem conceitual da entidade `Collection` (colecionador), desde 2026-08-30 de `Collection Layout`/`Page`/`Slot`, desde 2026-08-30 da identidade `Physical Card` e do agregado `Inventory`, desde 2026-08-30 das dimensões `Custody`/`Custodian`/`Availability`, desde 2026-08-30 de `Storage`/`Storage Container` (incluindo hierarquia opcional), desde 2026-08-30 de `Lifecycle`/`Provenance` (Ownership Entry/Transfer/Exit), desde 2026-08-30 de `Favorite` (preferência do User por Card), desde 2026-08-30 de `Wishlist` (intenção do User por Card Variant), desde 2026-08-30 de `Physical Card Condition` (classificação padronizada do estado físico, referenciando a escala canônica compartilhada `card_condition`), desde 2026-08-30 de `Grading`/`Certification` (resultado formal de avaliação externa, com exclusividade de aplicabilidade corrente frente a Condition), desde 2026-08-30 de `Collection Collaboration`/`Permissions` (Owner estrutural, Collection Membership, roles EDITOR/VIEWER, fronteira Collection-scoped × Owner/Inventory-scoped), e desde 2026-08-30 de `Collection Activity History`/`Audit Log` (três camadas — Lifecycle/Provenance, Activity History, Audit — conceitualmente distintas) — não contém SQL nem modelo físico. |
 | **Documentos Relacionados** | `../../04-domain-model.md` (seções Collection/Collection Entry/Collection Item — ver nota de superação), `adr/ADR-013-collection-item-identity-model.md` e `adr/ADR-014-collection-and-collection-entry-model.md` (ambas **Substituídas** por este documento e por `logical-model.md`), `logical-model.md`, `pkmnbindr-benchmark.md`, `checkpoint-2026-08-28.md`, `checkpoint-2026-08-29.md`, `checkpoint-2026-08-30.md`, `ux-exploration-2026-08-29.md`. |
@@ -2094,6 +2094,256 @@ A condição não altera completude, reservas, Favoritos, Lista de desejos, loca
 
 ---
 
+## Bloco complementar — Compartilhamento com EDITOR na V1.0 (V1-13, 2026-11-14)
+
+Adicionado por `V1-13 | EDITOR CONTRACT FORMALIZATION-01`, a partir de `EDITOR SHARING CONTRACT DIAGNOSIS-01`, das decisões D1–D8 do proprietário (`EDITOR PRODUCT DECISIONS CONSOLIDATION-01`) e da decisão complementar DR-1. Consolida o papel EDITOR sobre C-141–C-165, C-171–C-174, C-191–C-209 e C-227–C-233. **Não reabre** titularidade única, alocação exclusiva do titular, privacidade patrimonial nem o contrato VIEWER/PUBLIC da V1-12. Refinamentos e substituições estão indicados em cada decisão. Nenhuma alteração física nesta rodada: o plano de implementação (E1) está em `docs/05d-colecoes-e-usuarios.md`, seção "Compartilhamento com EDITOR (V1-13)".
+
+### C-234 — Fronteira do EDITOR
+
+**Status:** Aprovada
+
+O EDITOR é um membro ativo de **uma coleção específica**. Organiza essa coleção e o fichário dela, mas nunca decide quais exemplares pertencem à coleção nem onde eles ficam guardados. A autorização é sempre **por coleção e por operação**, avaliada no servidor a cada chamada. Tela, botão oculto, identificador enviado pelo cliente ou estado visual mascarado nunca valem como autorização.
+
+São **exclusivos do titular** e ficam fora do EDITOR:
+
+- alocar e desalocar exemplares (C-147);
+- local físico (C-159);
+- condição (C-160, C-232);
+- certificação e disponibilidade;
+- excluir exemplares ou mudar a titularidade (C-144);
+- visibilidade (C-151);
+- arquivar e excluir a coleção;
+- convidar, remover e trocar o papel de membros (C-154, C-240);
+- dados privados do titular (C-158).
+
+Refina C-146 e C-165 com as regras C-235 a C-244.
+
+**Matriz final da V1.0:**
+
+| Capacidade | Titular | EDITOR | VIEWER |
+|---|---|---|---|
+| Ver a coleção, as cartas alocadas, o progresso e o fichário mascarado | ✔ | ✔ | ✔ |
+| Ver a condição dos exemplares (C-233) | ✔ | ✘ | ✘ |
+| Ver o acervo, os locais, a proveniência, os valores, os Favoritos e a Lista de desejos do titular | ✔ | ✘ | ✘ |
+| Nome, descrição, objetivo (texto) e capa (C-239) | ✔ | ✔ | ✘ |
+| Referência do Set, escopo do Master Set e política de completude | ✔ | ✘ | ✘ |
+| Colocar no bolso um exemplar **alocado à coleção e guardado no fichário** (C-235) | ✔ | ✔ | ✘ |
+| Colocar no bolso um exemplar não alocado ou guardado em outro local | ✔ | ✘ | ✘ |
+| Retirar do bolso, sem desalocar nem mudar o local (C-236) | ✔ | ✔ | ✘ |
+| Mover e trocar posições, reservar e liberar, fixar e soltar, mesclar e desfazer mesclagem, dentro dos bolsos permitidos (C-237) | ✔ | ✔ | ✘ |
+| Operações de página e operações em massa num fichário que atende **só** a coleção autorizada (C-237) | ✔ | ✔ | ✘ |
+| Operações de página e operações em massa num fichário que atende **várias** coleções | ✔ | ✘ | ✘ |
+| Pokédex: referências de espécie (regra de C-237), posição e representante entre exemplares já alocados (C-242) | ✔ | ✔ | ✘ |
+| Montar, desmontar, transferir a âncora, associar e desassociar coleções, identidade e imagens personalizadas do fichário (C-238) | ✔ | ✘ | ✘ |
+| Alocar, desalocar, local, condição, visibilidade, arquivar, excluir, membros e papéis | ✔ | ✘ | ✘ |
+| Histórico do fichário (C-241) | completo | escopo da coleção | escopo da coleção |
+
+### C-235 — Colocar exemplar no bolso (D1 e DR-1)
+
+**Status:** Aprovada
+
+O EDITOR só pode colocar num bolso um exemplar que atenda às duas condições abaixo, **as duas definidas antes pelo titular**:
+
+- já está alocado à coleção compartilhada;
+- já tem como local físico o próprio fichário (`collection_layout.storage_container_id`).
+
+O servidor valida as duas condições no momento da ação, sob a trava do fichário. A colocação não altera a alocação, o local, a condição nem a titularidade.
+
+Fora do alcance do EDITOR:
+
+- **exemplar alocado mas guardado em outro local, ou sem local:** só o titular coloca, porque colocar exigiria mudar o local;
+- **exemplar do acervo não alocado à coleção:** só o titular coloca, porque colocar seria alocar e revelaria o acervo.
+
+Nesses dois casos, o EDITOR pode **reservar o bolso** para a carta (C-237), escolhendo-a pelo Catálogo, como na reserva da V1-07, sem ver o acervo.
+
+A lista de exemplares elegíveis oferecida ao EDITOR contém apenas os exemplares que cumprem as duas condições. Ela não mostra o nome do local, não mostra os demais exemplares do acervo e não permite inferir quantos exemplares não alocados existem.
+
+Refina a parte de C-146 e C-148 sobre mover posições de exemplares já alocados. A elegibilidade geral por local físico (C-195 emendada; `5247`–`5256`) continua valendo **só para o titular**. Pela leitura literal da D1, colocar exemplares do acervo ainda não alocados ficaria permitido; a DR-1 restringe isso.
+
+### C-236 — Retirar exemplar do bolso (D3)
+
+**Status:** Aprovada
+
+O EDITOR pode retirar do bolso um exemplar da coleção autorizada. A retirada apaga apenas a posição no bolso: o exemplar continua alocado à coleção, guardado no mesmo local e no acervo do titular. Retirar do bolso **não** é desalocar, mudar o local, excluir o exemplar nem alterar a titularidade, e nenhuma dessas operações fica disponível ao EDITOR por esse caminho. Exemplares de outras coleções ou sem coleção nunca são retirados pelo EDITOR.
+
+### C-237 — Fichário com várias coleções: autorização por coleção e por operação (D2)
+
+**Status:** Aprovada
+
+Um fichário pode atender a coleção proprietária e coleções convidadas do mesmo titular (C-195). Além disso, pode guardar exemplares de outras coleções ou sem coleção (elegibilidade por local físico). O fichário mascarado que o membro vê (`5315`) **não define o que pode ser editado**: um bolso que parece vazio pode estar ocupado por conteúdo que o membro não vê. A classificação dos bolsos é feita **no servidor**, na coleção autorizada X:
+
+- **Bolso de X:** contém um exemplar alocado a X ou uma reserva registrada para X (C-196). Num fichário cuja coleção proprietária é a Pokédex X, também conta o bolso com referência de espécie (C-199).
+- **Bolso livre:** sem exemplar, sem reserva, sem imagem personalizada, sem referência de espécie, não fixado e fora de mesclagem.
+- **Bolso de terceiros:** qualquer outro caso. Inclui exemplar de outra coleção ou sem coleção, reserva de outra coleção, imagem personalizada, referência de espécie de outra coleção, e bolso fixado ou mesclado que não seja de X.
+
+As operações do EDITOR seguem estas regras:
+
+- **Colocar (C-235):** só em bolso livre ou em bolso de X (inclusive a reserva de X para a mesma carta). Valem as regras atuais de fixação e substituição. A substituição só pode tirar um exemplar de X.
+- **Retirar (C-236), mover e trocar:** a origem e o destino precisam ser bolsos de X ou livres. Trocar com um bolso de terceiros é recusado.
+- **Reservar e liberar:** reservar só em bolso livre ou em bolso com reserva de X, e a reserva sempre fica registrada para X. Liberar só reservas de X.
+- **Fixar e soltar:** só bolsos de X. Fixar um bolso livre ocuparia o espaço de todas as coleções e por isso fica com o titular.
+- **Mesclar e desfazer mesclagem:** só se todos os bolsos envolvidos forem de X ou livres. Mesclagens que tenham imagem personalizada são do titular (C-238).
+- **Operações de página e em massa**
+  - **Quais são:** incluir e remover página, reordenar páginas, inserir e fechar espaço, organização automática (C-220–C-226), incorporação de novidades do Catálogo (C-200), e aplicar, remover, mostrar ou ocultar referências de espécie (C-199).
+  - **Fichário de várias coleções:** quando o fichário atende mais de uma coleção (proprietária e ao menos uma convidada), essas operações são **exclusivas do titular**.
+  - **Fichário de uma coleção:** quando o fichário atende só X, o EDITOR pode executá-las, desde que a operação não desloque, retire nem descarte conteúdo de terceiros. Exemplo: remover uma página com exemplar sem coleção ou com imagem personalizada é recusado ao EDITOR.
+  - **Reordenar páginas:** preserva o conteúdo de cada bolso e por isso é permitido no fichário de uma coleção.
+
+Uma recusa nunca revela o conteúdo de terceiros. A mensagem diz que a operação está reservada ao titular, sem descrever o que ocupa o bolso. A verificação acontece na mesma transação da escrita, sob a trava do fichário, para que a ocupação não mude entre a verificação e a gravação.
+
+Refina C-149 ("Pages, grid, merge/unmerge, slot lock/unlock") para fichários com várias coleções. A parte sobre a grade foi superada (C-238).
+
+### C-238 — Administração estrutural do fichário (D4)
+
+**Status:** Aprovada
+
+Ficam **exclusivos do titular**, em qualquer fichário:
+
+- montar e desmontar (C-191, C-194);
+- associar e desassociar coleções convidadas (C-195, C-197);
+- transferir a âncora;
+- alterar a identidade do fichário (nome, acabamento e marca);
+- imagens personalizadas de bolso e de mesclagem (C-198): incluir, substituir, ajustar e remover. Os arquivos ficam no armazenamento privado do titular e contam na cota dele.
+
+A reconfiguração da grade **não faz parte da V1.0**: segue no Backlog V2.0 (`BINDER-GRID-RECONFIGURATION`, ROADMAP 2.56). Por isso, a menção a "grid" em C-149 não gera permissão na V1.0.
+
+### C-239 — Metadados da coleção (C-150)
+
+**Status:** Aprovada
+
+O EDITOR edita nome, descrição, objetivo **textual** e capa da coleção. Ficam com o titular as escolhas estruturais sujeitas a travas e regras próprias:
+
+- referência do Card Set;
+- escopo e acabamentos do Master Set (C-188);
+- política de completude;
+- modalidade;
+- visibilidade;
+- arquivamento e exclusão.
+
+Se a capa usar um arquivo enviado, ele é gravado no armazenamento do titular, com autorização própria do EDITOR para essa coleção. O EDITOR nunca recebe acesso geral à pasta do titular.
+
+É uma interpretação de C-150, sem decisão nova.
+
+### C-240 — Convite com papel e troca de papel (D5)
+
+**Status:** Aprovada
+
+O titular convida já escolhendo o papel, EDITOR ou VIEWER. O padrão continua sendo VIEWER, como na V1-12.
+
+O titular pode trocar **diretamente** o papel de um membro ativo entre VIEWER e EDITOR, sem novo convite nem novo aceite. A troca tem **efeito imediato**:
+
+- a próxima operação do membro já é avaliada com o novo papel;
+- uma escrita em andamento do EDITOR que passou a VIEWER é recusada se ainda não foi gravada.
+
+Um convite pendente mantém o papel oferecido até a resposta. Para oferecer outro papel, o titular cancela o convite e convida de novo. Saída e remoção encerram o acesso na hora. As edições já feitas permanecem (C-155) e a autoria histórica é preservada (C-173).
+
+Refina C-153 e C-154 apenas para acrescentar o papel do convite e a troca direta.
+
+### C-241 — Histórico compartilhado (D6)
+
+**Status:** Aprovada
+
+O histórico do fichário (C-201–C-209) passa a ser legível também por **EDITOR e VIEWER ativos**, só no escopo da coleção autorizada X e enquanto ela participa do fichário. Isso realiza C-172 e amplia o predicado de leitura isolado por C-204, como ela mesma previa.
+
+**O que o membro vê:**
+
+- **Eventos:** lista de permissão explícita (o que não está nela fica oculto). O membro vê só eventos do fichário atual de X cuja coleção registrada seja X e cujo tipo seja um destes:
+  - cartas colocadas, movidas, trocadas e retiradas (E02–E05);
+  - reservas, fixar e soltar (E08–E10);
+  - espaços e páginas (E11–E15);
+  - novidades do Catálogo (E16);
+  - registro legado (L01).
+- **Eventos ocultos:**
+  - eventos sem coleção ou de outras coleções;
+  - eventos estruturais: montagem, associação, desassociação, desmontagem e transferência (E01, E17–E20);
+  - saídas originadas no acervo ou por mudança de local (E06a `CARDS_LEFT_BY_STORAGE`, E06b `CARDS_LEFT_BY_COLLECTION_STORAGE`, E07 `CARD_LEFT_BY_INVENTORY_EXIT`), que revelariam locais e o acervo.
+- **Itens:** só os itens que se referem a exemplares, reservas ou bolsos de X. Um item de outra coleção dentro de um evento de X (por exemplo, um deslocamento) não aparece, nem entra em contagens e resumos.
+- **Fichários encerrados:** o histórico de um fichário desmontado, removido ou transferido continua só com o titular (C-208). A saída, a remoção e a perda de acesso à coleção encerram também o acesso ao histórico.
+
+**Identificação de quem executou:**
+
+- Mostra o **nome de exibição público** (`user_profile.display_name`) do titular ou do membro de X que executou a ação, inclusive de quem já saiu (C-173).
+- Sem nome de exibição, aparece apenas o papel ("Titular", "Participante").
+- Nunca aparecem e-mail, identificador interno ou nome de usuário, seguindo o que a V1-12 já expõe em `5312`.
+- Nunca aparece a identidade de participantes de outras coleções.
+- Leitura (VIEWER) não gera evento (C-171).
+
+**Gravação:**
+
+- Ações do EDITOR geram eventos no histórico do titular, que segue sendo o titular do evento (C-204).
+- O EDITOR fica registrado como ator, guardado como valor (esclarecimento de C-203).
+- A gravação só aceita ator diferente do titular quando ele é EDITOR ativo da coleção do evento.
+
+**Privacidade (C-174):**
+
+- **Dados ocultos:** sem nomes de locais, valores ou dados do acervo.
+- **Nome do fichário:** segue a regra de identidade da V1-12, que só mostra o nome à coleção proprietária (`5321`).
+
+A exclusão definitiva pelo titular (C-203) apaga também o que os membros viam.
+
+Refina C-204 e substitui a recomendação de `EDITOR SHARING CONTRACT DIAGNOSIS-01` de mostrar só o papel do ator.
+
+### C-242 — Modalidades (D7)
+
+**Status:** Aprovada
+
+A V1-13 cobre **Set padrão, Master Set, coleção livre e Pokédex**, para EDITOR e VIEWER, cada modalidade com suas particularidades:
+
+- **Set padrão:** posições do Card Set, reservas da montagem, completude e regras de C-235 a C-237.
+- **Master Set:** posições por acabamento. Faltam as leituras de participante (`5323`), que fazem parte da V1-13 e servem também ao VIEWER. A incorporação de novidades (C-200) segue a regra de operações em massa (C-237). Escopo e acabamentos ficam com o titular (C-239).
+- **Coleção livre:** sem posições de catálogo. O EDITOR edita os metadados e organiza o fichário, quando houver, pelas mesmas regras.
+- **Pokédex:** posições por espécie. Faltam as leituras de participante (`5324`).
+  - **Operações do EDITOR:**
+    - aplicar, remover, mostrar ou ocultar referências de espécie (C-199), pela regra de operações em massa;
+    - mudar a posição de um exemplar **já alocado** (`6122`/`6124`);
+    - escolher o representante entre exemplares já alocados (`6125`).
+  - **Não são alocação:** essas operações não criam nem desfazem alocação. A alocação, inclusive a atribuição automática que ela provoca (`6119`), continua só com o titular. A referência de espécie é rótulo do bolso, não exemplar.
+
+Corrige a matriz de `EDITOR SHARING CONTRACT DIAGNOSIS-01`, que classificava a posição Pokédex como alocação. A leitura de `6122` mostra que ela parte de uma alocação já existente.
+
+### C-243 — Leitura dos membros e privacidade
+
+**Status:** Aprovada
+
+EDITOR e VIEWER leem a mesma superfície compartilhada da V1-12:
+
+- cabeçalho;
+- cartas alocadas;
+- progresso;
+- fichário mascarado;
+- imagens e capa;
+- as leituras de Master Set e Pokédex (C-242).
+
+O EDITOR recebe a mais somente o que a escrita exige: a lista de exemplares elegíveis de C-235 e, nas recusas, um motivo que não revela conteúdo de terceiros.
+
+**Nunca são expostos a membros:**
+
+- acervo fora da coleção;
+- locais físicos (C-159). A C-27, que propagava aos membros o acesso aos locais do titular, está superada desde 2026-08-30 (revisão 1.13) e não gera permissão. A C-25, local compartilhado entre coleções do mesmo titular, continua válida e não trata de membros;
+- condição (C-233, que prevalece sobre a visibilidade curatorial de C-160);
+- certificação;
+- proveniência;
+- valores e preços do titular;
+- Favoritos e Lista de desejos do titular;
+- quantidade disponível (`copies_available`);
+- e-mail ou identificadores do titular e de outros membros.
+
+Toda leitura hoje limitada a OWNER/VIEWER passa a aceitar EDITOR com o mesmo recorte, sem ampliar o que é entregue.
+
+### C-244 — Prova de segurança antes da publicação (D8)
+
+**Status:** Aprovada
+
+A V1-13 só é publicada depois de uma **prova dinâmica de autorização entre contas**, executada em PostgreSQL isolado e com autorização específica do proprietário para o ambiente, as contas de teste e a execução.
+
+- **Cobertura:** a prova cobre todos os cenários obrigatórios definidos em `05d` (seção V1-13, "Critérios de autorização e segurança").
+- **Sem aceitação de risco:** nenhum desses cenários pode ser encerrado por aceitação de risco.
+- **PR-04B:** a V1-13 é uma expansão multiusuário. Por isso, a reavaliação da PR-04B (5364 sem prova dinâmica) é obrigatória antes da publicação, como registrado no encerramento da V1-16.
+
+Nenhum ambiente foi criado nesta rodada.
+
+---
+
 # PARTE B — ESTADO CANÔNICO CONSOLIDADO
 
 ## B.1 — Responsabilidades do domínio
@@ -2442,3 +2692,4 @@ Antes do handoff final para implementação, o modelo deverá ser reconciliado c
 | 1.33 | **C-220 a C-226 — Organização automática do fichário (2026-11-01, `Binder · P2 AUTO-ARRANGE SQL FOUNDATION-06`).** Registra as 13 decisões finais do proprietário: Set/Master Set na proprietária; candidatos e destinos elegíveis; 1:1 estrito sem desempate; só acrescenta posições; prévia, confirmação e token; limite 500 sem execução parcial; um evento por operação. Especializa C-42–C-44, C-191–C-197 e C-205 sem reabri-las. Implementação física PROPOSTA (5341–5344, harness 5872), não executada. |
 | 1.34 | **C-220 a C-226 — fundação SQL homologada (2026-11-01, `P2 SQL FOUNDATION CLOSEOUT-16`).** Só estado de implementação: 5341–5344 executadas no LIVE, canônicas em `database/schema/`, harness 5872 v1.5 54/54, postcheck e medição ME3 PASS. Texto das decisões inalterado. K-M1–K-M3 e `55P03` não provados; uso real depende da interface homologada e de autorização do proprietário. |
 | 1.35 | **C-227 a C-233 — Condição física por exemplar na V1.0 (V1-16) (2026-11-13, `COLLECTION V1-16 — CARD CONDITION CONTRACT-01`).** Antecipa a condição (C-103–C-120) do backlog V2.0 para a V1.0 por decisão do proprietário. C-228 **substitui** C-108 (condição obrigatória, padrão NM) e revisa parcialmente C-120; C-229 oferece as seis condições canônicas com rótulos de exibição (SP para `LP`, DM para `DMG`) sem mudar códigos nem Pricing; C-230 registra a classificação inicial presumida NM (compatível com C-109); C-231 cadastro; C-232 edição; C-233 independência e superfícies. Textos de C-108/C-120 preservados com status atualizado. Sem alteração física. |
+| 1.36 | **C-234 a C-244 — Compartilhamento com EDITOR na V1.0 (V1-13) (2026-11-14, `V1-13 \| EDITOR CONTRACT FORMALIZATION-01`).** Formaliza D1–D8 e DR-1 do proprietário sobre C-141–C-165, C-171–C-174 e C-191–C-209: fronteira e matriz TITULAR × EDITOR × VIEWER (C-234); colocar no bolso só exemplar alocado à coleção **e** guardado no fichário, validado no servidor (C-235, DR-1); retirar preserva alocação, local e titularidade (C-236); classificação de bolsos no servidor (de X, livre, de terceiros) e operações de página/massa só em fichário de uma coleção (C-237, refina C-149); administração estrutural do titular e grade no Backlog V2.0 (C-238); metadados (C-239, interpretação de C-150); convite com papel e troca direta (C-240, refina C-153/C-154); histórico compartilhado por lista de permissão, com nome de exibição público do ator (C-241, refina C-204); quatro modalidades, com posição e representante Pokédex como curadoria e não alocação (C-242); leitura e privacidade dos membros, condição oculta por C-233 (C-243); prova dinâmica em PostgreSQL isolado e reavaliação da PR-04B antes da publicação (C-244). Sem alteração física. |
