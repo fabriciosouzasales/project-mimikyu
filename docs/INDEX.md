@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Índice |
 | **Arquivo** | `docs/INDEX.md` |
-| **Versão** | 3.41 |
+| **Versão** | 3.42 |
 | **Status** | Aprovado |
 | **Objetivo** | Catálogo único de tudo que existe na documentação do projeto — um resumo de uma linha por documento, para orientar uma sessão nova sem precisar ler cada arquivo. |
 | **Manutenção** | Atualizar sempre que um documento for criado, removido ou tiver título/resumo alterado de forma relevante (mesma disciplina de `adr/ADR-INDEX.md`/`standards/STD-INDEX.md`). |
@@ -184,6 +184,7 @@ Catálogo completo com status em [`standards/STD-INDEX.md`](standards/STD-INDEX.
 | [`../database/proposals/2026-10-30-v1-12-viewer-parity/HOMOLOGATION.md`](../database/proposals/2026-10-30-v1-12-viewer-parity/HOMOLOGATION.md) | Roteiro de homologação visual do V1-12 (titular × VIEWER × vitrine; filtros da galeria; revogação; claro/escuro, desktop/celular). PENDENTE. |
 | [`../database/proposals/2026-10-30-v1-12-shared-binder-visual-assets/README.md`](../database/proposals/2026-10-30-v1-12-shared-binder-visual-assets/README.md) | V1-12 SHARED BINDER VISUAL ASSETS — imagens de bolso, mesclagens e capa enviada para VIEWER e vitrine: `5325`–`5329` (núcleo, duas portas, capa, política SELECT escopada no Storage) e harness `5863`. PROPOSTO, não aplicado. |
 | [`../database/proposals/2026-10-30-card-set-logo-public-read/README.md`](../database/proposals/2026-10-30-card-set-logo-public-read/README.md) | Logo do Set na vitrine pública: `5330` (SELECT só anon, só logo atual de Card Set) + harness `5864`. PROPOSTO, independente de 5325–5329. |
+| [`../database/proposals/2026-11-15-v1-13-e1c-bulk-operations/README.md`](../database/proposals/2026-11-15-v1-13-e1c-bulk-operations/README.md) | V1-13 · E1-C — operações em massa limitadas à coleção: `5381` (gatilho: tipos de evento do EDITOR), `5382` (fichário exclusivo; adicionar, remover e reordenar páginas), `5383` (referências de espécie pelo EDITOR), harness `5892`, rollback e verificação estática; inventário A/B/C. PROPOSTO, não executado. |
 | [`../database/proposals/2026-11-15-v1-13-e1b3-pokedex-history/README.md`](../database/proposals/2026-11-15-v1-13-e1b3-pokedex-history/README.md) | V1-13 · E1-B3 — Pokédex pelo EDITOR e fundação do histórico compartilhado: `5378` (bolso com referência de espécie de X = bolso de X), `5379` (coleção por item do histórico, marca de atribuição, recusa de contexto forjado), `5380` (posição e representante Pokédex entre exemplares já alocados), harness `5891`, rollback e verificação estática. PROPOSTO, não executado. |
 | [`../database/proposals/2026-11-15-v1-13-e1b2-editor-curation/README.md`](../database/proposals/2026-11-15-v1-13-e1b2-editor-curation/README.md) | V1-13 · E1-B2 — curadoria do EDITOR: `5375` (reservar, liberar, fixar/soltar), `5376` (nome, descrição e capa da coleção), `5377` (Storage da capa: envio limitado à pasta do titular da coleção autorizada), harness `5890`, rollback e verificação estática. PROPOSTO, não executado. |
 | [`../database/proposals/2026-11-15-v1-13-e1b1-editor-core-binder/README.md`](../database/proposals/2026-11-15-v1-13-e1b1-editor-core-binder/README.md) | V1-13 · E1-B1 — autorização do EDITOR e operações fundamentais do fichário: `5371` (internas: autorização, classificação de bolsos, posição), `5372` (histórico aceita ator EDITOR), `5373` (exemplares elegíveis), `5374` (colocar, mover/trocar, retirar), harness `5889`, rollback e verificação estática. PROPOSTO, não executado. |
@@ -464,3 +465,4 @@ Catálogo completo com status em [`standards/STD-INDEX.md`](standards/STD-INDEX.
 | 3.39 | **`V1-13 / E1-B1 \| EDITOR AUTHORIZATION AND CORE BINDER OPERATIONS-01` (2026-11-15).** Linha nova para `database/proposals/2026-11-15-v1-13-e1b1-editor-core-binder/` (PROPOSTO). |
 | 3.40 | **`V1-13 / E1-B2 \| EDITOR CURATION OPERATIONS-01` (2026-11-15).** Linha nova para `database/proposals/2026-11-15-v1-13-e1b2-editor-curation/` (PROPOSTO). |
 | 3.41 | **`V1-13 / E1-B3 \| POKÉDEX AND ACTIVITY HISTORY FOUNDATION-01` (2026-11-15).** Linha nova para `database/proposals/2026-11-15-v1-13-e1b3-pokedex-history/` (PROPOSTO). |
+| 3.42 | **`V1-13 / E1-C \| COLLECTION-SCOPED BULK OPERATIONS-01` (2026-11-15).** Linha nova para `database/proposals/2026-11-15-v1-13-e1c-bulk-operations/` (PROPOSTO). |
