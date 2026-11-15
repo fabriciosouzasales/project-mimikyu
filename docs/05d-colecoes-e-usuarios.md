@@ -4,7 +4,11 @@
 |--------|-------|
 | **Documento** | Modelo de Dados — Coleções e Usuários |
 | **Arquivo** | `docs/05d-colecoes-e-usuarios.md` |
-| **Versão** | 3.12 | **V1-13 — contrato EDITOR formalizado (2026-11-14); nada implementado. V1-12 corrigida como publicada e concluída.** Anterior (3.11): V1-16 encerrada. |
+| **Versão** | 3.16 | **V1-13 / E1-A — implementação local preparada, auditoria estática PASS com ressalvas, não executada; P1 não autorizado (2026-11-15).** Anterior (3.15): C-244 com redação inequívoca; artefato P1 preparado. |
+| 3.16 | **V1-13 / E1-A — reconciliação documental e commit local (2026-11-15, `V1-13 / E1-A \| DOCUMENTATION RECONCILIATION AND LOCAL COMMIT-06`).** "Estado da E1" registra o estado inequívoco (implementação local preparada / auditoria estática PASS com ressalvas / não executada; P1 não autorizado para execução) e as ressalvas R1–R4 da auditoria independente do pacote de 2026-11-15. Nada executado; nenhuma homologação. |
+| 3.15 | **V1-13 — P1 ARTIFACT PREPARATION-03 (2026-11-15).** Introdução dos critérios de segurança alinhada à C-244 1.38 (prova dinâmica suficiente; sem substituição por aceitação de risco nem por análise estática; publicação bloqueada). Artefato do ensaio P1, consulta S0/pós-estado e verificador independente preparados em `database/proposals/2026-11-14-v1-13-e1a-editor-role/p1/` — não executados, execução bloqueada até a S0 e autorização específica. |
+| 3.14 | **V1-13 — validação sem ambiente isolado (2026-11-15, `V1-13 / E1-A \| VALIDATION PROTOCOL HARDENING-02`).** Seção V1-13 alinhada à C-244 revisada: entrega 7, "Fora da E1", "Dependências e ordem" (itens 3–5) e introdução dos critérios de segurança trocam o PostgreSQL isolado por protocolo controlado no banco existente com autorização específica; S8 concorrente e S10 registrados como pendentes; PR-04B aberta. Estado da E1: v1.1 com paridade de ACL, 68/68 estático, 5861 v1.4. Nada executado. |
+| 3.13 | **V1-13 / E1-A — proposta local (2026-11-14, `V1-13 / E1-A \| EDITOR ROLE FOUNDATION IMPLEMENTATION-01`).** Seção V1-13: entrega E1.1 registra a substituição aprovada no planejamento (`5302` mantida como nível de leitura; papel real pela `5367`); novo parágrafo "Estado da E1" com `5366`–`5370`, verificação estática 61/61 e prova `5888` pendente. Nada executado; nenhuma escrita do EDITOR. |
 | 3.12 | **V1-13 — contrato EDITOR formalizado e V1-12 corrigida como publicada (2026-11-14, `V1-13 \| EDITOR CONTRACT FORMALIZATION-01`).** Nova seção "Compartilhamento com EDITOR (V1-13)": ponto de partida no LIVE, plano da E1 (7 entregas, dependências, critérios de aceite), cenários de segurança S1–S10 em PostgreSQL isolado e escopo de E2–E4; regras normativas em C-234–C-244 (sem duplicação). Seção V1-12: status corrigido para publicado e concluído (commits `feb605c`/`46d211d`; confirmação do proprietário), pendências atualizadas; `5323`/`5324` passam à V1-13. Sem SQL, sem LIVE, sem código. |
 | 3.11 | **V1-16 — encerramento final (2026-11-14, `V1-16 \| FINAL RELEASE CLOSEOUT-01`).** Declaração executiva na seção V1-16: concluída, publicada e homologada; riscos residuais de PR-01 a PR-04 registrados como acompanhamento; PR-04B não bloqueia por aceitação documentada e provisória, sem aprovar cenários não executados, com reavaliação obrigatória antes de expansão multiusuário. Nada novo executado ou testado. |
 | 3.10 | **PR-04A — encerramento (2026-11-14, `PR-04A \| HARDENING CLOSEOUT AND COMMIT READINESS-01`).** Homologação funcional informada pelo proprietário: 6/6 PASS, sem erros de permissão (Meu acervo; mover entre locais; organizar coleção; cadastro avulso; editar condição; Meus Locais e Encontrar carta) — cadastro por Set, +1/−1 e concorrência não fizeram parte. Monitoramento de 7 dias (401/403 e 42501 nos três endpoints) e R5365 preservado. Dependência de reconstrução registrada no README da proposta: a 5365 vem depois de 5012/5024/5222, 5287/5288/5289, 5362 e 5364; reconstrução limpa não comprovada. PR-04B continua aberta. |
@@ -1412,7 +1416,7 @@ Contrato funcional formalizado em 2026-11-14 (`V1-13 | EDITOR CONTRACT FORMALIZA
    - Ampliar o CHECK de papel para EDITOR/VIEWER.
    - Convite com parâmetro de papel, padrão VIEWER e compatível com a chamada atual de `5303`.
    - Nova operação do titular para trocar o papel de membro ativo (C-240).
-   - `collection_share_role` passa a devolver EDITOR.
+   - ~~`collection_share_role` passa a devolver EDITOR.~~ **Substituído no planejamento aprovado (`V1-13 / E1 | IMPLEMENTATION READINESS-01`):** a `5302` não muda e segue como **nível de leitura** (todo membro ativo recebe VIEWER), porque nove leituras e as rotas `compartilhada/[id]` aceitam só OWNER/VIEWER; o papel real vem de uma função interna nova (`5367`) e a `5312` ganha a chave `role`, com `access` inalterado.
    - O painel do titular (`5308`) mostra o papel, e a caixa de convites (`5309`) mostra o papel oferecido.
 2. **Leituras aceitam EDITOR com o mesmo recorte.**
    - Inventário completo de toda leitura e política que testa OWNER/VIEWER, para incluir EDITOR sem ampliar o retorno (C-243).
@@ -1443,12 +1447,14 @@ Contrato funcional formalizado em 2026-11-14 (`V1-13 | EDITOR CONTRACT FORMALIZA
    - Itens filtrados por coleção, o que exige registrar ou derivar a coleção de cada item.
    - Ator exibido pelo nome de exibição público. Sem e-mail, identificador ou nome de usuário.
 6. **Leituras de participante de Master Set e Pokédex** (`5323`/`5324`), para EDITOR e VIEWER, sem `copies_available` nem dados do acervo.
-7. **Harness de autorização entre contas (D8),** preparado na E1 e **executado só em PostgreSQL isolado**, com autorização específica. Cobre os cenários S1–S10 abaixo.
+7. **Harness de autorização entre contas (D8),** preparado na E1 e executado **no banco existente, só sob protocolo controlado e com autorização específica** (C-244 revisada em 2026-11-15: sem ambiente isolado). Cobre os cenários S1–S10 abaixo.
+
+**Estado da E1 (2026-11-15):** **E1-A — papéis e permissões — IMPLEMENTAÇÃO LOCAL PREPARADA / AUDITORIA ESTÁTICA PASS COM RESSALVAS / NÃO EXECUTADA; P1 NÃO AUTORIZADO PARA EXECUÇÃO.** Não aplicada no LIVE, sem homologação dinâmica. Auditoria independente do pacote `V1-13_E1A_independent_review_2026-11-15.zip`: `P1 INDEPENDENT STATIC AUDIT PASS WITH RESERVATIONS` — ressalvas R1 (bloqueio de usuários durante o ensaio: `ACCESS EXCLUSIVE` em `collection_membership` da T6 ao aborto), R2 (efeitos externos indiretos a examinar na S0), R3 (divergências documentais, corrigidas em 2026-11-15), R4 (provas dinâmicas não executadas: E1-A, S8 concorrente, S10 e PR-04B). Qualquer operação no LIVE exige S0 e autorização específica (C-244). Histórico desta etapa: **E1-A — PROPOSTA LOCAL, NÃO EXECUTADA** (`V1-13 / E1-A | EDITOR ROLE FOUNDATION IMPLEMENTATION-01`): `5366` (CHECK aceita EDITOR), `5367` (`collection_member_role`, interna), `5368` (chave `role` em `5309`/`5311`/`5312`), `5369` (convite com papel; assinatura `(uuid, text)` substituída por `(uuid, text, text DEFAULT 'VIEWER')`; convite pendente com outro papel → `INVITE_PENDING_ROLE_IMMUTABLE`; recusado com outro papel → convite novo com id novo), `5370` (`set_collection_member_role`, só titular, só ACTIVE, idempotente). Verificação estática 61/61 PASS (68/68 depois da paridade de ACL da v1.1 de `5367`–`5370`, 2026-11-15); prova dinâmica `5888` (54 verificações) **pendente**, sem execução autorizada; protocolo controlado proposto em `VALIDATION-STRATEGY-E1A.md` (P1 especificado para revisão, não pronto para execução). Harness da V1-12 compatível: `5861` v1.4. Nenhuma escrita do EDITOR nesta etapa. Detalhe, comportamento anterior × proposto, ordem e riscos: `database/proposals/2026-11-14-v1-13-e1a-editor-role/README.md`. E1-B a E1-E não iniciadas.
 
 **Fora da E1:**
 
 - interface (E2/E3);
-- aplicação no LIVE, que exige autorização específica depois da prova isolada;
+- aplicação no LIVE, que exige autorização específica depois da prova dinâmica sob protocolo controlado;
 - grade (Backlog V2.0);
 - membros contribuindo cartas dos próprios acervos (não reaberto);
 - transferência de titularidade da coleção.
@@ -1457,9 +1463,9 @@ Contrato funcional formalizado em 2026-11-14 (`V1-13 | EDITOR CONTRACT FORMALIZA
 
 1. Proposta da E1.
 2. Auditoria independente.
-3. Autorização do ambiente isolado, das contas de teste e da execução.
-4. Prova S1–S10.
-5. Reavaliação da **PR-04B**, obrigatória antes de expansão multiusuário (encerramento da V1-16, seção V1-16 acima). O mesmo ambiente isolado pode executar os cenários pendentes da `5364`, com autorização própria.
+3. Aprovação do protocolo controlado no banco existente e autorização específica de cada execução (C-244 revisada: sem ambiente isolado).
+4. Prova S1–S10. S8 com escrita concorrente e S10 exigem duas sessões sobre dados confirmados e continuam **pendentes**, sem caminho autorizado (requisitos mínimos em `VALIDATION-STRATEGY-E1A.md` §6).
+5. Reavaliação da **PR-04B**, que continua aberta e é obrigatória antes de expansão multiusuário (encerramento da V1-16, seção V1-16 acima).
 6. Autorização de aplicação no LIVE.
 7. E2/E3.
 
@@ -1476,7 +1482,7 @@ O monitoramento da PR-04A (até 21/11/2026) não bloqueia a E1.
 
 ## Critérios de autorização e segurança (D8, C-244)
 
-Cenários obrigatórios entre contas, executados em PostgreSQL isolado antes da publicação. **Nenhum** deles pode ser encerrado por aceitação de risco.
+Cenários obrigatórios entre contas, com prova dinâmica antes da publicação, executada no banco existente só sob protocolo controlado e autorização específica (C-244 revisada em 2026-11-15). Cada cenário exige comprovação dinâmica suficiente; nenhuma prova obrigatória pode ser substituída, dispensada ou encerrada por aceitação de risco nem por análise estática; enquanto a escrita entre contas não estiver comprovada, a publicação fica bloqueada (C-244, revisão 1.38).
 
 | # | Cenário | Esperado |
 |---|---|---|

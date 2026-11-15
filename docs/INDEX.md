@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Índice |
 | **Arquivo** | `docs/INDEX.md` |
-| **Versão** | 3.36 |
+| **Versão** | 3.38 |
 | **Status** | Aprovado |
 | **Objetivo** | Catálogo único de tudo que existe na documentação do projeto — um resumo de uma linha por documento, para orientar uma sessão nova sem precisar ler cada arquivo. |
 | **Manutenção** | Atualizar sempre que um documento for criado, removido ou tiver título/resumo alterado de forma relevante (mesma disciplina de `adr/ADR-INDEX.md`/`standards/STD-INDEX.md`). |
@@ -184,6 +184,7 @@ Catálogo completo com status em [`standards/STD-INDEX.md`](standards/STD-INDEX.
 | [`../database/proposals/2026-10-30-v1-12-viewer-parity/HOMOLOGATION.md`](../database/proposals/2026-10-30-v1-12-viewer-parity/HOMOLOGATION.md) | Roteiro de homologação visual do V1-12 (titular × VIEWER × vitrine; filtros da galeria; revogação; claro/escuro, desktop/celular). PENDENTE. |
 | [`../database/proposals/2026-10-30-v1-12-shared-binder-visual-assets/README.md`](../database/proposals/2026-10-30-v1-12-shared-binder-visual-assets/README.md) | V1-12 SHARED BINDER VISUAL ASSETS — imagens de bolso, mesclagens e capa enviada para VIEWER e vitrine: `5325`–`5329` (núcleo, duas portas, capa, política SELECT escopada no Storage) e harness `5863`. PROPOSTO, não aplicado. |
 | [`../database/proposals/2026-10-30-card-set-logo-public-read/README.md`](../database/proposals/2026-10-30-card-set-logo-public-read/README.md) | Logo do Set na vitrine pública: `5330` (SELECT só anon, só logo atual de Card Set) + harness `5864`. PROPOSTO, independente de 5325–5329. |
+| [`../database/proposals/2026-11-14-v1-13-e1a-editor-role/README.md`](../database/proposals/2026-11-14-v1-13-e1a-editor-role/README.md) | V1-13 · E1-A — papéis e permissões do EDITOR: `5366` (CHECK), `5367` (papel real, interna), `5368` (chave `role` nas leituras), `5369` (convite com papel), `5370` (troca de papel), harness `5888`, `5861` v1.4, `ROLLBACK_E1A.sql`, verificação estática, estratégia de validação sem ambiente isolado (`VALIDATION-STRATEGY-E1A.md` v1.3) e ensaio P1 em `p1/`. Implementação local preparada / auditoria estática PASS com ressalvas / não executada; P1 não autorizado para execução. |
 | [`../database/proposals/2026-11-01-binder-auto-arrange/README.md`](../database/proposals/2026-11-01-binder-auto-arrange/README.md) | Organização automática do fichário (P2): `5341` (tipo de evento), `5342` (plano interno + token), `5343` (prévia), `5344` (aplicação atômica com token e limite 500), harness `5872` v1.5 (54 ids, GATE por identificadores), `5344` v1.3, `LIVE_00`/`LIVE_90` (pré/pós-checagem somente leitura, impressão digital dos dados reais) e `LIVE_70` (medição somente leitura no ME3) — 5341–5344 **CONFIRMADO EXECUTADO** no LIVE; harness 5872 v1.5 **54/54 PASS** (GATE 03 RERUN-15, rollback integral); GATE 04 postcheck + medição ME3 PASS — **fundação SQL homologada**; plano executivo vigente `P2 OPERATIONAL ROUTE CORRECTION-11` (LIVE com rollback, sem ambiente isolado). |
 | [`../database/seeds/sources/pokemontcg-snapshot-2026-10-09/README.md`](../database/seeds/sources/pokemontcg-snapshot-2026-10-09/README.md) | Snapshot imutável da Pokémon TCG API (2026-10-09): 50 coleções, 6.733 cartas, chaves de preço por carta; manifest com contagem e SHA-256. Fonte da 2ª origem de variantes (ADR-034). |
 | [`history/development/HANDOFF-2026-07-26.md`](history/development/HANDOFF-2026-07-26.md) | Handoff superado (26/07). |
@@ -455,3 +456,5 @@ Catálogo completo com status em [`standards/STD-INDEX.md`](standards/STD-INDEX.
 | 3.34 | **`R2-E E5 FINAL VALIDATION` (2026-11-07).** Resumo de `reports-product-contract.md` na v1.60 (R2-E implementada, não publicada). |
 | 3.35 | **`R2-E FINAL DOCUMENTATION CORRECTION-01` (2026-11-07).** Resumo de `reports-product-contract.md` na v1.61 (impressão multipágina homologada). |
 | 3.36 | **`V1-13 \| EDITOR CONTRACT FORMALIZATION-01` (2026-11-14).** Resumo de `concept-decisions.md` com os blocos C-227–C-233 (V1-16) e C-234–C-244 (V1-13); resumo do `05d` com a V1-12 concluída e publicada e o contrato V1-13. |
+| 3.37 | **`V1-13 / E1-A \| EDITOR ROLE FOUNDATION IMPLEMENTATION-01` (2026-11-14).** Linha nova para `database/proposals/2026-11-14-v1-13-e1a-editor-role/` (PROPOSTO). |
+| 3.38 | **`V1-13 / E1-A \| DOCUMENTATION RECONCILIATION AND LOCAL COMMIT-06` (2026-11-15).** Linha da pasta da E1-A atualizada (conteúdo e estado). |
