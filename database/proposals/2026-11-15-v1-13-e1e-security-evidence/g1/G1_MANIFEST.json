@@ -150,7 +150,7 @@
   },
   {
    "base": "2026-11-15-v1-13-e1b3-pokedex-history/5380_create_editor_pokedex_position_writes.sql",
-   "base_sha256": "12775663faeefa28e56b15a47402f8457052068ac94449351efc23682e44ccd1",
+   "base_sha256": "32d4657c94b3157692ce00e14374f5e751b1d6df047917d3db5bd1d256bfb5e0",
    "functions": {
     "editor_set_pokedex_position_assignment": {
      "kind": "write",
@@ -178,7 +178,7 @@
     }
    },
    "protected": "g1/protected/5380_create_editor_pokedex_position_writes.sql",
-   "protected_sha256": "8c903e1c309b4d157ed77d2a5edf6fe1e5275c4f41170b606de7a4680d51105b"
+   "protected_sha256": "5b9a1a09a51c9f4763833edefb4f84355d252b1dc0bbc20518ee9f0fe22f8f72"
   },
   {
    "base": "2026-11-15-v1-13-e1c-bulk-operations/5382_create_editor_binder_page_operations.sql",

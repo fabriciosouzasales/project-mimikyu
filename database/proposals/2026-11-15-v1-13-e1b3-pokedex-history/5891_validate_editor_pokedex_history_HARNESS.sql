@@ -5,7 +5,9 @@ Query.......: 5891 - Harness V1-13 · E1-B3 (5378–5380): Pokédex pelo EDITOR,
               referência de espécie no bolso, coleção por item do histórico,
               contexto forjado, revogação; titular intocado; sem efeito
               patrimonial; resíduo zero
-Versão......: 1.0 (2026-11-15)
+Versão......: 1.1 (2026-11-15, `E1-E2 | CANONICAL BASELINE RECONCILIATION AND G2 CORRECTION-02`,
+              defeito E2-D1: 0.3 conferia o md5 da 6122; passa ao da 6123, corpo
+              canônico vigente). 1.0 (2026-11-15)
 Status......: PROPOSTA — NÃO EXECUTADA. Prova DINÂMICA da E1-B3. Sem ambiente
               isolado (C-244): executar SOMENTE sob protocolo controlado
               equivalente ao P1 da E1-A (transação explícita READ WRITE terminada
@@ -42,7 +44,7 @@ Limitações declaradas:
      histórico: PENDENTE (sessão única).
   L3 Leitura do histórico para membros: E1-D. Aqui só a gravação (coleção por
      item, marca do evento) é provada.
-  L4 md5 das funções do titular da Pokédex (6122/6124/6126/6125) derivados dos
+  L4 md5 das funções do titular da Pokédex (6123/6124/6126/6125) derivados dos
      arquivos; 0.3 falha se o LIVE divergir.
 ================================================================
 */
@@ -142,7 +144,7 @@ begin
           and c.table_name = 'binder_activity_event' and c.column_name = 'item_collection_recorded') = 'NO:false',
     'detail','5378 e 5379 no lugar; histórico sem EXECUTE para a API; colunas de atribuição como esperado');
   res := res || jsonb_build_object('id','0.3','ok',
-    (select md5(q.prosrc) from pg_proc q where q.oid = to_regprocedure('public.set_pokedex_position_assignment(uuid, uuid, boolean)')) = 'b2ba1c7de00420c15733a4d2f3e0bf43'
+    (select md5(q.prosrc) from pg_proc q where q.oid = to_regprocedure('public.set_pokedex_position_assignment(uuid, uuid, boolean)')) = '8c572182a03025503e993e5ecc25e07a'
     and (select md5(q.prosrc) from pg_proc q where q.oid = to_regprocedure('public.remove_pokedex_position_assignment(uuid)')) = '26ef2d5da3312661111df0194dfc8ba2'
     and (select md5(q.prosrc) from pg_proc q where q.oid = to_regprocedure('public.set_pokedex_position_primary_representative(uuid)')) = '6353dffe6c3877967997033dcc2bfd4c'
     and (select md5(q.prosrc) from pg_proc q where q.oid = to_regprocedure('public.clear_pokedex_position_primary_representative(uuid, uuid)')) = 'eeede3a5b871fbf07f81eb59ecea932f'
@@ -151,7 +153,7 @@ begin
     and (select md5(q.prosrc) from pg_proc q where q.oid = to_regprocedure('public.set_slot_expected_content(uuid, uuid, uuid, uuid, uuid)')) = '33dde5013dbb491bd4a0452ab7ce8132'
     and (select md5(q.prosrc) from pg_proc q where q.oid = to_regprocedure('public.set_slot_lock(uuid[], boolean)')) = '651048a4bf7d3229904ef2a073c509c5'
     and (select md5(q.prosrc) from pg_proc q where q.oid = to_regprocedure('public.assert_collection_layout_mutable(uuid)')) = 'd600f36fade0b67c0fd5af33e9965070',
-    'detail','titular: Pokédex (6122, 6124, 6126, 6125) e fichário (5272, 5273, 5276, 5278, 5122) byte a byte canônicos');
+    'detail','titular: Pokédex (6123, 6124, 6126, 6125) e fichário (5272, 5273, 5276, 5278, 5122) byte a byte canônicos');
   res := res || jsonb_build_object('id','0.4','ok',
     not exists (select 1 from public.binder_activity_event e
                 join public.binder_activity_item i on i.event_id = e.id

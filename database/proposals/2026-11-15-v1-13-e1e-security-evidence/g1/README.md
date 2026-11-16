@@ -155,3 +155,4 @@ A etapa 6 (E1-E) **não** está concluída; a etapa 7 continua bloqueada; as dez
 |---|---|
 | 1.0 | **G1 preparado (2026-11-15, `V1-13 / E1-E \| G1 SERVER-SIDE BARRIER PREPARATION-01`).** 5389 (porta em CLOSED), 16 versões protegidas geradas (37 capacidades), STOP emergencial, ROLLBACK_G1, harness 5895 (21), verificação estática. Nada executado; mecanismo não homologado. |
 | 1.1 | **Encerramento local (2026-11-15, `G1 BARRIER LOCAL CLOSEOUT AND COMMIT-02`).** Limites do STOP explicitados (§5); encerramento de identidades e dados de teste (§9); governança dos gates (§10); proteção contra substituição (§11). Nenhuma lógica alterada; nada executado. |
+| 1.2 | **Correção do harness 5895 (2026-11-15, `E1-E2 | PROTECTED CHAIN AND G2 TEST READINESS-01`).** 0.4 fixava em `get_shared_collection` o md5 da 5308; passa ao corpo da 5368 (`69d69fd1…`) com a 5308 conferida à parte (5895 v1.1). Mecanismo, versões protegidas e manifesto inalterados. |

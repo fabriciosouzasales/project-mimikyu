@@ -32,6 +32,30 @@ PRIOR = ["2026-11-14-v1-13-e1a-editor-role", "2026-11-15-v1-13-e1b1-editor-core-
          "2026-11-15-v1-13-e1c-bulk-operations", "2026-11-15-v1-13-e1c2-remaining-bulk-operations",
          "2026-11-15-v1-13-e1d-shared-reads"]
 
+# Alterações AUTORIZADAS nas entregas anteriores (correção E2-D1, `CANONICAL BASELINE
+# RECONCILIATION AND G2 CORRECTION-02`): só estes arquivos podem diferir do HEAD, e só com este sha256.
+AUTHORIZED = {
+    "database/proposals/2026-11-15-v1-13-e1b3-pokedex-history/5380_create_editor_pokedex_position_writes.sql":
+        "32d4657c94b3157692ce00e14374f5e751b1d6df047917d3db5bd1d256bfb5e0",
+    "database/proposals/2026-11-15-v1-13-e1b3-pokedex-history/5891_validate_editor_pokedex_history_HARNESS.sql":
+        "133d0cc534fdfc82976f016bac341a3045fab54ece4d6a337c96af188ff53a77",
+    "database/proposals/2026-11-15-v1-13-e1b3-pokedex-history/static_check_e1b3.py":
+        "7db893cf9da7218bf4ce3127f44872600d2bf2bb9a57058306e3cd862198d1e0",
+    "database/proposals/2026-11-15-v1-13-e1b3-pokedex-history/README.md":
+        "e7e98c8702ed561699935137ca0bcbce438dc0ab2796046a4ab52fcd32cfdb57",
+}
+
+
+def unauthorized(status: str) -> list:
+    out = []
+    for line in status.splitlines():
+        code, path = line.strip().split(None, 1)   # a saída do git vem com strip()
+        full = os.path.join(ROOT, path)
+        if code != "M" or path not in AUTHORIZED or not os.path.exists(full) \
+                or hashlib.sha256(open(full, "rb").read()).hexdigest() != AUTHORIZED[path]:
+            out.append(line)
+    return out
+
 R: list[tuple[str, bool, str]] = []
 
 
@@ -229,7 +253,8 @@ check("10.3", not re.search(r"^\s*(begin|commit|rollback)\s*;", h95, re.I | re.M
 # 11. Entregas anteriores e escopo --------------------------------------------------------------
 st = subprocess.run(["git", "-C", ROOT, "status", "--porcelain", "--", "web", "database/schema"]
                     + [os.path.join("database", "proposals", d) for d in PRIOR], capture_output=True, text=True).stdout.strip()
-check("11.1", st == "", f"frontend, schema canônico e E1-A … E1-D sem alterações ({st or 'limpo'})")
+bad_st = unauthorized(st)
+check("11.1", not bad_st, f"frontend, schema canônico e E1-A … E1-D sem alterações, exceto as 4 autorizadas da E2-D1 com sha256 exato ({bad_st or 'conforme'})")
 check("11.2", "5389" in rdme and "5366" in rdme and rdme.index("5389") < rdme.index("5366") and "NÃO EXECUTAD" in rdme,
       "README do G1 presente, com a 5389 antes da cadeia")
 

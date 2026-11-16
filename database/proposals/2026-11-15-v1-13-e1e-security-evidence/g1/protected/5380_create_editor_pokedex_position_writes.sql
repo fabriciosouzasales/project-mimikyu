@@ -1,6 +1,6 @@
 /* G1 (D-E1) — VERSÃO PROTEGIDA GERADA. Não editar à mão: g1/build_g1_protected.py.
    Base auditada: database/proposals/2026-11-15-v1-13-e1b3-pokedex-history/5380_create_editor_pokedex_position_writes.sql
-   sha256 da base: 12775663faeefa28e56b15a47402f8457052068ac94449351efc23682e44ccd1
+   sha256 da base: 32d4657c94b3157692ce00e14374f5e751b1d6df047917d3db5bd1d256bfb5e0
    Única mudança: porta 5389 consultada antes de qualquer leitura ou efeito em 4 função(ões); precheck da 5389.
    Status: PROPOSTA — NÃO EXECUTADA. Mecanismo não homologado (G1). */
 /*
@@ -8,7 +8,10 @@
 Projeto.....: Project Mimikyu
 Query.......: 5380 - Pokédex pelo EDITOR: posição e representante entre
               exemplares JÁ ALOCADOS à coleção (V1-13 · E1-B3)
-Versão......: 1.0
+Versão......: 1.1 (2026-11-15, `E1-E2 | CANONICAL BASELINE RECONCILIATION AND G2 CORRECTION-02`,
+              defeito E2-D1: o md5 conferido de set_pokedex_position_assignment era o
+              da 6122; o corpo canônico vigente é o da 6123 — só as duas constantes
+              mudam; lógica do EDITOR inalterada). 1.0
 Status......: PROPOSTA — NÃO EXECUTADA. Preparada em
               `V1-13 / E1-B3 | POKÉDEX AND ACTIVITY HISTORY FOUNDATION-01`
               (2026-11-15). Execução só com prova dinâmica sob protocolo
@@ -63,7 +66,8 @@ Nunca: alocar, desalocar, mudar local, condição, acervo fora de X, Set, escopo
   devolve a posição, a base e a operação).
 Histórico: posição e representante são dados da coleção, não do fichário; o
   titular (6122/6124/6125) também não registra evento. Mantido igual.
-Funções do titular (6122, 6124, 6126, clear da 6125): BYTE A BYTE iguais — md5
+Funções do titular (6123 — corpo vigente de set_pokedex_position_assignment, que
+  substituiu o da 6122 —, 6124, 6126, clear da 6125): BYTE A BYTE iguais — md5
   no precheck e no postcheck (derivados dos arquivos de database/schema; a S0
   de qualquer execução precisa confirmá-los no LIVE).
 Canal.......: psql. Idempotência: funções já presentes → 'JÁ APLICADA ou
@@ -83,14 +87,14 @@ begin
     raise exception 'PRECHECK 5380: E1-B2 (5376) não aplicada';
   end if;
   if (select pg_catalog.md5(p.prosrc) from pg_catalog.pg_proc p
-       where p.oid = to_regprocedure('public.set_pokedex_position_assignment(uuid, uuid, boolean)')) is distinct from 'b2ba1c7de00420c15733a4d2f3e0bf43'
+       where p.oid = to_regprocedure('public.set_pokedex_position_assignment(uuid, uuid, boolean)')) is distinct from '8c572182a03025503e993e5ecc25e07a'
      or (select pg_catalog.md5(p.prosrc) from pg_catalog.pg_proc p
           where p.oid = to_regprocedure('public.remove_pokedex_position_assignment(uuid)')) is distinct from '26ef2d5da3312661111df0194dfc8ba2'
      or (select pg_catalog.md5(p.prosrc) from pg_catalog.pg_proc p
           where p.oid = to_regprocedure('public.set_pokedex_position_primary_representative(uuid)')) is distinct from '6353dffe6c3877967997033dcc2bfd4c'
      or (select pg_catalog.md5(p.prosrc) from pg_catalog.pg_proc p
           where p.oid = to_regprocedure('public.clear_pokedex_position_primary_representative(uuid, uuid)')) is distinct from 'eeede3a5b871fbf07f81eb59ecea932f' then
-    raise exception 'PRECHECK 5380: ESTADO DIVERGENTE — funções do titular da Pokédex diferem de 6122/6124/6126/6125';
+    raise exception 'PRECHECK 5380: ESTADO DIVERGENTE — funções do titular da Pokédex diferem de 6123/6124/6126/6125';
   end if;
   if to_regprocedure('public.editor_set_pokedex_position_assignment(uuid, uuid, uuid, boolean)') is not null
      or to_regprocedure('public.editor_remove_pokedex_position_assignment(uuid, uuid)') is not null
@@ -402,7 +406,7 @@ begin
     raise exception 'POSTCHECK 5380: ajudante interno fora do estado esperado';
   end if;
   if (select pg_catalog.md5(p.prosrc) from pg_catalog.pg_proc p
-       where p.oid = to_regprocedure('public.set_pokedex_position_assignment(uuid, uuid, boolean)')) is distinct from 'b2ba1c7de00420c15733a4d2f3e0bf43'
+       where p.oid = to_regprocedure('public.set_pokedex_position_assignment(uuid, uuid, boolean)')) is distinct from '8c572182a03025503e993e5ecc25e07a'
      or (select pg_catalog.md5(p.prosrc) from pg_catalog.pg_proc p
           where p.oid = to_regprocedure('public.remove_pokedex_position_assignment(uuid)')) is distinct from '26ef2d5da3312661111df0194dfc8ba2'
      or (select pg_catalog.md5(p.prosrc) from pg_catalog.pg_proc p

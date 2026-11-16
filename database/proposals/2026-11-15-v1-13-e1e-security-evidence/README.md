@@ -46,7 +46,7 @@ Tabelas cujo **esquema** muda: `collection_membership` (CHECK), `binder_activity
 
 | Harness | Valida | Verificações | Válido no estado final? | Reversão do incremento | Estático |
 |---|---|---|---|---|---|
-| 5888 | E1-A | 54 | sim (fixa md5 de 5302 e da 5312 pela 5368) | `ROLLBACK_E1A.sql` | `static_check_e1a.py` 68/68 |
+| 5888 | E1-A | 54 | sim (fixa md5 de 5302 e da 5308 `get_my_collection_sharing`, que a cadeia não altera; correção de redação em 1.5) | `ROLLBACK_E1A.sql` | `static_check_e1a.py` 68/68 |
 | 5861 v1.4 | regressão V1-12 adaptada à E1-A | 51 | sim | `ROLLBACK_v1_12.sql` exige `ROLLBACK_E1A` antes | idem (14.1–14.3) |
 | 5862, 5863, 5864 | regressão V1-12 (paridade, imagens, logo) | — | **NÃO COMPROVADO** no estado final: válidos depois da E1-A pela análise da E1-A; sem reanálise para E1-B…E1-D | — | — |
 | 5889 | E1-B1 | 56 | sim (aceita `add_item` da 5372 ou da 5379) | `ROLLBACK_E1B1.sql` | 61/61 |
@@ -326,3 +326,5 @@ D-E1 APROVADA; barreira não comprovada (B8). S1–S10 sem prova dinâmica; S8, 
 | 1.2 | **D-E1 aprovada (2026-11-15, `D-E1 FORMALIZATION AND SERVER-SIDE BARRIER FEASIBILITY-03`).** Opção A formalizada (estratégia aprovada; mecanismo não aprovado; execução não autorizada); B8 substituído pela pendência de comprovação técnica da barreira; liberação para a etapa 7 = G5; sequência com G1–G5 dentro da etapa 6; viabilidade estática em `BARRIER-FEASIBILITY-D-E1.md`. B1–B7, P4-A/P4-B e M1–M7 mantidos. Nada executado. |
 | 1.3 | **G1 preparado (2026-11-15, `G1 SERVER-SIDE BARRIER PREPARATION-01`).** B8 aponta para `g1/` (porta 5389, versões protegidas, STOP, harness 5895); classificação inalterada (G2–G3 pendentes). Nada executado. |
 | 1.4 | **Encerramento local do G1 (2026-11-15, `G1 BARRIER LOCAL CLOSEOUT AND COMMIT-02`).** Estado dos gates: D-E1 aprovada; Alternativa C selecionada (não homologada); G0 documentado; G1 preparado, não executado; G2–G5 não iniciados; etapa 6 não concluída. Nada executado. |
+| 1.5 | **E1-E2 preparada (2026-11-15, `E1-E2 | PROTECTED CHAIN AND G2 TEST READINESS-01`).** Pasta `e1e2/` (gerador e ensaios G2, S0 ampliada, revisão 5862–5864, plano de travas, verificação estática); bloqueio E2-D1 (5380/5891 fixam o md5 da 6122, vigente é a 6123); §1.2 corrigida (5888 fixa a 5308). Nada executado; G2 não iniciado. |
+| 1.6 | **Correção E2-D1 (2026-11-15, `CANONICAL BASELINE RECONCILIATION AND G2 CORRECTION-02`).** Defeito de compatibilidade detectado e corrigido localmente; 5863 v1.2-E1E autorizada e reforçada; G1 e G2 regerados. Nada executado; G2 não iniciado. |

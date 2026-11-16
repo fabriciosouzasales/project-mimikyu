@@ -31,7 +31,7 @@ HARNESS = "5891_validate_editor_pokedex_history_HARNESS.sql"
 ROLLBACK = "ROLLBACK_E1B3.sql"
 ADD = "binder_activity_add_item"
 SCOPE = "binder_slot_editor_scope"
-OWNER_DEX = {"set_pokedex_position_assignment": "6122_create_set_pokedex_position_assignment_function.sql",
+OWNER_DEX = {"set_pokedex_position_assignment": "6123_fix_fatia_d_applied_objects_pause_sql_direct_audit.sql",  # E2-D1: 6123 substituiu o corpo da 6122
              "remove_pokedex_position_assignment": "6124_create_remove_pokedex_position_assignment_function.sql",
              "set_pokedex_position_primary_representative": "6126_fix_primary_representative_on_conflict_ambiguity.sql",
              "clear_pokedex_position_primary_representative": "6125_create_primary_representative_functions.sql"}

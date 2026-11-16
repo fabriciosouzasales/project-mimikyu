@@ -254,3 +254,7 @@ As leituras de participante de Master Set (5323) e Pokédex (5324) continuam na 
 | E1-C | restringir os tipos de evento que o EDITOR pode produzir (requisito registrado) |
 | Publicação da V1-13 | bloqueada |
 | Ambiente isolado | nenhum |
+
+## Correção E2-D1 (2026-11-15, `V1-13 / E1-E2 | CANONICAL BASELINE RECONCILIATION AND G2 CORRECTION-02`)
+
+O md5 conferido da função do titular `set_pokedex_position_assignment` era o da 6122 (`b2ba1c7de00420c15733a4d2f3e0bf43`), mas o corpo canônico vigente é o da 6123 (`8c572182a03025503e993e5ecc25e07a`, CONFIRMADO EXECUTADO). Corrigidos só esses pinos: 5380 v1.1 (pre e postcheck), 5891 v1.1 (0.3) e `static_check_e1b3.py` (`OWNER_DEX` → 6123). A função do EDITOR já trazia as quatro correções da 6123 (confirmação fail-closed, colunas sem ambiguidade, trava coleção → alocação, coleção REFERENCE_BASED explícita) e não mudou. Detalhe e comparação funcional: `../2026-11-15-v1-13-e1e-security-evidence/e1e2/README.md` §2.

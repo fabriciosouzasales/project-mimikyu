@@ -5,7 +5,10 @@ Query.......: 5895 - Harness da barreira da V1-13 (D-E1, G1): porta 5389 e as
               37 capacidades protegidas em CLOSED, TEST e OPEN; contas
               registradas e não registradas; sessão anônima; configuração
               ausente; tabelas administrativas; preservação da V1-12; Storage
-Versão......: 1.0
+Versão......: 1.1 (2026-11-15, `E1-E2 | PROTECTED CHAIN AND G2 TEST READINESS-01`: 0.4 fixava
+              em get_shared_collection o md5 da 5308 — corrigido para o corpo da 5368
+              e 5308 conferida à parte; defeito encontrado pela conferência de md5
+              fixados da E1-E2). 1.0
 Status......: PROPOSTA — NÃO EXECUTADA. Prova da barreira para o G2. Sem
               ambiente isolado (C-244): executar SOMENTE sob protocolo
               controlado equivalente ao P1 (transação explícita READ WRITE
@@ -219,11 +222,12 @@ begin
     'detail','estado ao fim da aplicação: CLOSED, uma linha, registro vazio');
   res := res || jsonb_build_object('id','0.4','ok',
     (select md5(q.prosrc) from pg_proc q where q.oid = to_regprocedure('public.collection_share_role(uuid)')) = 'efdb495b5b703e9f093eb0f49a1d0a5d'
-    and (select md5(q.prosrc) from pg_proc q where q.oid = to_regprocedure('public.get_shared_collection(uuid)')) = 'e36aa9c675f6b8097b6a43292b62603f'
+    and (select md5(q.prosrc) from pg_proc q where q.oid = to_regprocedure('public.get_shared_collection(uuid)')) = '69d69fd11dddcaedabe7368a3e038368'
+    and (select md5(q.prosrc) from pg_proc q where q.oid = to_regprocedure('public.get_my_collection_sharing(uuid)')) = 'e36aa9c675f6b8097b6a43292b62603f'
     and (select md5(q.prosrc) from pg_proc q where q.oid = to_regprocedure('public.binder_activity_add_item(text, text, uuid, uuid, uuid, uuid, integer, integer, jsonb)')) = 'f8cfba40e442e85056e7c8ce7954d4f4'
     and (select md5(q.prosrc) from pg_proc q where q.oid = to_regprocedure('public.binder_slot_editor_scope(uuid, uuid, uuid, uuid)')) = '21f1b51a3a0f6c80337c2c593cc6054f'
     and (select md5(q.prosrc) from pg_proc q where q.oid = to_regprocedure('public.binder_activity_event_editor_type_guard()')) = '78fa0d34dad161eac1165f3143874260',
-    'detail','funções compartilhadas sem porta e iguais às auditadas: 5302, leitura V1-12 (5368), gravação do histórico (5379), classificação (5378), gatilho (5384)');
+    'detail','funções compartilhadas sem porta e iguais às auditadas: 5302, leitura V1-12 substituída pela 5368 (get_shared_collection) e 5308 inalterada, gravação do histórico (5379), classificação (5378), gatilho (5384)');
 
   select array[(select count(*) from auth.users), (select count(*) from public.collection),
                (select count(*) from public.collection_membership), (select count(*) from public.collection_allocation),
