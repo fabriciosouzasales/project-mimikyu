@@ -17,7 +17,8 @@
 | `G2_B_CHAIN_STORAGE_LAST_rollback.sql` | cadeia completa, 5377 por último; 5861/5862/5864 [CLOSED], 5888–5894 [OPEN] antes da 5377; 5863 v1.2 [CLOSED], 5890 [OPEN], 5895 [CLOSED] depois (417) |
 | `G2_C_CHAIN_FULL_FINAL_rollback.sql` | cadeia completa; os 12 harnesses no estado final (417) |
 | `harness/5863_…_v1.2-E1E.sql` | variante **autorizada** da 5863 (só a S.4 muda, linhas marcadas `-- E1E`; original preservado) |
-| `S0_G2_readonly.sql` | S0 ampliada, uma instrução SELECT |
+| `S0_G2_readonly.sql` | S0 ampliada, uma instrução SELECT (v1.1) |
+| `S0_AUTHORIZATION.md` | pacote de decisão para uma eventual execução da S0 (não autoriza) |
 | `G2_MANIFEST.sha256` | sha256 de todas as entradas e saídas |
 | `static_check_e1e2.py` | verificação estática independente do gerador |
 
@@ -156,3 +157,4 @@ E2-D1 corrigido localmente (pendente de revisão e do commit; até o commit, as 
 |---|---|
 | 1.0 | **Preparação local (2026-11-15, `E1-E2 \| PROTECTED CHAIN AND G2 TEST READINESS-01`).** Gerador e três ensaios G2 (P1-G, cadeia com 5377 por último, cadeia completa), variante proposta 5863 v1.2-E1E, S0 ampliada, manifesto, verificação estática; bloqueio E2-D1 (md5 da 6123); 5895 v1.1 (md5 da 5368). Nada executado; G2 não iniciado. |
 | 1.1 | **Correção (2026-11-15, `CANONICAL BASELINE RECONCILIATION AND G2 CORRECTION-02`).** E2-D1 corrigido localmente (5380 v1.1, 5891 v1.1, static_check_e1b3, P5380, G1/G2 regerados); 5863 v1.2-E1E com conjunto fechado e prova dos ajudantes; guardas de alteração das verificações G1/E1-E2 passam a aceitar só as 4 mudanças autorizadas, com sha256 exato. Nada executado; G2 não iniciado. |
+| 1.2 | **Pacote de autorização da S0 (2026-11-15, `S0 AUTHORIZATION READINESS-01`).** S0 v1.1 (papeis_api só com timeouts; pré-condições do executor; timeouts efetivos da sessão); `S0_AUTHORIZATION.md` (reconciliado em `S0 V1.1 LOCAL CLOSEOUT AND COMMIT-02`: procedimento Windows PowerShell, segurança do canal, governança de evidências); verificação 5.1 reforçada e 5.3 nova (35/35). S0 não executada. |

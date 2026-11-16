@@ -236,7 +236,9 @@ check("4.2", all(s4_var.count(f"'{n}'") >= 1 for n in names12) and ") = 7" in s4
 s0 = rd(os.path.join(HERE, "S0_G2_readonly.sql")).decode()
 s0b = nc(s0)
 check("5.1", s0b.strip().lower().startswith("select jsonb_build_object(") and s0b.strip().endswith("as s0;")
-      and not re.search(r"(?i)\b(insert|update|delete|create|alter|drop|grant|revoke|truncate|do|set_config|nextval|lock)\b", s0b.replace("update_delete_truncate", "").replace("'UPDATE, DELETE, TRUNCATE'", "")),
+      and not re.search(r"(?i)\b(insert|update|delete|create|alter|drop|grant|revoke|truncate|do|set_config|nextval|lock|set|reset|copy|call|vacuum|analyze|pg_sleep|pg_terminate_backend|pg_cancel_backend|pg_advisory\w*|lo_\w+|dblink\w*|txid_current)\b",
+                        re.sub(r"'(?:[^']|'')*'", "''", s0b).replace("update_delete_truncate", "").replace("auth_users_escrita", "").replace("storage_objects_escrita", ""))
+      and s0b.count(";") == 1,
       "S0: uma única instrução SELECT, sem escrita, DO, set_config, nextval ou LOCK")
 canon = {}
 for f in sorted(os.listdir(SCHEMA)):
@@ -247,6 +249,12 @@ pins = re.findall(r"\('([a-z_]+)',\s+'([0-9a-f]{32})'\)", s0)
 badp = [fn for fn, m in pins if canon.get(fn) != m]
 check("5.2", len(pins) == 24 and not badp, f"S0: {len(pins)} md5 canônicos = corpo vigente em database/schema ({badp})")
 
+check("5.3", "to_jsonb(r.rolconfig)" not in s0 and "split_part(c.cfg, '=', 1) in ('statement_timeout', 'lock_timeout', 'idle_in_transaction_session_timeout')" in s0
+      and all(k in s0 for k in ("'assume_anon', pg_has_role(current_user, 'anon', 'MEMBER')",
+                                "'assume_authenticated', pg_has_role(current_user, 'authenticated', 'MEMBER')",
+                                "'executor_e_dono_ou_membro'", "'transaction_timeout_disponivel'", "'server_version_num'"))
+      and not re.search(r"(?i)\b(query|email|encrypted_password|raw_user_meta_data|phone)\b", re.sub(r"(?s)where .*?(?=,\n|\)\)|$)", "", s0b).split("as s0")[0].split("'residuo'")[0]),
+      "S0: papeis_api só com chaves de timeout; pré-condições do executor (SET ROLE anon/authenticated, dono de storage.objects); versão e transaction_timeout; nenhuma coluna de dado privado na saída")
 # 6. md5 fixados nos harnesses × estado final --------------------------------------------------
 final = dict(canon)
 order = re.findall(r"(?m)^-- @@T7 (\d{4}) \((\w+)\)", C)

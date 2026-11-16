@@ -2,7 +2,11 @@
 ================================================================
 Projeto.....: Project Mimikyu
 Arquivo.....: S0_G2_readonly.sql — S0 ampliada (antes) e pós-estado (depois) dos ensaios G2
-Versão......: 1.0 (2026-11-15, `V1-13 / E1-E2 | PROTECTED CHAIN AND G2 TEST READINESS-01`)
+Versão......: 1.1 (2026-11-15, `V1-13 / E1-E | S0 AUTHORIZATION READINESS-01`: papeis_api só com
+              chaves de timeout — rolconfig pode conter configurações sensíveis; pré-condições
+              de privilégio que os ensaios exigem: SET ROLE para anon/authenticated e
+              escrita das fixtures em auth.users e storage.objects). 1.0 (`PROTECTED CHAIN
+              AND G2 TEST READINESS-01`)
 Status......: PROPOSTA — NÃO EXECUTADA. Leitura do LIVE NÃO autorizada. Executar só com
               autorização expressa: imediatamente antes do ensaio (S0) e imediatamente
               depois (pós-estado). Chaves [=] precisam ser idênticas nas duas leituras;
@@ -23,7 +27,9 @@ O que decide (observável em S0) × o que só o ensaio mostra:
       tempo real de retenção das travas; duração dos harnesses; comportamento das
       versões protegidas; efeito dos timeouts.
 Chaves:
-  ambiente [=]     versão, transaction_timeout disponível, recuperação, parâmetros, executor
+  ambiente [=]     versão, transaction_timeout disponível, recuperação, parâmetros, executor;
+                   transaction_read_only e timeouts EFETIVOS da sessão (prova, no servidor, do
+                   que o canal configurou)
   privilegios [=]  dono e privilégios por tabela travada; pertença do executor ao dono
   md5 [=]          corpos vigentes × canônicos (por nome; todas as sobrecargas)
   v113 [=]         estado da V1-13 no banco (S0: nada aplicado)
@@ -34,7 +40,10 @@ Chaves:
   extensoes [=]    pg_net, http, dblink
   ledger [~]       últimas 15 migrations registradas
   sessoes [~]      sessões com trava nas tabelas do ensaio ou transação longa
-  papeis_api [~]   rolconfig de anon/authenticated/authenticator
+  papeis_api [~]   só statement_timeout, lock_timeout e idle_in_transaction_session_timeout
+                   de anon/authenticated/authenticator (nenhuma outra chave de rolconfig)
+  executor [=]     pode assumir anon e authenticated (SET LOCAL ROLE dos harnesses) e gravar
+                   as fixtures em auth.users e storage.objects
   fixture [=]      pré-requisitos de catálogo e de Pokédex das fixtures
   residuo [=]      linhas com marcas sintéticas dos harnesses (precisa ser 0)
   contagens [~]    volumes informativos (para M1–M7 e para comparar com o pós-estado)
@@ -47,6 +56,9 @@ select jsonb_build_object(
     'client_connection_check_interval_disponivel', exists (select 1 from pg_settings where name = 'client_connection_check_interval'),
     'in_recovery', pg_is_in_recovery(),
     'default_transaction_read_only', current_setting('default_transaction_read_only'),
+    'transaction_read_only', current_setting('transaction_read_only'),
+    'statement_timeout_sessao', current_setting('statement_timeout'),
+    'lock_timeout_sessao', current_setting('lock_timeout'),
     'session_replication_role', current_setting('session_replication_role'),
     'log_statement', current_setting('log_statement'),
     'log_min_error_statement', current_setting('log_min_error_statement'),
@@ -161,8 +173,20 @@ select jsonb_build_object(
                           where a.pid <> pg_backend_pid() and a.state <> 'idle'
                             and (a.xact_start is null or a.xact_start < clock_timestamp() - interval '1 second'))),
   'papeis_api', (
-    select coalesce(jsonb_object_agg(r.rolname, coalesce(to_jsonb(r.rolconfig), 'null'::jsonb)), '{}'::jsonb)
-    from pg_roles r where r.rolname in ('anon', 'authenticated', 'authenticator', 'service_role')),
+    select coalesce(jsonb_object_agg(r.rolname, (
+             select coalesce(jsonb_agg(c.cfg order by c.cfg), '[]'::jsonb)
+             from unnest(coalesce(r.rolconfig, '{}'::text[])) c(cfg)
+             where split_part(c.cfg, '=', 1) in ('statement_timeout', 'lock_timeout', 'idle_in_transaction_session_timeout'))),
+           '{}'::jsonb)
+    from pg_roles r where r.rolname in ('anon', 'authenticated', 'authenticator')),
+  'executor', jsonb_build_object(
+    'assume_anon', pg_has_role(current_user, 'anon', 'MEMBER'),
+    'assume_authenticated', pg_has_role(current_user, 'authenticated', 'MEMBER'),
+    'superuser', (select r.rolsuper from pg_roles r where r.rolname = current_user),
+    'bypassrls', (select r.rolbypassrls from pg_roles r where r.rolname = current_user),
+    'auth_users_escrita', has_table_privilege(current_user, 'auth.users', 'INSERT') and has_table_privilege(current_user, 'auth.users', 'DELETE'),
+    'storage_objects_escrita', has_table_privilege(current_user, 'storage.objects', 'INSERT') and has_table_privilege(current_user, 'storage.objects', 'DELETE'),
+    'storage_buckets_leitura', has_table_privilege(current_user, 'storage.buckets', 'SELECT')),
   'fixture', jsonb_build_object(
     'jogo_pokemon', exists (select 1 from public.game g where g.code = 'POKEMON'),
     'idioma_pt_br', exists (select 1 from public.language l where l.code = 'pt-BR'),
