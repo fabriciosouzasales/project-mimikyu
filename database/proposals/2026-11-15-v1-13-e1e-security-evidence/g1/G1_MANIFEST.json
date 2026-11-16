@@ -1,0 +1,356 @@
+{
+ "generator": "g1/build_g1_protected.py",
+ "capabilities": 37,
+ "files": [
+  {
+   "base": "2026-11-14-v1-13-e1a-editor-role/5369_replace_invite_collection_member_with_role.sql",
+   "base_sha256": "a1e7ffd42e1dc25dbaefe2d050691a55dda69994cba828a3fa13c1443e15df86",
+   "functions": {
+    "invite_collection_member": {
+     "kind": "invite",
+     "md5_base": "52b17e64b1daca51d1d615763d41c77b",
+     "md5_protected": "5a5ea20616ded5b1a8e8bfe0487743ff",
+     "signature": "public.invite_collection_member(UUID, TEXT, TEXT)"
+    }
+   },
+   "protected": "g1/protected/5369_replace_invite_collection_member_with_role.sql",
+   "protected_sha256": "0a9c4844f35128cb1c4e377cf4074b7d241fcf43ff4845fc54a2c61937794911"
+  },
+  {
+   "base": "2026-11-14-v1-13-e1a-editor-role/5370_create_set_collection_member_role_function.sql",
+   "base_sha256": "83e42ca54e4bedc55bee9912dff79ca1065c9246a12da5c761241bcdf8541f43",
+   "functions": {
+    "set_collection_member_role": {
+     "kind": "write",
+     "md5_base": "33c4fefff45119ad1842ce20a6fd8146",
+     "md5_protected": "840d1e5c3cc55f253a2579eda7b7703d",
+     "signature": "public.set_collection_member_role(UUID, UUID, TEXT)"
+    }
+   },
+   "protected": "g1/protected/5370_create_set_collection_member_role_function.sql",
+   "protected_sha256": "c0df38050a8bff24b9c5aa5d1cf9e928ed7f2ed7483050e8d4b97c3cabce3219"
+  },
+  {
+   "base": "2026-11-15-v1-13-e1b1-editor-core-binder/5373_create_get_shared_binder_placeable_cards.sql",
+   "base_sha256": "70a09b1df54cbd0985412700dc4ef7bd0504efbd3c57c6de20fc410e3e546ec2",
+   "functions": {
+    "get_shared_binder_placeable_cards": {
+     "kind": "read",
+     "md5_base": "a394f9dc7388166b700eca15b8d813d0",
+     "md5_protected": "8e9bf913f422eb60fb4dfc82f8741328",
+     "signature": "public.get_shared_binder_placeable_cards(uuid, integer, integer)"
+    }
+   },
+   "protected": "g1/protected/5373_create_get_shared_binder_placeable_cards.sql",
+   "protected_sha256": "0fd5e30dc914ac0c4d3035814b7cd86966704422b4426fa41a89b7ef69a99ee1"
+  },
+  {
+   "base": "2026-11-15-v1-13-e1b1-editor-core-binder/5374_create_editor_binder_core_writes.sql",
+   "base_sha256": "18e3d1b277093cc5f5e515b15e75d765dc87f349f34d9c425dc0222c705ae714",
+   "functions": {
+    "editor_place_card_in_binder": {
+     "kind": "write",
+     "md5_base": "babef8b4918b9c43b4a71f2d415d419c",
+     "md5_protected": "d95ab478018a0dd431083cf0af492311",
+     "signature": "public.editor_place_card_in_binder(uuid, integer, integer, integer, uuid)"
+    },
+    "editor_move_binder_card": {
+     "kind": "write",
+     "md5_base": "e9b3aa5f479f017d818987ab3a7e6fde",
+     "md5_protected": "634726a9ec1b6dbe578e2bad494f8877",
+     "signature": "public.editor_move_binder_card(uuid, integer, integer, integer, integer, integer, integer)"
+    },
+    "editor_remove_binder_card": {
+     "kind": "write",
+     "md5_base": "5f63a8e06979597c9d8704cf1d434816",
+     "md5_protected": "41a34791549618a254357772043b8d40",
+     "signature": "public.editor_remove_binder_card(uuid, integer, integer, integer)"
+    }
+   },
+   "protected": "g1/protected/5374_create_editor_binder_core_writes.sql",
+   "protected_sha256": "250747ce33af34b09167a8296262ddbef4d6ada5ebf6d3589b5f1452e568c61b"
+  },
+  {
+   "base": "2026-11-15-v1-13-e1b2-editor-curation/5375_create_editor_binder_curation_writes.sql",
+   "base_sha256": "1a2b4cdb28502509c551e844a80769b4cf94da628ec225994c65455456d5258d",
+   "functions": {
+    "editor_set_binder_reservation": {
+     "kind": "write",
+     "md5_base": "c8c5a1f7f1941f0e94a42b57ecddc3dd",
+     "md5_protected": "043a7abf4530b5d4b02fdff182d4a6d1",
+     "signature": "public.editor_set_binder_reservation(uuid, integer, integer, integer, uuid, uuid, uuid)"
+    },
+    "editor_clear_binder_reservation": {
+     "kind": "write",
+     "md5_base": "7b791f79a61c78420508f47dad99ba15",
+     "md5_protected": "be2c9f46679ab437c3ba33e89d81e5f9",
+     "signature": "public.editor_clear_binder_reservation(uuid, integer, integer, integer)"
+    },
+    "editor_set_binder_lock": {
+     "kind": "write",
+     "md5_base": "143bd935a51b59dbe1628cf6671d99b9",
+     "md5_protected": "034d0f6fe74f5dcb4d0f3374f1abe17a",
+     "signature": "public.editor_set_binder_lock(uuid, integer, integer, integer, boolean)"
+    }
+   },
+   "protected": "g1/protected/5375_create_editor_binder_curation_writes.sql",
+   "protected_sha256": "2cf3a8d26bae2b7220779a79b673bf49caa3c4ee8ccfeb42f3ac905af547da2d"
+  },
+  {
+   "base": "2026-11-15-v1-13-e1b2-editor-curation/5376_create_editor_collection_metadata_writes.sql",
+   "base_sha256": "ff3cabba68f037922c4fb68e8bd5fbd18df76f15d7245292351e1abcb5039614",
+   "functions": {
+    "editor_update_collection_metadata": {
+     "kind": "write",
+     "md5_base": "3d09082cc2aa6dcf1bfb24f60a64f618",
+     "md5_protected": "81da7a37d4b9d126a565074b706aaea8",
+     "signature": "public.editor_update_collection_metadata(uuid, text, text)"
+    },
+    "editor_set_collection_cover_finish": {
+     "kind": "write",
+     "md5_base": "dbacf82d60fff593dc2e332267e6437e",
+     "md5_protected": "8fc815a4ff48f5a7896e84ad367e86c3",
+     "signature": "public.editor_set_collection_cover_finish(uuid, text)"
+    },
+    "editor_set_collection_cover_code": {
+     "kind": "write",
+     "md5_base": "41178bfcdf64edd705baa3363121d632",
+     "md5_protected": "4feb35ab58042b11aa1df00c329f379b",
+     "signature": "public.editor_set_collection_cover_code(uuid, text)"
+    },
+    "editor_set_collection_cover_logo": {
+     "kind": "write",
+     "md5_base": "e22a5e68b9ac082e0afd2af89f3d2d5c",
+     "md5_protected": "8d211f8fa20bb064fc7085038281ab24",
+     "signature": "public.editor_set_collection_cover_logo(uuid, text)"
+    }
+   },
+   "protected": "g1/protected/5376_create_editor_collection_metadata_writes.sql",
+   "protected_sha256": "8cae24afc9232d3333bf4621fad1aad09e436bfc18155ef172b08ef59e1fbcfe"
+  },
+  {
+   "base": "2026-11-15-v1-13-e1b2-editor-curation/5377_create_editor_collection_cover_storage_policies.sql",
+   "base_sha256": "ae49e2e8f117396501dc414bd34a6dc3e0c3b77fe6e91a850999e35881f74248",
+   "functions": {
+    "collection_cover_editor_folder_ok": {
+     "kind": "helper",
+     "md5_base": "6820b7b152208fd51551fa7240f156e2",
+     "md5_protected": "5e9fdc4b2dec92663594ddd2cc427711",
+     "signature": "public.collection_cover_editor_folder_ok(text)"
+    },
+    "collection_cover_editor_can_upload": {
+     "kind": "helper",
+     "md5_base": "e0e095474d745fe70c2b1eb9223337ee",
+     "md5_protected": "abce88d6802c00982735bc286a3edfc3",
+     "signature": "public.collection_cover_editor_can_upload(text)"
+    }
+   },
+   "protected": "g1/protected/5377_create_editor_collection_cover_storage_policies.sql",
+   "protected_sha256": "badd1f543f3436c6cc0650b7e699445d6989fbee6ece80553f77ee4d8f92467e"
+  },
+  {
+   "base": "2026-11-15-v1-13-e1b3-pokedex-history/5380_create_editor_pokedex_position_writes.sql",
+   "base_sha256": "12775663faeefa28e56b15a47402f8457052068ac94449351efc23682e44ccd1",
+   "functions": {
+    "editor_set_pokedex_position_assignment": {
+     "kind": "write",
+     "md5_base": "e78b75913312ad3401041e7c98de1ee0",
+     "md5_protected": "90ee1b0594ffe8cf7a3bf6c54549e5ef",
+     "signature": "public.editor_set_pokedex_position_assignment(uuid, uuid, uuid, boolean)"
+    },
+    "editor_remove_pokedex_position_assignment": {
+     "kind": "write",
+     "md5_base": "db8354f1321ac13b31a2e0460c3c44a7",
+     "md5_protected": "3cef5f640a60b2ad290c9420cc71a596",
+     "signature": "public.editor_remove_pokedex_position_assignment(uuid, uuid)"
+    },
+    "editor_set_pokedex_position_primary_representative": {
+     "kind": "write",
+     "md5_base": "91742436a5b6b28a2355765d74a405e3",
+     "md5_protected": "2882df84eb882648552c3350bda3876d",
+     "signature": "public.editor_set_pokedex_position_primary_representative(uuid, uuid)"
+    },
+    "editor_clear_pokedex_position_primary_representative": {
+     "kind": "write",
+     "md5_base": "91bd4ff9149e7d8f70f43ba968da36ef",
+     "md5_protected": "b8d4408299e90de6258dcc0c7c2a1b75",
+     "signature": "public.editor_clear_pokedex_position_primary_representative(uuid, uuid)"
+    }
+   },
+   "protected": "g1/protected/5380_create_editor_pokedex_position_writes.sql",
+   "protected_sha256": "8c903e1c309b4d157ed77d2a5edf6fe1e5275c4f41170b606de7a4680d51105b"
+  },
+  {
+   "base": "2026-11-15-v1-13-e1c-bulk-operations/5382_create_editor_binder_page_operations.sql",
+   "base_sha256": "8cadbfe798d646a11045514897a955ed9c2f28db20573b0fabbfbe567db489a5",
+   "functions": {
+    "editor_add_binder_page": {
+     "kind": "write",
+     "md5_base": "1d2c1417d53774419d8d34beb68e0481",
+     "md5_protected": "b3a006852101c4eb63857c1be7eb8856",
+     "signature": "public.editor_add_binder_page(uuid)"
+    },
+    "editor_remove_binder_page": {
+     "kind": "write",
+     "md5_base": "7ae0b7662f17923ebb9f68b2d73ae0af",
+     "md5_protected": "375484145b2cb4a5407c97aacda9efdf",
+     "signature": "public.editor_remove_binder_page(uuid, integer, integer)"
+    },
+    "editor_reorder_binder_pages": {
+     "kind": "write",
+     "md5_base": "d90760059aa68fe198e1e4a779cc19d0",
+     "md5_protected": "a661600ca03c5666b96f48c618211c9a",
+     "signature": "public.editor_reorder_binder_pages(uuid, integer[])"
+    }
+   },
+   "protected": "g1/protected/5382_create_editor_binder_page_operations.sql",
+   "protected_sha256": "57799a0a86f6a9dea03837aaf52fda9c2555c02f122a1088ca80976f6ab4e94c"
+  },
+  {
+   "base": "2026-11-15-v1-13-e1c-bulk-operations/5383_create_editor_binder_species_reference_operations.sql",
+   "base_sha256": "0b9ce5ed89e2b68aec56e1306d6ec3e3c9cd89b1cbb0f8bdfbfb9f750e30b3e2",
+   "functions": {
+    "editor_preview_binder_species_references": {
+     "kind": "write",
+     "md5_base": "faa363dbf08d5a15ff861dc6a36ce3e8",
+     "md5_protected": "e97e6aaf63af6642eac56f544b1c663b",
+     "signature": "public.editor_preview_binder_species_references(uuid)"
+    },
+    "editor_apply_binder_species_references": {
+     "kind": "write",
+     "md5_base": "06c1b38705c29890857961f4d440c051",
+     "md5_protected": "54d14043bc2826f687867c60c241db1f",
+     "signature": "public.editor_apply_binder_species_references(uuid, text)"
+    },
+    "editor_clear_binder_species_references": {
+     "kind": "write",
+     "md5_base": "123d3b59109dc458d06810ac0ad7e691",
+     "md5_protected": "dcc32db55aef7978b37c4ba1dc55f44b",
+     "signature": "public.editor_clear_binder_species_references(uuid, integer)"
+    },
+    "editor_set_binder_species_reference_visibility": {
+     "kind": "write",
+     "md5_base": "2a71b4b6b8b0b064d15e93d66ec91543",
+     "md5_protected": "0a1955ff43cdc3a3b23f87bf38efa42d",
+     "signature": "public.editor_set_binder_species_reference_visibility(uuid, boolean)"
+    }
+   },
+   "protected": "g1/protected/5383_create_editor_binder_species_reference_operations.sql",
+   "protected_sha256": "b7c5d9c51fd03c8872f42a21bd998c539456f633e7b814e5809c1a763fd11245"
+  },
+  {
+   "base": "2026-11-15-v1-13-e1c2-remaining-bulk-operations/5385_create_editor_binder_gap_operations.sql",
+   "base_sha256": "79855ad2db7ea23bccccfa09e826d46d8d622e7a549a96db92deb596c4ab35c4",
+   "functions": {
+    "editor_preview_binder_insert_gap": {
+     "kind": "write",
+     "md5_base": "159df6754acc393f7ef6f7f3dd372442",
+     "md5_protected": "32b40524b639c09b9e36b29bc2062ad4",
+     "signature": "public.editor_preview_binder_insert_gap(uuid, integer, integer, integer)"
+    },
+    "editor_insert_binder_gap": {
+     "kind": "write",
+     "md5_base": "11868db422b37ae252dcf984d8fbbb68",
+     "md5_protected": "5dc9370f85624d6d3aa50cc08e10c83c",
+     "signature": "public.editor_insert_binder_gap(uuid, integer, integer, integer, text, boolean, boolean)"
+    },
+    "editor_close_binder_gap": {
+     "kind": "write",
+     "md5_base": "861335af89c56152c079898dd379234c",
+     "md5_protected": "58915724ae23d7ad3c8b8cc839ff3e8a",
+     "signature": "public.editor_close_binder_gap(uuid, integer, integer, integer, integer, integer, integer, text, integer)"
+    }
+   },
+   "protected": "g1/protected/5385_create_editor_binder_gap_operations.sql",
+   "protected_sha256": "ec7c3150cad646a4734d3d9d10c644f19a3291c71c49cceac00dbeadc4531add"
+  },
+  {
+   "base": "2026-11-15-v1-13-e1c2-remaining-bulk-operations/5386_create_editor_binder_auto_arrange.sql",
+   "base_sha256": "0e71a875c1097d99b8f4931ee54ee4a0a6966981491e6f8a106c1e5e7232a558",
+   "functions": {
+    "editor_preview_binder_auto_arrange": {
+     "kind": "write",
+     "md5_base": "2024d89cae23d0713dc0eef5cac7245f",
+     "md5_protected": "0cb490ec67f551d0044226ab3c34fda1",
+     "signature": "public.editor_preview_binder_auto_arrange(uuid)"
+    },
+    "editor_apply_binder_auto_arrange": {
+     "kind": "write",
+     "md5_base": "41ab7142d6e2b46c66eb5bc48caa3c9c",
+     "md5_protected": "ba878f4b8cedd81cabbb0326f32fe7f8",
+     "signature": "public.editor_apply_binder_auto_arrange(uuid, text)"
+    }
+   },
+   "protected": "g1/protected/5386_create_editor_binder_auto_arrange.sql",
+   "protected_sha256": "439fa23e23b5966c3796e0542ba8c79efe61148c408fdde6806825bd75ee00cd"
+  },
+  {
+   "base": "2026-11-15-v1-13-e1c2-remaining-bulk-operations/5387_create_editor_binder_catalog_reconciliation.sql",
+   "base_sha256": "ea001d06c703a4b816ca44459c4f8028273f3d9cb103e70f7ebeeaade4e8c313",
+   "functions": {
+    "editor_preview_binder_catalog_reconciliation": {
+     "kind": "write",
+     "md5_base": "a3667356bf21ce98eddc2ec858199599",
+     "md5_protected": "9faa6627e42d65a956f83385f7c6b9e2",
+     "signature": "public.editor_preview_binder_catalog_reconciliation(uuid, text[])"
+    },
+    "editor_apply_binder_catalog_reconciliation": {
+     "kind": "write",
+     "md5_base": "c0fd3df24d30515b73c58cf70e47de33",
+     "md5_protected": "d3956484575927fb5622f0a110a5c9a4",
+     "signature": "public.editor_apply_binder_catalog_reconciliation(uuid, text[], text, boolean, boolean)"
+    }
+   },
+   "protected": "g1/protected/5387_create_editor_binder_catalog_reconciliation.sql",
+   "protected_sha256": "d601b8f99c2423ab4b704cf5fc1ce655e62456896fb9256cbc9658be080bd714"
+  },
+  {
+   "base": "2026-11-15-v1-13-e1d-shared-reads/5323_create_get_shared_master_set_positions_function.sql",
+   "base_sha256": "fbf4cb6e9a953d7380cfad88f3a5e8eba3f8095e493d823d29beec7f2ed08102",
+   "functions": {
+    "get_shared_master_set_positions": {
+     "kind": "read",
+     "md5_base": "5754080699dba44e6ac362c5270e4051",
+     "md5_protected": "03ec5997a384124c07c04722038ea998",
+     "signature": "public.get_shared_master_set_positions(uuid, text, integer, integer)"
+    }
+   },
+   "protected": "g1/protected/5323_create_get_shared_master_set_positions_function.sql",
+   "protected_sha256": "3d4bac2223d54309b5a3b591e377ddb34828a598687d79db5d1c65cd61e72990"
+  },
+  {
+   "base": "2026-11-15-v1-13-e1d-shared-reads/5324_create_get_shared_pokedex_positions_function.sql",
+   "base_sha256": "1e504d6af6a52f2d51604ba5599a539d176ad4ee9e9648fe10e721dffedeb5ff",
+   "functions": {
+    "get_shared_pokedex_positions": {
+     "kind": "read",
+     "md5_base": "9e87eb412b72733e319aafb31240a3bd",
+     "md5_protected": "abb29efd9a2c335fbe9346c4929dee38",
+     "signature": "public.get_shared_pokedex_positions(uuid, text, text, integer, integer)"
+    }
+   },
+   "protected": "g1/protected/5324_create_get_shared_pokedex_positions_function.sql",
+   "protected_sha256": "41134dfc643d89e70ff04d969f1835c2c81527c2d07e2ca10f62549ee23a5157"
+  },
+  {
+   "base": "2026-11-15-v1-13-e1d-shared-reads/5388_create_get_shared_binder_activity_functions.sql",
+   "base_sha256": "5276f8d2d59c60c4a35e0d727dd9bda92ee4557bcc13e3d705e9b88dec631452",
+   "functions": {
+    "get_shared_binder_activity": {
+     "kind": "read",
+     "md5_base": "00ae54a9553a76fa564e2a335d966622",
+     "md5_protected": "5b2887919ed00aca98b20d048f10722b",
+     "signature": "public.get_shared_binder_activity(uuid, text[], timestamptz, bigint, integer)"
+    },
+    "get_shared_binder_activity_status": {
+     "kind": "read",
+     "md5_base": "31a016b254e10bedb841c7820d10dca2",
+     "md5_protected": "9f0eb7643cfb180a97442df612d64169",
+     "signature": "public.get_shared_binder_activity_status(uuid)"
+    }
+   },
+   "protected": "g1/protected/5388_create_get_shared_binder_activity_functions.sql",
+   "protected_sha256": "e0600cf31ad8783bf455d81ee246f56bb44134bbe6ffb1757986ece5af522b59"
+  }
+ ]
+}
