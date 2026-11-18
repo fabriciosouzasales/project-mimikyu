@@ -20,7 +20,7 @@ Limites.....: statement_timeout 60s; lock_timeout 2s (cada migration redefine 5s
               aprovado só com duração <= 240000 ms (limite proposto, não medição).
 Provas......: só o banco (SET LOCAL ROLE); JWT real, PostgREST, Storage pela API,
               concorrência e medições ficam para G3/G4.
-Fontes......: 5389@b8c60c6c425f2110, 5366@bc1ff1109fee3a6c, 5367@92c8b4d71e96245c, 5368@27dff7273fbbaed0, 5369@0a9c4844f35128cb, 5370@c0df38050a8bff24, 5371@b2a09041e5778fe3, 5372@ff9d9c80607717db, 5373@0fd5e30dc914ac0c, 5374@250747ce33af34b0, 5375@2cf3a8d26bae2b72, 5376@8cae24afc9232d33, 5378@828fa3d54543c31e, 5379@7eed93c01db7ab5a, 5380@5b9a1a09a51c9f47, 5381@f48421892a73d4ce, 5382@57799a0a86f6a9de, 5383@b7c5d9c51fd03c88, 5384@9b944466cb7c7eca, 5385@ec7c3150cad646a4, 5386@439fa23e23b5966c, 5387@d601b8f99c2423ab, 5323@3d4bac2223d54309, 5324@41134dfc643d89e7, 5388@e0600cf31ad8783b, 5377@badd1f543f3436c6, H5861@9135bd0b8ab0dc7c, H5862@f6f7dd4e6c3184a8, H5864@47e96959e15447dc, H5888@c6e336396ba57fdc, H5889@4982135d5b3f0b85, H5891@133d0cc534fdfc82, H5892@a3169b24312f7027, H5893@10619cd07d9a6336, H5894@db567e0b7bca3ab8, H5863@d20055b88a3b7166, H5890@ae57e56a8cfba960, H5895@f7025b7a609912e4
+Fontes......: 5389@b8c60c6c425f2110, 5366@bc1ff1109fee3a6c, 5367@92c8b4d71e96245c, 5368@27dff7273fbbaed0, 5369@0a9c4844f35128cb, 5370@c0df38050a8bff24, 5371@b2a09041e5778fe3, 5372@ff9d9c80607717db, 5373@0fd5e30dc914ac0c, 5374@250747ce33af34b0, 5375@2cf3a8d26bae2b72, 5376@8cae24afc9232d33, 5378@828fa3d54543c31e, 5379@7eed93c01db7ab5a, 5380@5b9a1a09a51c9f47, 5381@f48421892a73d4ce, 5382@57799a0a86f6a9de, 5383@b7c5d9c51fd03c88, 5384@9b944466cb7c7eca, 5385@ec7c3150cad646a4, 5386@439fa23e23b5966c, 5387@d601b8f99c2423ab, 5323@3d4bac2223d54309, 5324@41134dfc643d89e7, 5388@e0600cf31ad8783b, 5377@badd1f543f3436c6, H5861@d086fa66375253d5, H5862@f6f7dd4e6c3184a8, H5864@47e96959e15447dc, H5888@50aa49beb5c06d0c, H5889@7502a8eb7a9ed69f, H5891@74c9c1fb26da4833, H5892@f5ad58f5e4eb33ee, H5893@798ceb753c22cc68, H5894@31c76996533d7b3e, H5863@ab3444f64d3e9b60, H5890@0cb84f973d22995b, H5895@f7025b7a609912e4
 ================================================================
 */
 
@@ -5824,7 +5824,7 @@ $post$;
 -- @@T8 modo da barreira CLOSED (só nesta transação)
 update public.v1_13_barrier_state set mode = 'CLOSED', change_note = 'G2 ensaio' where id = 1;
 
--- @@T8 harness 5861 [CLOSED] sha256=9135bd0b8ab0dc7cd0d25bb630bf45cce0b835f66bd381544b33a55ee64bf146
+-- @@T8 harness 5861 [CLOSED] sha256=d086fa66375253d565dbe0f396cae54d166197fd2a03e64a3a097e1a1adeaf6f
 create or replace function pg_temp.wh_5861_validate()
 returns table (seq integer, check_id text, status text, detail text)
 language plpgsql
@@ -6204,7 +6204,9 @@ begin
     res := res || jsonb_build_object('id','3.8','ok', (j ->> 'has_binder')::boolean
       and (j ->> 'grid_columns')::int = 3 and (j ->> 'grid_rows')::int = 3
       and (j ->> 'page_count')::int = o_pages and (j ->> 'own_filled_count')::int = o_cards
-      and (select bool_and(k = any(array['has_binder','grid_columns','grid_rows','page_count','own_filled_count'])) from jsonb_object_keys(j) k)
+      and (select bool_and(k = any(array['has_binder','grid_columns','grid_rows','page_count','own_filled_count',  -- E1E
+                                          'binder_name','show_brand_mark'])) from jsonb_object_keys(j) k)  -- E1E: chaves da 5321
+      and jsonb_typeof(j -> 'binder_name') in ('string', 'null') and jsonb_typeof(j -> 'show_brand_mark') = 'boolean'  -- E1E
       and public.get_shared_collection_binder(v_cx) is null,
       'detail','VIEWER: cabeçalho do fichário de CO (grade, páginas, cartas DE CO) sem local, participantes nem disponíveis; CX fechada');
     select count(*) filter (where b.pocket_state = 'CARD'),
@@ -6886,7 +6888,7 @@ insert into pg_temp.g2_evidence (harness, seq, check_id, status, detail)
 -- @@T8 modo da barreira OPEN (só nesta transação)
 update public.v1_13_barrier_state set mode = 'OPEN', change_note = 'G2 ensaio' where id = 1;
 
--- @@T8 harness 5888 [OPEN] sha256=c6e336396ba57fdcfddc849ee99f6f65a8cf4b688a32bd5efd9db0bdf70a8e48
+-- @@T8 harness 5888 [OPEN] sha256=50aa49beb5c06d0c65720717e2fbfde16ee77a3506acf066a77d050a1c7087b6
 create or replace function pg_temp.wh_5888_as(p_user uuid)
 returns void language plpgsql volatile as $as$
 begin
@@ -6960,6 +6962,7 @@ declare
   u_c uuid := gen_random_uuid(); u_d uuid := gen_random_uuid();
   v_sfx text := lower(substr(replace(gen_random_uuid()::text, '-', ''), 1, 8));
   n_a text; n_b text; n_c text; n_d text;
+  v_chk text; v_chkb boolean;  -- E1E: conferências internas lidas no contexto do dono
   v_game uuid; v_pt uuid; v_rar uuid; v_cat uuid; v_std uuid; v_exp uuid; v_set uuid; k1 uuid; k1s uuid;
   v_inv_a uuid; a1 uuid; v_bin uuid; v_co uuid; v_cx uuid; m_b uuid; m_d uuid; m_d2 uuid;
   p record; j jsonb; j2 jsonb; v_err text; v_ok boolean; n integer;
@@ -7057,15 +7060,21 @@ begin
     perform pg_temp.wh_5888_as(u_a);
     j := public.invite_collection_member(v_co, n_b);                       -- 2 argumentos, como o frontend
     m_b := (j ->> 'membership_id')::uuid;
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
+    v_chk := (select m.role from public.collection_membership m where m.id = m_b);  -- E1E
+    perform pg_temp.wh_5888_as(u_a);  -- E1E: volta ao mesmo cliente
     res := res || jsonb_build_object('id','1.1','ok',
       j ->> 'outcome' = 'INVITED' and j ->> 'role' = 'VIEWER'
-      and (select m.role from public.collection_membership m where m.id = m_b) = 'VIEWER',
+      and v_chk = 'VIEWER',  -- E1E
       'detail','convite sem papel (chamada de 2 argumentos) grava VIEWER');
     j := public.invite_collection_member(v_co, '@' || upper(n_d), ' editor ');
     m_d := (j ->> 'membership_id')::uuid;
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
+    v_chk := (select m.role || '/' || m.status from public.collection_membership m where m.id = m_d);  -- E1E
+    perform pg_temp.wh_5888_as(u_a);  -- E1E: volta ao mesmo cliente
     res := res || jsonb_build_object('id','1.2','ok',
       j ->> 'outcome' = 'INVITED' and j ->> 'role' = 'EDITOR'
-      and (select m.role || '/' || m.status from public.collection_membership m where m.id = m_d) = 'EDITOR/PENDING',
+      and v_chk = 'EDITOR/PENDING',  -- E1E
       'detail','convite EDITOR explícito (papel e username normalizados)');
     v_ok := true;
     foreach v_err in array array['OWNER','PUBLIC','ADMIN',''] loop
@@ -7073,8 +7082,11 @@ begin
       begin j2 := public.invite_collection_member(v_cx, n_c, v_err); exception when others then j2 := jsonb_build_object('e', sqlerrm, 's', sqlstate); end;
       v_ok := v_ok and coalesce(j2 ->> 'e' = 'INVALID_ROLE' and j2 ->> 's' = '22023', false);
     end loop;
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
+    v_chkb := not exists (select 1 from public.collection_membership m where m.collection_id = v_cx);  -- E1E
+    perform pg_temp.wh_5888_as(u_a);  -- E1E: volta ao mesmo cliente
     res := res || jsonb_build_object('id','1.3','ok', v_ok
-      and not exists (select 1 from public.collection_membership m where m.collection_id = v_cx),
+      and v_chkb,  -- E1E
       'detail','OWNER/PUBLIC/ADMIN/vazio → INVALID_ROLE (22023), nada gravado');
     j := public.invite_collection_member(v_cx, n_c, null);
     res := res || jsonb_build_object('id','1.4','ok', j ->> 'role' = 'VIEWER' and j ->> 'outcome' = 'INVITED',
@@ -7088,15 +7100,21 @@ begin
     res := res || jsonb_build_object('id','2.1','ok', j ->> 'outcome' = 'ALREADY_PENDING' and (j ->> 'membership_id')::uuid = m_d and j ->> 'role' = 'EDITOR',
       'detail','pendente + mesmo papel → ALREADY_PENDING');
     v_err := null; begin perform public.invite_collection_member(v_co, n_d, 'VIEWER'); exception when others then v_err := sqlerrm || '/' || sqlstate; end;
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
+    v_chk := (select m.role || '/' || m.status from public.collection_membership m where m.id = m_d);  -- E1E
+    perform pg_temp.wh_5888_as(u_a);  -- E1E: volta ao mesmo cliente
     res := res || jsonb_build_object('id','2.2','ok', v_err = 'INVITE_PENDING_ROLE_IMMUTABLE/55000'
-      and (select m.role || '/' || m.status from public.collection_membership m where m.id = m_d) = 'EDITOR/PENDING',
+      and v_chk = 'EDITOR/PENDING',  -- E1E
       'detail','pendente + outro papel → INVITE_PENDING_ROLE_IMMUTABLE, nada muda');
     v_err := null; begin perform public.invite_collection_member(v_co, n_d); exception when others then v_err := sqlerrm; end;
     res := res || jsonb_build_object('id','2.3','ok', v_err = 'INVITE_PENDING_ROLE_IMMUTABLE',
       'detail','pendente EDITOR + chamada sem papel (VIEWER) também é recusada — sem conversão silenciosa');
     v_err := null; begin perform public.set_collection_member_role(v_co, m_d, 'VIEWER'); exception when others then v_err := sqlerrm; end;
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
+    v_chk := (select m.role from public.collection_membership m where m.id = m_d);  -- E1E
+    perform pg_temp.wh_5888_as(u_a);  -- E1E: volta ao mesmo cliente
     res := res || jsonb_build_object('id','2.4','ok', v_err = 'INVITE_PENDING_ROLE_IMMUTABLE'
-      and (select m.role from public.collection_membership m where m.id = m_d) = 'EDITOR',
+      and v_chk = 'EDITOR',  -- E1E
       'detail','troca de papel de convite pendente recusada');
     perform pg_temp.wh_5888_as(u_d);
     j := public.get_my_collection_invites();
@@ -7151,8 +7169,11 @@ begin
     res := res || jsonb_build_object('id','4.1','ok', j ->> 'outcome' = 'UNCHANGED' and j ->> 'role' = 'EDITOR',
       'detail','mesmo papel → UNCHANGED (idempotente)');
     j := public.set_collection_member_role(v_co, m_b, ' viewer ');
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
+    v_chk := (select m.role || '/' || m.status from public.collection_membership m where m.id = m_b);  -- E1E
+    perform pg_temp.wh_5888_as(u_a);  -- E1E: volta ao mesmo cliente
     res := res || jsonb_build_object('id','4.2','ok', j ->> 'outcome' = 'CHANGED' and j ->> 'previous_role' = 'EDITOR' and j ->> 'role' = 'VIEWER'
-      and (select m.role || '/' || m.status from public.collection_membership m where m.id = m_b) = 'VIEWER/ACTIVE',
+      and v_chk = 'VIEWER/ACTIVE',  -- E1E
       'detail','EDITOR → VIEWER (normalizado), continua ACTIVE');
     perform pg_temp.wh_5888_as(u_b);
     res := res || jsonb_build_object('id','4.3','ok', public.get_shared_collection(v_co) ->> 'role' = 'VIEWER',
@@ -7168,9 +7189,13 @@ begin
       v_ok := v_ok and coalesce(j2 ->> 'e' = 'INVALID_ROLE', false);
     end loop;
     v_err := null; begin perform public.set_collection_member_role(v_co, m_b, null); exception when others then v_err := sqlerrm; end;
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
+    v_chk := (select m.role from public.collection_membership m where m.id = m_b);  -- E1E
+    v_chkb := (select c.owner_user_id from public.collection c where c.id = v_co) = u_a;  -- E1E
+    perform pg_temp.wh_5888_as(u_a);  -- E1E: volta ao mesmo cliente
     res := res || jsonb_build_object('id','4.5','ok', v_ok and v_err = 'INVALID_ROLE'
-      and (select m.role from public.collection_membership m where m.id = m_b) = 'EDITOR'
-      and (select c.owner_user_id from public.collection c where c.id = v_co) = u_a,
+      and v_chk = 'EDITOR'  -- E1E
+      and v_chkb,  -- E1E
       'detail','OWNER/PUBLIC/inválido/NULL → INVALID_ROLE; papel e titularidade intactos');
     v_err := null; begin perform public.set_collection_member_role(v_cx, m_b, 'VIEWER'); exception when others then v_err := sqlerrm; end;
     res := res || jsonb_build_object('id','4.6','ok', v_err = 'MEMBERSHIP_NOT_FOUND',
@@ -7179,22 +7204,31 @@ begin
     res := res || jsonb_build_object('id','4.7','ok', v_err = 'MEMBERSHIP_NOT_FOUND',
       'detail','participação inexistente → MEMBERSHIP_NOT_FOUND');
     v_err := null; begin perform public.invite_collection_member(v_co, n_b, 'VIEWER'); exception when others then v_err := sqlerrm; end;
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
+    v_chk := (select m.role from public.collection_membership m where m.id = m_b);  -- E1E
+    perform pg_temp.wh_5888_as(u_a);  -- E1E: volta ao mesmo cliente
     res := res || jsonb_build_object('id','4.8','ok', v_err = 'ALREADY_MEMBER'
-      and (select m.role from public.collection_membership m where m.id = m_b) = 'EDITOR',
+      and v_chk = 'EDITOR',  -- E1E
       'detail','convidar membro ativo com outro papel → ALREADY_MEMBER (troca só pela 5370)');
 
     -- 5. Segurança -------------------------------------------------------------------------
     perform pg_temp.wh_5888_as(u_b);   -- B é EDITOR de CO
     v_err := null; begin perform public.set_collection_member_role(v_co, m_b, 'VIEWER'); exception when others then v_err := sqlerrm; end;
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
+    v_chk := (select m.role from public.collection_membership m where m.id = m_b);  -- E1E
+    perform pg_temp.wh_5888_as(u_b);  -- E1E: volta ao mesmo cliente
     res := res || jsonb_build_object('id','5.1','ok', v_err = 'MEMBERSHIP_NOT_FOUND'
-      and (select m.role from public.collection_membership m where m.id = m_b) = 'EDITOR',
+      and v_chk = 'EDITOR',  -- E1E
       'detail','membro não altera o próprio papel');
     v_err := null; begin perform public.set_collection_member_role(v_co, m_d, 'VIEWER'); exception when others then v_err := sqlerrm; end;
     res := res || jsonb_build_object('id','5.2','ok', v_err = 'MEMBERSHIP_NOT_FOUND',
       'detail','EDITOR não altera papel de outro participante');
     v_err := null; begin perform public.invite_collection_member(v_co, n_c, 'EDITOR'); exception when others then v_err := sqlerrm; end;
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
+    v_chkb := not exists (select 1 from public.collection_membership m where m.collection_id = v_co and m.user_id = u_c);  -- E1E
+    perform pg_temp.wh_5888_as(u_b);  -- E1E: volta ao mesmo cliente
     res := res || jsonb_build_object('id','5.3','ok', v_err = 'COLLECTION_NOT_FOUND'
-      and not exists (select 1 from public.collection_membership m where m.collection_id = v_co and m.user_id = u_c),
+      and v_chkb,  -- E1E
       'detail','EDITOR não convida (C-154)');
     j := public.get_shared_collection(v_co);
     j2 := public.get_my_collection_sharing(v_co);
@@ -7219,13 +7253,19 @@ begin
       'detail','participação recusada não troca de papel');
     j := public.invite_collection_member(v_co, n_d, 'VIEWER');
     m_d2 := (j ->> 'membership_id')::uuid;
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
+    v_chkb := not exists (select 1 from public.collection_membership m where m.id = m_d);  -- E1E
+    perform pg_temp.wh_5888_as(u_a);  -- E1E: volta ao mesmo cliente
     res := res || jsonb_build_object('id','5.8','ok', j ->> 'outcome' = 'REINVITED' and j ->> 'role' = 'VIEWER' and m_d2 <> m_d
-      and not exists (select 1 from public.collection_membership m where m.id = m_d),
+      and v_chkb,  -- E1E
       'detail','recusado + outro papel → convite novo com id novo; linha antiga apagada');
     perform pg_temp.wh_5888_as(u_d);
     v_err := null; begin perform public.respond_collection_invite(m_d, true); exception when others then v_err := sqlerrm; end;
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
+    v_chk := (select m.status from public.collection_membership m where m.id = m_d2);  -- E1E
+    perform pg_temp.wh_5888_as(u_d);  -- E1E: volta ao mesmo cliente
     res := res || jsonb_build_object('id','5.9','ok', v_err = 'INVITE_NOT_FOUND'
-      and (select m.status from public.collection_membership m where m.id = m_d2) = 'PENDING',
+      and v_chk = 'PENDING',  -- E1E
       'detail','aba antiga não aceita o id anterior (papel não visto)');
     perform public.respond_collection_invite(m_d2, false);
     perform pg_temp.wh_5888_as(u_a);
@@ -7272,16 +7312,25 @@ begin
 
     -- 7. Sem escrita na E1-A ------------------------------------------------------------------
     v_err := null; begin perform public.update_collection_metadata(v_co, 'Renomeada', null); exception when others then v_err := 'refused'; end;
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
+    v_chk := (select c.name from public.collection c where c.id = v_co);  -- E1E
+    perform pg_temp.wh_5888_as(u_b);  -- E1E: volta ao mesmo cliente
     res := res || jsonb_build_object('id','7.1','ok', v_err = 'refused'
-      and (select c.name from public.collection c where c.id = v_co) = 'CO 5888',
+      and v_chk = 'CO 5888',  -- E1E
       'detail','EDITOR não edita metadados nesta etapa');
     v_err := null; begin perform public.set_collection_visibility(v_co, 'PUBLIC'); exception when others then v_err := 'refused'; end;
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
+    v_chk := (select c.visibility::text from public.collection c where c.id = v_co);  -- E1E
+    perform pg_temp.wh_5888_as(u_b);  -- E1E: volta ao mesmo cliente
     res := res || jsonb_build_object('id','7.2','ok', v_err = 'refused'
-      and (select c.visibility from public.collection c where c.id = v_co) = 'PRIVATE',
+      and v_chk = 'PRIVATE',  -- E1E
       'detail','EDITOR não altera visibilidade');
     v_err := null; begin perform public.remove_collection_member(v_co, m_b); exception when others then v_err := 'refused'; end;
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
+    v_chkb := exists (select 1 from public.collection_membership m where m.id = m_b);  -- E1E
+    perform pg_temp.wh_5888_as(u_b);  -- E1E: volta ao mesmo cliente
     res := res || jsonb_build_object('id','7.3','ok', v_err = 'refused'
-      and exists (select 1 from public.collection_membership m where m.id = m_b),
+      and v_chkb,  -- E1E
       'detail','EDITOR não remove participações por esse caminho');
     v_err := null; begin perform count(*) from public.collection_membership; exception when others then v_err := sqlstate; end;
     res := res || jsonb_build_object('id','7.4','ok', v_err = '42501',
@@ -7322,7 +7371,7 @@ $fn$;
 insert into pg_temp.g2_evidence (harness, seq, check_id, status, detail)
   select '5888', seq, check_id, status, detail from pg_temp.wh_5888_validate();
 
--- @@T8 harness 5889 [OPEN] sha256=4982135d5b3f0b859a78755b1979342ef54032f563635fb7c76a152e38d0095d
+-- @@T8 harness 5889 [OPEN] sha256=7502a8eb7a9ed69ff7e9f72a8eb54d6d126a6fd2eb78c49125b618adf5c7606c
 create or replace function pg_temp.wh_5889_as(p_user uuid)
 returns void language plpgsql volatile as $as$
 begin
@@ -7583,8 +7632,10 @@ begin
     -- 3. Colocar --------------------------------------------------------------------------------
     perform pg_temp.wh_5889_as(u_b);
     v_err := pg_temp.wh_5889_try(format('select * from public.editor_place_card_in_binder(%L, 1, 1, 2, %L)', v_co, a2));
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
     res := res || jsonb_build_object('id','3.1','ok', v_err = 'SLOT_NOT_EDITABLE' and pg_temp.wh_5889_at(v_layout, 1, 2) = x1,
       'detail','bolso com carta de CX → SLOT_NOT_EDITABLE; x1 intacto');
+    perform pg_temp.wh_5889_as(u_b);  -- E1E: volta ao mesmo cliente
     v_err := pg_temp.wh_5889_try(format('select * from public.editor_place_card_in_binder(%L, 1, 1, 3, %L)', v_co, a2));
     res := res || jsonb_build_object('id','3.2','ok', v_err = 'SLOT_NOT_EDITABLE', 'detail','bolso "vazio" com reserva de CX → mesma recusa');
     v_err := pg_temp.wh_5889_try(format('select * from public.editor_place_card_in_binder(%L, 1, 2, 2, %L)', v_co, a2));
@@ -7595,9 +7646,11 @@ begin
     foreach v_pc in array array[a3, a4, x2, b1, gen_random_uuid()] loop
       v_err := v_err || pg_temp.wh_5889_try(format('select * from public.editor_place_card_in_binder(%L, 1, 3, 1, %L)', v_co, v_pc)) || ';';
     end loop;
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
     res := res || jsonb_build_object('id','3.5','ok',
       v_err = repeat('PHYSICAL_CARD_NOT_ELIGIBLE;', 5) and pg_temp.wh_5889_at(v_layout, 3, 1) is null,
       'detail','outro local, sem coleção, de CX, de outro titular e forjado → a MESMA recusa; nada posicionado');
+    perform pg_temp.wh_5889_as(u_b);  -- E1E: volta ao mesmo cliente
     select x.operation into v_err from public.editor_place_card_in_binder(v_co, 1, 3, 1, a2) x;
     execute 'reset role';
     res := res || jsonb_build_object('id','3.6','ok', v_err = 'ADD' and pg_temp.wh_5889_at(v_layout, 3, 1) = a2,
@@ -7633,11 +7686,15 @@ begin
       'detail','SWAP entre duas cartas de CO');
     perform pg_temp.wh_5889_as(u_b);
     v_err := pg_temp.wh_5889_try(format('select * from public.editor_move_binder_card(%L, 1, 1, 1, 1, 1, 2)', v_co));
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
     res := res || jsonb_build_object('id','4.3','ok', v_err = 'SLOT_NOT_EDITABLE' and pg_temp.wh_5889_at(v_layout, 1, 2) = x1 and pg_temp.wh_5889_at(v_layout, 1, 1) = a2,
       'detail','trocar com carta de CX → SLOT_NOT_EDITABLE; nada muda');
+    perform pg_temp.wh_5889_as(u_b);  -- E1E: volta ao mesmo cliente
     v_err := pg_temp.wh_5889_try(format('select * from public.editor_move_binder_card(%L, 1, 1, 2, 1, 3, 3)', v_co));
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
     res := res || jsonb_build_object('id','4.4','ok', v_err = 'SLOT_NOT_EDITABLE' and pg_temp.wh_5889_at(v_layout, 1, 2) = x1,
       'detail','mover carta de CX → SLOT_NOT_EDITABLE');
+    perform pg_temp.wh_5889_as(u_b);  -- E1E: volta ao mesmo cliente
     v_err := pg_temp.wh_5889_try(format('select * from public.editor_move_binder_card(%L, 1, 1, 1, 1, 1, 3)', v_co));
     res := res || jsonb_build_object('id','4.5','ok', v_err = 'SLOT_NOT_EDITABLE', 'detail','mover para bolso com reserva de CX → SLOT_NOT_EDITABLE');
     v_err := pg_temp.wh_5889_try(format('select * from public.editor_move_binder_card(%L, 1, 1, 1, 1, 2, 2)', v_co));
@@ -7658,8 +7715,10 @@ begin
       'detail','retirar a5: posição sai; alocação a CO e local do fichário ficam');
     perform pg_temp.wh_5889_as(u_b);
     v_err := pg_temp.wh_5889_try(format('select * from public.editor_remove_binder_card(%L, 1, 1, 2)', v_co));
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
     res := res || jsonb_build_object('id','5.2','ok', v_err = 'SLOT_NOT_EDITABLE' and pg_temp.wh_5889_at(v_layout, 1, 2) = x1,
       'detail','retirar carta de CX → SLOT_NOT_EDITABLE; x1 fica');
+    perform pg_temp.wh_5889_as(u_b);  -- E1E: volta ao mesmo cliente
     v_err := pg_temp.wh_5889_try(format('select * from public.editor_remove_binder_card(%L, 1, 2, 1)', v_co));
     n := 0; if v_err = 'SLOT_EMPTY' then n := 1; end if;
     v_err := pg_temp.wh_5889_try(format('select * from public.editor_remove_binder_card(%L, 1, 3, 3)', v_co));
@@ -7678,8 +7737,10 @@ begin
     perform pg_temp.wh_5889_as(u_e);
     v_err := pg_temp.wh_5889_try(format('select * from public.editor_remove_binder_card(%L, 1, 1, 1)', v_cx))
           || ';' || pg_temp.wh_5889_try(format('select * from public.editor_move_binder_card(%L, 1, 3, 3, 1, 2, 1)', v_cx));
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
     res := res || jsonb_build_object('id','6.2','ok', v_err = 'SLOT_NOT_EDITABLE;SLOT_NOT_EDITABLE' and pg_temp.wh_5889_at(v_layout, 1, 1) = a2,
       'detail','EDITOR de CX não retira carta de CO nem move para bolso com reserva de CO');
+    perform pg_temp.wh_5889_as(u_e);  -- E1E: volta ao mesmo cliente
     select x.operation into v_err from public.editor_move_binder_card(v_cx, 1, 1, 2, 1, 1, 3) x;
     execute 'reset role';
     res := res || jsonb_build_object('id','6.3','ok', v_err = 'MOVE' and pg_temp.wh_5889_at(v_layout, 1, 3) = x1
@@ -7752,7 +7813,7 @@ begin
       perform public.add_layout_page(v_layout);
       execute 'reset role';
       insert into public.collection_layout_slot_image (slot_id, owner_user_id, storage_path)
-      values (pg_temp.wh_5889_slotp(v_layout, 2, 1, 1), u_a, u_a::text || '/' || v_layout::text || '/wh5889.webp');
+      values (pg_temp.wh_5889_slotp(v_layout, 2, 1, 1), u_a, u_a::text || '/' || v_layout::text || '/' || gen_random_uuid()::text || '.webp');  -- E1E: C1 — caminho canônico (uuid), atende aos CHECKs 5232
       insert into public.collection_layout_region (page_id, top_row, left_column, height, width)
       values ((select p2.id from public.collection_layout_page p2 where p2.layout_id = v_layout and p2.page_number = 2), 2, 1, 1, 2);
     exception when others then
@@ -7769,11 +7830,18 @@ begin
           || ';' || pg_temp.wh_5889_try(format('select * from public.editor_place_card_in_binder(%L, 2, 2, 2, %L)', v_co, a5))
           || ';' || pg_temp.wh_5889_try(format('select * from public.editor_move_binder_card(%L, 1, 1, 1, 2, 1, 1)', v_co))
           || ';' || pg_temp.wh_5889_try(format('select * from public.editor_move_binder_card(%L, 1, 1, 1, 2, 2, 1)', v_co));
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
     res := res || jsonb_build_object('id','10.2','ok',
       v_err = 'SLOT_NOT_EDITABLE;SLOT_NOT_EDITABLE;SLOT_NOT_EDITABLE;SLOT_NOT_EDITABLE'
       and pg_temp.wh_5889_at(v_layout, 1, 1) = a2
+      and exists (select 1 from public.collection_layout_slot_image ximg  -- E1E: pré-condição — a fixture existe: página 2 com imagem em r1c1
+                  where ximg.slot_id = pg_temp.wh_5889_slotp(v_layout, 2, 1, 1))  -- E1E
+      and exists (select 1 from public.collection_layout_region xreg join public.collection_layout_page xpg on xpg.id = xreg.page_id  -- E1E: e mesclagem r2c1–r2c2
+                  where xpg.layout_id = v_layout and xpg.page_number = 2 and xreg.top_row = 2 and xreg.left_column = 1  -- E1E
+                    and xreg.height = 1 and xreg.width = 2)  -- E1E
       and not exists (select 1 from public.collection_layout_slot_assignment a where a.physical_card_id = a5),
       'detail','bolso "vazio" com imagem ou em mesclagem: colocar e mover recusam com a mesma SLOT_NOT_EDITABLE; nada muda');
+    perform pg_temp.wh_5889_as(u_b);  -- E1E: volta ao mesmo cliente
     -- Estado composto: carta de CO + reserva de CX no mesmo bolso (titular monta).
     v_err := 'OK';
     begin
@@ -7847,7 +7915,7 @@ $fn$;
 insert into pg_temp.g2_evidence (harness, seq, check_id, status, detail)
   select '5889', seq, check_id, status, detail from pg_temp.wh_5889_validate();
 
--- @@T8 harness 5891 [OPEN] sha256=133d0cc534fdfc82976f016bac341a3045fab54ece4d6a337c96af188ff53a77
+-- @@T8 harness 5891 [OPEN] sha256=74c9c1fb26da483367de0365e2ccc6d2f67465f86d425ecf2d000cb38dbf35b9
 create or replace function pg_temp.wh_5891_as(p_user uuid)
 returns void language plpgsql volatile as $as$
 begin
@@ -8083,10 +8151,12 @@ begin
     v_err := pg_temp.wh_5891_try(format('select * from public.editor_set_pokedex_position_assignment(%L, %L, %L)', v_cp, a2, p2));
     select x.operation || ':' || x.assignment_basis into v_txt
       from public.editor_set_pokedex_position_assignment(v_cp, a2, p2, true) x;
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
     res := res || jsonb_build_object('id','1.1','ok', v_err = 'CONFIRMATION_REQUIRED' and v_txt = 'CREATED:USER_OVERRIDE'
       and (select a.assigned_by_user_id from public.collection_pokedex_position_assignment a
              join public.collection_allocation ca on ca.id = a.collection_allocation_id where ca.physical_card_id = a2) = u_b,
       'detail','sem espécie correspondente exige confirmação; confirmado → CREATED/USER_OVERRIDE com o EDITOR registrado');
+    perform pg_temp.wh_5891_as(u_b);  -- E1E: volta ao mesmo cliente
     select x.operation || ':' || x.assignment_basis into v_txt
       from public.editor_set_pokedex_position_assignment(v_cp, a1, p2, true) x;
     select x.operation || ':' || x.assignment_basis into v_txt2
@@ -8096,9 +8166,11 @@ begin
       'detail','mover para outra posição (confirmado), voltar por espécie (SPECIES_MATCH) e repetir → UNCHANGED');
     select x.operation into v_txt from public.editor_remove_pokedex_position_assignment(v_cp, a2) x;
     select x.operation into v_txt2 from public.editor_remove_pokedex_position_assignment(v_cp, a2) x;
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
     res := res || jsonb_build_object('id','1.3','ok', v_txt = 'REMOVED' and v_txt2 = 'UNCHANGED'
       and exists (select 1 from public.collection_allocation ca where ca.physical_card_id = a2 and ca.collection_id = v_cp),
       'detail','retirar a posição não desaloca; repetir → UNCHANGED');
+    perform pg_temp.wh_5891_as(u_b);  -- E1E: volta ao mesmo cliente
     v_err := pg_temp.wh_5891_try(format('select * from public.editor_set_pokedex_position_assignment(%L, %L, %L, true)', v_cp, a2, gen_random_uuid()));
     res := res || jsonb_build_object('id','1.4','ok', v_err = 'POKEDEX_POSITION_NOT_FOUND',
       'detail','posição inexistente ou de outra Pokédex → POKEDEX_POSITION_NOT_FOUND');
@@ -8238,8 +8310,10 @@ begin
           || ';' || pg_temp.wh_5891_try(format('select public.binder_activity_begin(%L, %L, %L, %L)', v_layout, 'CARD_PLACED', 'FICHARIO', v_cp));
     res := res || jsonb_build_object('id','6.1','ok', v_err ~ '^permission denied.*;permission denied',
       'detail','gravação e abertura do histórico sem EXECUTE para a API');
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
     v_ev := pg_temp.wh_5891_last_event(v_layout, u_a, 'CARDS_SWAPPED');
     select count(*) into n from public.binder_activity_item i where i.event_id = v_ev;
+    perform pg_temp.wh_5891_as(u_b);  -- E1E: volta ao mesmo cliente
     perform set_config('mmkyu.binder_activity_ctx', jsonb_build_object('depth', 1, 'layout', v_layout, 'type', 'CARDS_SWAPPED',
       'source', 'FICHARIO', 'collection', v_cp, 'summary', '{}'::jsonb, 'event_id', v_ev, 'n', n, 'cap', 0)::text, true);
     v_err := pg_temp.wh_5891_try(format('select * from public.editor_set_binder_lock(%L, 1, 1, 3, true)', v_cp));
@@ -8344,7 +8418,7 @@ $fn$;
 insert into pg_temp.g2_evidence (harness, seq, check_id, status, detail)
   select '5891', seq, check_id, status, detail from pg_temp.wh_5891_validate();
 
--- @@T8 harness 5892 [OPEN] sha256=a3169b24312f702745529170b2a3e684b09573132c74b3e5859039cd4d70bc7d
+-- @@T8 harness 5892 [OPEN] sha256=f5ad58f5e4eb33eef6c82b4ad63b8ab875398d9b240325547c4a9af89c6b0da8
 create or replace function pg_temp.wh_5892_as(p_user uuid)
 returns void language plpgsql volatile as $as$
 begin
@@ -8389,6 +8463,7 @@ language plpgsql
 as $fn$
 #variable_conflict use_column
 declare
+  v_e1e_np integer;  -- E1E: contagem de páginas lida no contexto do dono
   u_a uuid := gen_random_uuid(); u_b uuid := gen_random_uuid(); u_v uuid := gen_random_uuid();
   u_r uuid := gen_random_uuid(); u_e uuid := gen_random_uuid(); u_c uuid := gen_random_uuid();
   v_sfx text := lower(substr(replace(gen_random_uuid()::text, '-', ''), 1, 8));
@@ -8509,7 +8584,7 @@ begin
     update public.physical_card pc set storage_container_id = c_s where pc.id = s1;
     update public.physical_card pc set storage_container_id = c_f where pc.id = f1;
     insert into public.collection_layout_slot_image (slot_id, owner_user_id, storage_path)
-    values (pg_temp.wh_5892_slot(l_p, 1, 2, 2), u_a, u_a::text || '/' || l_p::text || '/wh5892.webp');
+    values (pg_temp.wh_5892_slot(l_p, 1, 2, 2), u_a, u_a::text || '/' || l_p::text || '/' || gen_random_uuid()::text || '.webp');  -- E1E: C1 — caminho canônico (uuid), atende aos CHECKs 5232
     select s.page_id into v_page_img from public.collection_layout_slot s where s.id = pg_temp.wh_5892_slot(l_p, 1, 2, 2);
     perform pg_temp.wh_5892_as(u_a);
     select x.collection_id into v_cg from public.create_my_free_collection(gen_random_uuid(), 'CG 5892', c_f) x;
@@ -8562,11 +8637,15 @@ begin
                   and e.event_type = 'PAGES_REORDERED'),
       'detail','reordenar move páginas inteiras: a imagem do titular continua no mesmo bolso da mesma página');
     perform pg_temp.wh_5892_as(u_b);
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
     select count(*) into n from public.binder_activity_event e where e.layout_key = l_p;
+    perform pg_temp.wh_5892_as(u_b);  -- E1E: volta ao mesmo cliente
     v_err := pg_temp.wh_5892_try(format('select * from public.editor_reorder_binder_pages(%L, %L)', v_cp, array[1, 1]::integer[]))
           || ';' || pg_temp.wh_5892_try(format('select * from public.editor_reorder_binder_pages(%L, %L)', v_cp,
                      (select array_agg(g order by g) from generate_series(1, v_new) g)));
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
     select count(*) into n2 from public.binder_activity_event e where e.layout_key = l_p;
+    perform pg_temp.wh_5892_as(u_b);  -- E1E: volta ao mesmo cliente
     res := res || jsonb_build_object('id','1.3','ok', v_err = 'INVALID_PAGE_ORDER;OK' and n2 = n,
       'detail','ordem inválida recusada; ordem igual à atual → sem evento');
     -- a página nova é agora a página 1 (ordem invertida)
@@ -8635,9 +8714,11 @@ begin
       'detail','ocultar, repetir (UNCHANGED) e mostrar; nenhum vínculo apagado');
     -- remover página vazia com referências de CP (a página 1, que era a nova)
     perform pg_temp.wh_5892_as(u_b);
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
     select count(*)::integer into n from public.collection_layout_slot_species_reference sr
       join public.collection_layout_slot s on s.id = sr.slot_id
       join public.collection_layout_page p2 on p2.id = s.page_id where p2.layout_id = l_p and p2.page_number = 1;
+    perform pg_temp.wh_5892_as(u_b);  -- E1E: volta ao mesmo cliente
     v_err := pg_temp.wh_5892_try(format('select * from public.editor_remove_binder_page(%L, 1)', v_cp));
     select x.removed_page_number || ':' || x.species_references_removed into v_txt from public.editor_remove_binder_page(v_cp, 1, n) x;
     execute 'reset role';
@@ -8648,7 +8729,9 @@ begin
                   and e.event_type = 'PAGE_REMOVED'),
       'detail','página vazia com referências de CP exige a contagem; removida, as demais são renumeradas; evento PAGE_REMOVED');
     perform pg_temp.wh_5892_as(u_b);
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
     select count(*)::integer into n from public.collection_layout_slot_species_reference sr where sr.layout_id = l_p;
+    perform pg_temp.wh_5892_as(u_b);  -- E1E: volta ao mesmo cliente
     v_err := pg_temp.wh_5892_try(format('select * from public.editor_clear_binder_species_references(%L, %s)', v_cp, n + 1));
     select x.operation || ':' || x.removed_count into v_txt from public.editor_clear_binder_species_references(v_cp, n) x;
     v_err := v_err || ';' || pg_temp.wh_5892_try(format('select * from public.editor_preview_binder_species_references(%L)', v_cs));
@@ -8687,7 +8770,9 @@ begin
                          or e.source <> 'FICHARIO' or e.collection_id is null)),
       'detail','todo evento do EDITOR é de curadoria, de origem FICHARIO e com coleção');
     perform pg_temp.wh_5892_as(u_b);
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
     n := pg_temp.wh_5892_pages(l_p);
+    perform pg_temp.wh_5892_as(u_b);  -- E1E: volta ao mesmo cliente
     perform set_config('mmkyu.binder_activity_ctx', jsonb_build_object('depth', 1, 'layout', l_p, 'type', 'BINDER_DISMANTLED',
       'source', 'FICHARIO', 'collection', v_cp, 'summary', '{}'::jsonb, 'event_id', null, 'n', 0, 'cap', 0)::text, true);
     v_err := pg_temp.wh_5892_try(format('select * from public.editor_add_binder_page(%L)', v_cp));
@@ -8762,8 +8847,11 @@ begin
       and v_err = 'OPERATION_RESERVED_TO_OWNER;OPERATION_RESERVED_TO_OWNER;OPERATION_RESERVED_TO_OWNER;OPERATION_RESERVED_TO_OWNER',
       'detail','fichário exclusivo de CQ com carta e referências da antiga proprietária: remover página, remover/esconder referências e prévia → reservadas ao titular');
     perform pg_temp.wh_5892_as(u_b);
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
+    v_e1e_np := pg_temp.wh_5892_pages(l_p);  -- E1E
+    perform pg_temp.wh_5892_as(u_b);  -- E1E: volta ao mesmo cliente
     perform count(*) from public.editor_reorder_binder_pages(v_cq,
-      (select array_agg(g order by g desc) from generate_series(1, pg_temp.wh_5892_pages(l_p)) g));
+      (select array_agg(g order by g desc) from generate_series(1, v_e1e_np) g));  -- E1E
     perform count(*) from public.editor_add_binder_page(v_cq);
     execute 'reset role';
     res := res || jsonb_build_object('id','7.3','ok',
@@ -8831,7 +8919,7 @@ $fn$;
 insert into pg_temp.g2_evidence (harness, seq, check_id, status, detail)
   select '5892', seq, check_id, status, detail from pg_temp.wh_5892_validate();
 
--- @@T8 harness 5893 [OPEN] sha256=10619cd07d9a63369c640b59008004bc08863122c77627e913a0eec795d176a7
+-- @@T8 harness 5893 [OPEN] sha256=798ceb753c22cc68fb83807d45a94e67c19535b3d1cca5d41c81c101788e471d
 create or replace function pg_temp.wh_5893_as(p_user uuid)
 returns void language plpgsql volatile as $as$
 begin
@@ -9126,7 +9214,7 @@ begin
       and pg_temp.wh_5893_at(l_f, f1) = '1:1:1' and pg_temp.wh_5893_at(l_f, f2) = '1:1:2',
       'detail','espaço aberto pelo titular só sobre cartas de CF: o EDITOR que recebe o token pode fechá-lo (mesmo efeito que mover cartas de CF)');
     insert into public.collection_layout_slot_image (slot_id, owner_user_id, storage_path)
-    values (pg_temp.wh_5893_slot(l_f, 1, 1, 3), u_a, u_a::text || '/' || l_f::text || '/wh5893.webp');
+    values (pg_temp.wh_5893_slot(l_f, 1, 1, 3), u_a, u_a::text || '/' || l_f::text || '/' || gen_random_uuid()::text || '.webp');  -- E1E: C1 — caminho canônico (uuid), atende aos CHECKs 5232
     perform pg_temp.wh_5893_as(u_b);
     v_err := pg_temp.wh_5893_try(format('select * from public.editor_preview_binder_insert_gap(%L, 1, 1, 1)', v_cf));
     execute 'reset role';
@@ -9154,12 +9242,16 @@ begin
     v_j := public.editor_preview_binder_auto_arrange(v_cd);
     v_tok := v_j ->> 'plan_token';
     -- elegibilidade muda entre a prévia e a confirmação: o titular posiciona d1
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
     select sr.slot_id into v_u from public.collection_layout_slot_species_reference sr
      where sr.layout_id = l_d and sr.pokedex_position_id = v_pos;
+    perform pg_temp.wh_5893_as(u_b);  -- E1E: volta ao mesmo cliente
     perform pg_temp.wh_5893_as(u_a); perform public.place_my_physical_card_in_slot(v_cd, v_u, d1);
     perform pg_temp.wh_5893_as(u_b);
     v_err2 := pg_temp.wh_5893_try(format('select public.editor_apply_binder_auto_arrange(%L, %L)', v_cd, v_tok));
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
     select count(*) into n3 from public.binder_activity_event e where e.layout_key = l_d and e.event_type = 'CARDS_AUTO_ARRANGED';
+    perform pg_temp.wh_5893_as(u_b);  -- E1E: volta ao mesmo cliente
     perform pg_temp.wh_5893_as(u_a); perform public.remove_slot_assignment(array[v_u]);
     perform pg_temp.wh_5893_as(u_b);
     v_txt := public.editor_apply_binder_auto_arrange(v_cd, v_tok) ->> 'status';
@@ -9219,7 +9311,7 @@ begin
       'detail','efeitos da incorporação: só uma reserva nova (de CM) e um registro; reservas existentes, coleção, Set e acabamentos intactos');
     select * into q from public.binder_catalog_plan(v_cm, array[v_key4]) pl where pl.row_kind = 'ITEM';
     insert into public.collection_layout_slot_image (slot_id, owner_user_id, storage_path)
-    values (pg_temp.wh_5893_slot(l_m, q.target_page, q.target_row, q.target_column), u_a, u_a::text || '/' || l_m::text || '/wh5893.webp');
+    values (pg_temp.wh_5893_slot(l_m, q.target_page, q.target_row, q.target_column), u_a, u_a::text || '/' || l_m::text || '/' || gen_random_uuid()::text || '.webp');  -- E1E: C1 — caminho canônico (uuid), atende aos CHECKs 5232
     select pl.plan_token into v_tok from public.binder_catalog_plan(v_cm, array[v_key4]) pl where pl.row_kind = 'HEADER';
     perform pg_temp.wh_5893_as(u_b);
     v_err := pg_temp.wh_5893_try(format('select * from public.editor_preview_binder_catalog_reconciliation(%L, %L)', v_cm, array[v_key4]))
@@ -9246,7 +9338,9 @@ begin
                              or (e.event_type = 'CATALOG_NOVELTIES_INCORPORATED' and e.source = 'CATALOGO'))),
       'detail','todo evento do EDITOR tem par (tipo, origem) da lista fechada');
     perform pg_temp.wh_5893_as(u_b);
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
     n := (select count(*) from public.collection_layout_page p2 where p2.layout_id = l_f);
+    perform pg_temp.wh_5893_as(u_b);  -- E1E: volta ao mesmo cliente
     perform set_config('mmkyu.binder_activity_ctx', jsonb_build_object('depth', 1, 'layout', l_f, 'type', 'GAP_OPENED',
       'source', 'CATALOGO', 'collection', v_cf, 'summary', '{}'::jsonb, 'event_id', null, 'n', 0, 'cap', 0)::text, true);
     v_err := pg_temp.wh_5893_try(format('select * from public.editor_add_binder_page(%L)', v_cf));
@@ -9351,7 +9445,7 @@ $fn$;
 insert into pg_temp.g2_evidence (harness, seq, check_id, status, detail)
   select '5893', seq, check_id, status, detail from pg_temp.wh_5893_validate();
 
--- @@T8 harness 5894 [OPEN] sha256=db567e0b7bca3ab81169969fd113992c67fff3b5877ee3d99475f9add8e1b869
+-- @@T8 harness 5894 [OPEN] sha256=31c76996533d7b3edcdd48be2e4c5ab02b0dc50ff57f53974769f2acda381b7c
 create or replace function pg_temp.wh_5894_as(p_user uuid)
 returns void language plpgsql volatile as $as$
 begin
@@ -9811,12 +9905,12 @@ begin
       'detail','filtro de geração e Tenho/Faltam iguais aos do titular; filtro inválido recusado; coleção que não é Pokédex → zero linhas');
 
     perform pg_temp.wh_5894_as(u_b);
-    select (s.satisfied_positions = (select count(*) filter (where x.is_satisfied) from public.get_shared_master_set_positions(v_cm, 'ALL', 500, 0) x)
-            and s.total_positions = (select max(x.total_count) from public.get_shared_master_set_positions(v_cm, 'ALL', 500, 0) x))
-      into v_ok from public.collection_completion_summary_shared(v_cm) s;
-    select v_ok and (s.satisfied_positions = (select count(*) filter (where x.is_satisfied) from public.get_shared_pokedex_positions(v_cd, 'ALL', null, 500, 0) x)
-            and s.total_positions = (select max(x.total_count) from public.get_shared_pokedex_positions(v_cd, 'ALL', null, 500, 0) x))
-      into v_ok from public.collection_completion_summary_shared(v_cd) s;
+    v_j := public.get_shared_collection(v_cm);  -- E1E: C2 — progresso pela leitura pública 5312 (repassa a 5310 da mesma coleção; a 5310 é interna, sem EXECUTE)
+    v_ok := (v_j ->> 'satisfied_positions')::bigint = (select count(*) filter (where x.is_satisfied) from public.get_shared_master_set_positions(v_cm, 'ALL', 500, 0) x)  -- E1E
+            and (v_j ->> 'total_positions')::bigint = (select max(x.total_count) from public.get_shared_master_set_positions(v_cm, 'ALL', 500, 0) x);  -- E1E
+    v_j := public.get_shared_collection(v_cd);  -- E1E: C2 — idem para a Pokédex
+    v_ok := v_ok and ((v_j ->> 'satisfied_positions')::bigint = (select count(*) filter (where x.is_satisfied) from public.get_shared_pokedex_positions(v_cd, 'ALL', null, 500, 0) x)  -- E1E
+            and (v_j ->> 'total_positions')::bigint = (select max(x.total_count) from public.get_shared_pokedex_positions(v_cd, 'ALL', null, 500, 0) x));  -- E1E
     select sum(x.copies_in_collection) into n from public.get_shared_master_set_positions(v_cm, 'ALL', 500, 0) x;
     select sum(x.copies_in_collection) into n2 from public.get_shared_pokedex_positions(v_cd, 'ALL', null, 500, 0) x;
     execute 'reset role';
@@ -9824,7 +9918,7 @@ begin
       and n = (select count(*) from public.collection_allocation ca where ca.collection_id = v_cm)
       and n2 = (select count(*) from public.collection_allocation ca join public.collection_pokedex_position_assignment a
                  on a.collection_allocation_id = ca.id where ca.collection_id = v_cd),
-      'detail','agregados: progresso compartilhado (5310) = satisfeitas/total das grades 5323/5324; soma de exemplares = alocações da coleção (nada do acervo entra na soma)');
+      'detail','agregados: progresso compartilhado (5310, lido pela 5312) = satisfeitas/total das grades 5323/5324; soma de exemplares = alocações da coleção (nada do acervo entra na soma)');  -- E1E: detalhe cita a leitura pública
 
     -- 4. Histórico compartilhado (5388) --------------------------------------------------------
     perform pg_temp.wh_5894_as(u_b);
@@ -10247,7 +10341,7 @@ begin
 end;
 $post$;
 
--- @@T8 harness 5863 [CLOSED] sha256=d20055b88a3b71664564e4024d0dc44b072941976cddc1329fc7a28525a5011d
+-- @@T8 harness 5863 [CLOSED] sha256=ab3444f64d3e9b6085aeb3ed237c5cf7b4592ff76f5c0b52b61a3d58f87fbf8b
 create or replace function pg_temp.wh_5863_validate()
 returns table (seq integer, check_id text, status text, detail text)
 language plpgsql
@@ -10298,7 +10392,7 @@ begin
     (select count(*) from pg_policies where schemaname = 'storage' and tablename = 'objects'
        and policyname in ('binder_slot_image_select_own','binder_slot_image_insert_own','binder_slot_image_delete_own',
                           'collection_cover_select_own','collection_cover_insert_own','collection_cover_update_own','collection_cover_delete_own')) = 7
-    and (select count(*) from pg_policies p  -- E1E
+    and (select count(*) from pg_policies pol  -- E1E
          join (values ('binder_slot_image_select_own','SELECT','binder-slot-image'),  -- E1E
                       ('binder_slot_image_insert_own','INSERT','binder-slot-image'),  -- E1E
                       ('binder_slot_image_delete_own','DELETE','binder-slot-image'),  -- E1E
@@ -10306,44 +10400,44 @@ begin
                       ('collection_cover_insert_own','INSERT','collection-cover'),  -- E1E
                       ('collection_cover_update_own','UPDATE','collection-cover'),  -- E1E
                       ('collection_cover_delete_own','DELETE','collection-cover')) e(n, c, b)  -- E1E
-           on p.policyname = e.n and p.cmd = e.c  -- E1E
-        where p.schemaname = 'storage' and p.tablename = 'objects'  -- E1E
-          and p.permissive = 'PERMISSIVE' and p.roles = array['authenticated']::name[]  -- E1E
-          and (coalesce(p.qual, '') || coalesce(p.with_check, '')) like '%' || e.b || '%'  -- E1E
-          and (p.qual is null or (p.qual like '%foldername(name))[1]%' and p.qual like '%auth.uid()%'))  -- E1E
-          and (p.with_check is null or (p.with_check like '%foldername(name))[1]%' and p.with_check like '%auth.uid()%'))  -- E1E
-          and (p.cmd <> 'UPDATE' or (p.qual is not null and p.with_check is not null))) = 7  -- E1E
-    and (select count(*) from pg_policies p  -- E1E
-        where p.schemaname = 'storage' and p.tablename = 'objects'  -- E1E
-          and p.policyname in ('binder_slot_image_select_shared','collection_cover_select_shared')  -- E1E
-          and p.cmd = 'SELECT' and p.permissive = 'PERMISSIVE'  -- E1E
-          and p.roles @> array['anon','authenticated']::name[] and cardinality(p.roles) = 2  -- E1E
-          and p.qual like '%shared_visual_asset_readable%' and p.with_check is null) = 2  -- E1E
-    and (select count(*) from pg_policies p  -- E1E
+           on pol.policyname = e.n and pol.cmd = e.c  -- E1E
+        where pol.schemaname = 'storage' and pol.tablename = 'objects'  -- E1E
+          and pol.permissive = 'PERMISSIVE' and pol.roles = array['authenticated']::name[]  -- E1E
+          and (coalesce(pol.qual, '') || coalesce(pol.with_check, '')) like '%' || e.b || '%'  -- E1E
+          and (pol.qual is null or (pol.qual like '%foldername(name))[1]%' and pol.qual like '%auth.uid()%'))  -- E1E
+          and (pol.with_check is null or (pol.with_check like '%foldername(name))[1]%' and pol.with_check like '%auth.uid()%'))  -- E1E
+          and (pol.cmd <> 'UPDATE' or (pol.qual is not null and pol.with_check is not null))) = 7  -- E1E
+    and (select count(*) from pg_policies pol  -- E1E
+        where pol.schemaname = 'storage' and pol.tablename = 'objects'  -- E1E
+          and pol.policyname in ('binder_slot_image_select_shared','collection_cover_select_shared')  -- E1E
+          and pol.cmd = 'SELECT' and pol.permissive = 'PERMISSIVE'  -- E1E
+          and pol.roles @> array['anon','authenticated']::name[] and cardinality(pol.roles) = 2  -- E1E
+          and pol.qual like '%shared_visual_asset_readable%' and pol.with_check is null) = 2  -- E1E
+    and (select count(*) from pg_policies pol  -- E1E
          join (values ('collection_cover_insert_editor','INSERT'),  -- E1E
                       ('collection_cover_select_editor','SELECT'),  -- E1E
                       ('collection_cover_delete_editor','DELETE')) e(n, c)  -- E1E
-           on p.policyname = e.n and p.cmd = e.c  -- E1E
-        where p.schemaname = 'storage' and p.tablename = 'objects'  -- E1E
-          and p.permissive = 'PERMISSIVE' and p.roles = array['authenticated']::name[]  -- E1E
-          and ((e.c = 'INSERT' and p.qual is null and p.with_check like '%collection-cover%'  -- E1E
-                and p.with_check like '%collection_cover_editor_can_upload(name)%')  -- E1E
-               or (e.c <> 'INSERT' and p.with_check is null and p.qual like '%collection-cover%'  -- E1E
-                   and p.qual like '%owner_id%' and p.qual like '%auth.uid()%'  -- E1E
-                   and p.qual like '%collection_cover_editor_folder_ok(name)%'))) = 3  -- E1E
-    and (select count(*) from pg_policies p  -- E1E
-        where p.schemaname = 'storage' and p.tablename = 'objects'  -- E1E
-          and (coalesce(p.qual, '') || coalesce(p.with_check, '')) ~ '(binder-slot-image|collection-cover)') = 12  -- E1E
-    and not exists (select 1 from pg_policies p  -- E1E
-        where p.schemaname = 'storage' and p.tablename = 'objects'  -- E1E
-          and (coalesce(p.qual, '') || coalesce(p.with_check, '')) ~ '(binder-slot-image|collection-cover)'  -- E1E
-          and (p.policyname not in ('binder_slot_image_select_own','binder_slot_image_insert_own','binder_slot_image_delete_own',  -- E1E
+           on pol.policyname = e.n and pol.cmd = e.c  -- E1E
+        where pol.schemaname = 'storage' and pol.tablename = 'objects'  -- E1E
+          and pol.permissive = 'PERMISSIVE' and pol.roles = array['authenticated']::name[]  -- E1E
+          and ((e.c = 'INSERT' and pol.qual is null and pol.with_check like '%collection-cover%'  -- E1E
+                and pol.with_check like '%collection_cover_editor_can_upload(name)%')  -- E1E
+               or (e.c <> 'INSERT' and pol.with_check is null and pol.qual like '%collection-cover%'  -- E1E
+                   and pol.qual like '%owner_id%' and pol.qual like '%auth.uid()%'  -- E1E
+                   and pol.qual like '%collection_cover_editor_folder_ok(name)%'))) = 3  -- E1E
+    and (select count(*) from pg_policies pol  -- E1E
+        where pol.schemaname = 'storage' and pol.tablename = 'objects'  -- E1E
+          and (coalesce(pol.qual, '') || coalesce(pol.with_check, '')) ~ '(binder-slot-image|collection-cover)') = 12  -- E1E
+    and not exists (select 1 from pg_policies pol  -- E1E
+        where pol.schemaname = 'storage' and pol.tablename = 'objects'  -- E1E
+          and (coalesce(pol.qual, '') || coalesce(pol.with_check, '')) ~ '(binder-slot-image|collection-cover)'  -- E1E
+          and (pol.policyname not in ('binder_slot_image_select_own','binder_slot_image_insert_own','binder_slot_image_delete_own',  -- E1E
                                     'collection_cover_select_own','collection_cover_insert_own','collection_cover_update_own',  -- E1E
                                     'collection_cover_delete_own','binder_slot_image_select_shared','collection_cover_select_shared',  -- E1E
                                     'collection_cover_insert_editor','collection_cover_select_editor','collection_cover_delete_editor')  -- E1E
-               or p.permissive <> 'PERMISSIVE'  -- E1E
-               or ('anon' = any(p.roles) and p.cmd <> 'SELECT')  -- E1E
-               or 'public' = any(p.roles)))  -- E1E
+               or pol.permissive <> 'PERMISSIVE'  -- E1E
+               or ('anon' = any(pol.roles) and pol.cmd <> 'SELECT')  -- E1E
+               or 'public' = any(pol.roles)))  -- E1E
     and (select count(*) from pg_proc q  -- E1E
         where q.oid in (to_regprocedure('public.collection_cover_editor_folder_ok(text)'),  -- E1E
                         to_regprocedure('public.collection_cover_editor_can_upload(text)'))  -- E1E
@@ -10761,7 +10855,7 @@ insert into pg_temp.g2_evidence (harness, seq, check_id, status, detail)
 -- @@T8 modo da barreira OPEN (só nesta transação)
 update public.v1_13_barrier_state set mode = 'OPEN', change_note = 'G2 ensaio' where id = 1;
 
--- @@T8 harness 5890 [OPEN] sha256=ae57e56a8cfba9608b7bf654bf5e9cfc45e6ebf9ed5125498e5acec225bc03ec
+-- @@T8 harness 5890 [OPEN] sha256=0cb84f973d22995b25988cbc5be5540df2799ee1e5de0832158bd8bef0775aba
 create or replace function pg_temp.wh_5890_as(p_user uuid)
 returns void language plpgsql volatile as $as$
 begin
@@ -10967,7 +11061,7 @@ begin
     insert into public.collection_layout_region (page_id, top_row, left_column, height, width)
     values ((select p2.id from public.collection_layout_page p2 where p2.layout_id = v_layout and p2.page_number = 1), 3, 1, 1, 2);
     insert into public.collection_layout_slot_image (slot_id, owner_user_id, storage_path)
-    values (pg_temp.wh_5890_slot(v_layout, 3, 3), u_a, u_a::text || '/' || v_layout::text || '/wh5890.webp');
+    values (pg_temp.wh_5890_slot(v_layout, 3, 3), u_a, u_a::text || '/' || v_layout::text || '/' || gen_random_uuid()::text || '.webp');  -- E1E: C1 — caminho canônico (uuid), atende aos CHECKs 5232
     select string_agg(ca.physical_card_id::text || ':' || ca.collection_id::text, ',' order by ca.physical_card_id) into alloc0
       from public.collection_allocation ca where ca.physical_card_id in (a1, x1);
     select string_agg(pc.id::text || ':' || coalesce(pc.storage_container_id::text, '-'), ',' order by pc.id) into stor0
@@ -10981,38 +11075,50 @@ begin
     -- 1. Reservar --------------------------------------------------------------------------------
     perform pg_temp.wh_5890_as(u_b);
     select x.operation into v_err from public.editor_set_binder_reservation(v_co, 1, 2, 1, k1) x;
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
     res := res || jsonb_build_object('id','1.1','ok', v_err = 'RESERVED' and pg_temp.wh_5890_res(v_layout, 2, 1) = k1::text || ':' || v_co::text,
       'detail','bolso livre: reserva criada e registrada para CO');
+    perform pg_temp.wh_5890_as(u_b);  -- E1E: volta ao mesmo cliente
     select x.operation into v_err from public.editor_set_binder_reservation(v_co, 1, 2, 1, k1) x;
     res := res || jsonb_build_object('id','1.2','ok', v_err = 'UNCHANGED', 'detail','mesma reserva → UNCHANGED (sem evento)');
     select x.operation into v_err from public.editor_set_binder_reservation(v_co, 1, 2, 1, k2) x;
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
     res := res || jsonb_build_object('id','1.3','ok', v_err = 'REPLACED' and pg_temp.wh_5890_res(v_layout, 2, 1) = k2::text || ':' || v_co::text,
       'detail','reserva de CO trocada por outra carta → REPLACED, continua de CO');
+    perform pg_temp.wh_5890_as(u_b);  -- E1E: volta ao mesmo cliente
     select x.operation into v_err from public.editor_set_binder_reservation(v_co, 1, 1, 1, k1) x;
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
     res := res || jsonb_build_object('id','1.4','ok', v_err = 'RESERVED' and pg_temp.wh_5890_res(v_layout, 1, 1) = k1::text || ':' || v_co::text,
       'detail','bolso com carta de CO aceita reserva da própria carta');
+    perform pg_temp.wh_5890_as(u_b);  -- E1E: volta ao mesmo cliente
     v_err := pg_temp.wh_5890_try(format('select * from public.editor_set_binder_reservation(%L, 1, 1, 3, %L)', v_co, k1))
           || ';' || pg_temp.wh_5890_try(format('select * from public.editor_set_binder_reservation(%L, 1, 1, 2, %L)', v_co, k1))
           || ';' || pg_temp.wh_5890_try(format('select * from public.editor_set_binder_reservation(%L, 1, 2, 2, %L)', v_co, k1))
           || ';' || pg_temp.wh_5890_try(format('select * from public.editor_set_binder_reservation(%L, 1, 3, 1, %L)', v_co, k1))
           || ';' || pg_temp.wh_5890_try(format('select * from public.editor_set_binder_reservation(%L, 1, 3, 3, %L)', v_co, k1))
           || ';' || pg_temp.wh_5890_try(format('select * from public.editor_set_binder_reservation(%L, 9, 1, 1, %L)', v_co, k1));
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
     res := res || jsonb_build_object('id','1.5','ok',
       v_err = repeat('SLOT_NOT_EDITABLE;', 5) || 'SLOT_NOT_EDITABLE'
       and pg_temp.wh_5890_res(v_layout, 1, 3) = k3::text || ':' || v_cx::text
       and pg_temp.wh_5890_res(v_layout, 2, 2) is null and pg_temp.wh_5890_res(v_layout, 3, 1) is null,
       'detail','reserva de CX, carta de CX, fixado vazio, mesclagem, imagem e posição inexistente → a MESMA recusa; nada muda');
+    perform pg_temp.wh_5890_as(u_b);  -- E1E: volta ao mesmo cliente
     v_err := pg_temp.wh_5890_try(format('select * from public.editor_set_binder_reservation(%L, 1, 2, 3, %L, %L, %L)', v_co, k1, k1s, v_std));
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
     res := res || jsonb_build_object('id','1.6','ok', v_err like 'EXPECTED_CONTENT_VARIANT_AND_TYPE_EXCLUSIVE%' and pg_temp.wh_5890_res(v_layout, 2, 3) is null,
       'detail','variante e acabamento ao mesmo tempo → recusa (mesma regra do titular)');
+    perform pg_temp.wh_5890_as(u_b);  -- E1E: volta ao mesmo cliente
     perform pg_temp.wh_5890_as(u_v); v_err := pg_temp.wh_5890_try(format('select * from public.editor_set_binder_reservation(%L, 1, 2, 3, %L)', v_co, k1));
     perform pg_temp.wh_5890_as(u_c); v_err := v_err || ';' || pg_temp.wh_5890_try(format('select * from public.editor_set_binder_reservation(%L, 1, 2, 3, %L)', v_co, k1));
     perform pg_temp.wh_5890_as(u_r); v_err := v_err || ';' || pg_temp.wh_5890_try(format('select * from public.editor_set_binder_reservation(%L, 1, 2, 3, %L)', v_co, k1));
     perform pg_temp.wh_5890_as(u_a); v_err := v_err || ';' || pg_temp.wh_5890_try(format('select * from public.editor_set_binder_reservation(%L, 1, 2, 3, %L)', v_co, k1));
     perform pg_temp.wh_5890_as(u_e); v_err := v_err || ';' || pg_temp.wh_5890_try(format('select * from public.editor_set_binder_reservation(%L, 1, 2, 3, %L)', v_co, k1));
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
     res := res || jsonb_build_object('id','1.7','ok', v_err = 'COLLECTION_NOT_FOUND;COLLECTION_NOT_FOUND;COLLECTION_NOT_FOUND;COLLECTION_NOT_FOUND;COLLECTION_NOT_FOUND'
       and pg_temp.wh_5890_res(v_layout, 2, 3) is null,
       'detail','VIEWER, estranho, ex-EDITOR, titular e EDITOR de CX em CO → COLLECTION_NOT_FOUND');
+    perform pg_temp.wh_5890_as(u_e);  -- E1E: volta ao mesmo cliente
     execute 'reset role';
     res := res || jsonb_build_object('id','1.8','ok',
       (select string_agg(ca.physical_card_id::text || ':' || ca.collection_id::text, ',' order by ca.physical_card_id)
@@ -11023,41 +11129,53 @@ begin
     -- 2. Liberar ---------------------------------------------------------------------------------
     perform pg_temp.wh_5890_as(u_b);
     select x.operation into v_err from public.editor_clear_binder_reservation(v_co, 1, 2, 1) x;
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
     res := res || jsonb_build_object('id','2.1','ok', v_err = 'RELEASED' and pg_temp.wh_5890_res(v_layout, 2, 1) is null,
       'detail','reserva de CO liberada');
+    perform pg_temp.wh_5890_as(u_b);  -- E1E: volta ao mesmo cliente
     select x.operation into v_err from public.editor_clear_binder_reservation(v_co, 1, 2, 1) x;
     res := res || jsonb_build_object('id','2.2','ok', v_err = 'UNCHANGED', 'detail','sem reserva → UNCHANGED (sem evento)');
     v_err := pg_temp.wh_5890_try(format('select * from public.editor_clear_binder_reservation(%L, 1, 1, 3)', v_co))
           || ';' || pg_temp.wh_5890_try(format('select * from public.editor_clear_binder_reservation(%L, 1, 2, 2)', v_co));
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
     res := res || jsonb_build_object('id','2.3','ok', v_err = 'SLOT_NOT_EDITABLE;SLOT_NOT_EDITABLE'
       and pg_temp.wh_5890_res(v_layout, 1, 3) = k3::text || ':' || v_cx::text,
       'detail','liberar reserva de CX ou mexer em bolso fixado vazio → recusa; reserva de CX intacta');
+    perform pg_temp.wh_5890_as(u_b);  -- E1E: volta ao mesmo cliente
     perform pg_temp.wh_5890_as(u_e);
     v_err := pg_temp.wh_5890_try(format('select * from public.editor_clear_binder_reservation(%L, 1, 1, 1)', v_cx));
     select x.operation into fx from public.editor_set_binder_reservation(v_cx, 1, 2, 3, k3) x;
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
     res := res || jsonb_build_object('id','2.4','ok', v_err = 'SLOT_NOT_EDITABLE' and fx = 'RESERVED'
       and pg_temp.wh_5890_res(v_layout, 1, 1) = k1::text || ':' || v_co::text
       and pg_temp.wh_5890_res(v_layout, 2, 3) = k3::text || ':' || v_cx::text,
       'detail','EDITOR de CX não libera reserva de CO; reserva dele fica registrada para CX');
+    perform pg_temp.wh_5890_as(u_e);  -- E1E: volta ao mesmo cliente
 
     -- 3. Fixar / soltar -------------------------------------------------------------------------
     perform pg_temp.wh_5890_as(u_b);
     select x.operation into v_err from public.editor_set_binder_lock(v_co, 1, 1, 1, true) x;
     select x.operation into fx from public.editor_set_binder_lock(v_co, 1, 1, 1, true) x;
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
     res := res || jsonb_build_object('id','3.1','ok', v_err = 'LOCKED' and fx = 'UNCHANGED' and pg_temp.wh_5890_locked(v_layout, 1, 1),
       'detail','fixar bolso de CO → LOCKED; repetir → UNCHANGED');
+    perform pg_temp.wh_5890_as(u_b);  -- E1E: volta ao mesmo cliente
     select x.operation into v_err from public.editor_set_binder_lock(v_co, 1, 1, 1, false) x;
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
     res := res || jsonb_build_object('id','3.2','ok', v_err = 'UNLOCKED' and not pg_temp.wh_5890_locked(v_layout, 1, 1),
       'detail','soltar bolso de CO → UNLOCKED');
+    perform pg_temp.wh_5890_as(u_b);  -- E1E: volta ao mesmo cliente
     v_err := pg_temp.wh_5890_try(format('select * from public.editor_set_binder_lock(%L, 1, 2, 1, true)', v_co))
           || ';' || pg_temp.wh_5890_try(format('select * from public.editor_set_binder_lock(%L, 1, 2, 2, false)', v_co))
           || ';' || pg_temp.wh_5890_try(format('select * from public.editor_set_binder_lock(%L, 1, 1, 2, true)', v_co))
           || ';' || pg_temp.wh_5890_try(format('select * from public.editor_set_binder_lock(%L, 1, 2, 3, true)', v_co))
           || ';' || pg_temp.wh_5890_try(format('select * from public.editor_set_binder_lock(%L, 1, 3, 1, true)', v_co));
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
     res := res || jsonb_build_object('id','3.3','ok', v_err = repeat('SLOT_NOT_EDITABLE;', 4) || 'SLOT_NOT_EDITABLE'
       and not pg_temp.wh_5890_locked(v_layout, 2, 1) and pg_temp.wh_5890_locked(v_layout, 2, 2)
       and not pg_temp.wh_5890_locked(v_layout, 1, 2) and not pg_temp.wh_5890_locked(v_layout, 2, 3),
       'detail','fixar livre, soltar fixado vazio do titular, fixar carta/reserva de CX e mesclagem → a MESMA recusa; travas intactas');
+    perform pg_temp.wh_5890_as(u_b);  -- E1E: volta ao mesmo cliente
     perform pg_temp.wh_5890_as(u_e);
     select x.operation into v_err from public.editor_set_binder_lock(v_cx, 1, 1, 2, true) x;
     select x.operation into fx from public.editor_set_binder_lock(v_cx, 1, 1, 2, false) x;

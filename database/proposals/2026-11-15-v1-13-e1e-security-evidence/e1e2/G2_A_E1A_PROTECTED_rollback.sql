@@ -20,7 +20,7 @@ Limites.....: statement_timeout 20s; lock_timeout 2s (cada migration redefine 5s
               aprovado só com duração <= 20000 ms (limite proposto, não medição).
 Provas......: só o banco (SET LOCAL ROLE); JWT real, PostgREST, Storage pela API,
               concorrência e medições ficam para G3/G4.
-Fontes......: 5389@b8c60c6c425f2110, 5366@bc1ff1109fee3a6c, 5367@92c8b4d71e96245c, 5368@27dff7273fbbaed0, 5369@0a9c4844f35128cb, 5370@c0df38050a8bff24, H5861@9135bd0b8ab0dc7c, H5888@c6e336396ba57fdc
+Fontes......: 5389@b8c60c6c425f2110, 5366@bc1ff1109fee3a6c, 5367@92c8b4d71e96245c, 5368@27dff7273fbbaed0, 5369@0a9c4844f35128cb, 5370@c0df38050a8bff24, H5861@d086fa66375253d5, H5888@50aa49beb5c06d0c
 ================================================================
 */
 
@@ -956,7 +956,7 @@ $post$;
 -- @@T8 modo da barreira CLOSED (só nesta transação)
 update public.v1_13_barrier_state set mode = 'CLOSED', change_note = 'G2 ensaio' where id = 1;
 
--- @@T8 harness 5861 [CLOSED] sha256=9135bd0b8ab0dc7cd0d25bb630bf45cce0b835f66bd381544b33a55ee64bf146
+-- @@T8 harness 5861 [CLOSED] sha256=d086fa66375253d565dbe0f396cae54d166197fd2a03e64a3a097e1a1adeaf6f
 create or replace function pg_temp.wh_5861_validate()
 returns table (seq integer, check_id text, status text, detail text)
 language plpgsql
@@ -1336,7 +1336,9 @@ begin
     res := res || jsonb_build_object('id','3.8','ok', (j ->> 'has_binder')::boolean
       and (j ->> 'grid_columns')::int = 3 and (j ->> 'grid_rows')::int = 3
       and (j ->> 'page_count')::int = o_pages and (j ->> 'own_filled_count')::int = o_cards
-      and (select bool_and(k = any(array['has_binder','grid_columns','grid_rows','page_count','own_filled_count'])) from jsonb_object_keys(j) k)
+      and (select bool_and(k = any(array['has_binder','grid_columns','grid_rows','page_count','own_filled_count',  -- E1E
+                                          'binder_name','show_brand_mark'])) from jsonb_object_keys(j) k)  -- E1E: chaves da 5321
+      and jsonb_typeof(j -> 'binder_name') in ('string', 'null') and jsonb_typeof(j -> 'show_brand_mark') = 'boolean'  -- E1E
       and public.get_shared_collection_binder(v_cx) is null,
       'detail','VIEWER: cabeçalho do fichário de CO (grade, páginas, cartas DE CO) sem local, participantes nem disponíveis; CX fechada');
     select count(*) filter (where b.pocket_state = 'CARD'),
@@ -1593,7 +1595,7 @@ insert into pg_temp.g2_evidence (harness, seq, check_id, status, detail)
 -- @@T8 modo da barreira OPEN (só nesta transação)
 update public.v1_13_barrier_state set mode = 'OPEN', change_note = 'G2 ensaio' where id = 1;
 
--- @@T8 harness 5888 [OPEN] sha256=c6e336396ba57fdcfddc849ee99f6f65a8cf4b688a32bd5efd9db0bdf70a8e48
+-- @@T8 harness 5888 [OPEN] sha256=50aa49beb5c06d0c65720717e2fbfde16ee77a3506acf066a77d050a1c7087b6
 create or replace function pg_temp.wh_5888_as(p_user uuid)
 returns void language plpgsql volatile as $as$
 begin
@@ -1667,6 +1669,7 @@ declare
   u_c uuid := gen_random_uuid(); u_d uuid := gen_random_uuid();
   v_sfx text := lower(substr(replace(gen_random_uuid()::text, '-', ''), 1, 8));
   n_a text; n_b text; n_c text; n_d text;
+  v_chk text; v_chkb boolean;  -- E1E: conferências internas lidas no contexto do dono
   v_game uuid; v_pt uuid; v_rar uuid; v_cat uuid; v_std uuid; v_exp uuid; v_set uuid; k1 uuid; k1s uuid;
   v_inv_a uuid; a1 uuid; v_bin uuid; v_co uuid; v_cx uuid; m_b uuid; m_d uuid; m_d2 uuid;
   p record; j jsonb; j2 jsonb; v_err text; v_ok boolean; n integer;
@@ -1764,15 +1767,21 @@ begin
     perform pg_temp.wh_5888_as(u_a);
     j := public.invite_collection_member(v_co, n_b);                       -- 2 argumentos, como o frontend
     m_b := (j ->> 'membership_id')::uuid;
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
+    v_chk := (select m.role from public.collection_membership m where m.id = m_b);  -- E1E
+    perform pg_temp.wh_5888_as(u_a);  -- E1E: volta ao mesmo cliente
     res := res || jsonb_build_object('id','1.1','ok',
       j ->> 'outcome' = 'INVITED' and j ->> 'role' = 'VIEWER'
-      and (select m.role from public.collection_membership m where m.id = m_b) = 'VIEWER',
+      and v_chk = 'VIEWER',  -- E1E
       'detail','convite sem papel (chamada de 2 argumentos) grava VIEWER');
     j := public.invite_collection_member(v_co, '@' || upper(n_d), ' editor ');
     m_d := (j ->> 'membership_id')::uuid;
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
+    v_chk := (select m.role || '/' || m.status from public.collection_membership m where m.id = m_d);  -- E1E
+    perform pg_temp.wh_5888_as(u_a);  -- E1E: volta ao mesmo cliente
     res := res || jsonb_build_object('id','1.2','ok',
       j ->> 'outcome' = 'INVITED' and j ->> 'role' = 'EDITOR'
-      and (select m.role || '/' || m.status from public.collection_membership m where m.id = m_d) = 'EDITOR/PENDING',
+      and v_chk = 'EDITOR/PENDING',  -- E1E
       'detail','convite EDITOR explícito (papel e username normalizados)');
     v_ok := true;
     foreach v_err in array array['OWNER','PUBLIC','ADMIN',''] loop
@@ -1780,8 +1789,11 @@ begin
       begin j2 := public.invite_collection_member(v_cx, n_c, v_err); exception when others then j2 := jsonb_build_object('e', sqlerrm, 's', sqlstate); end;
       v_ok := v_ok and coalesce(j2 ->> 'e' = 'INVALID_ROLE' and j2 ->> 's' = '22023', false);
     end loop;
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
+    v_chkb := not exists (select 1 from public.collection_membership m where m.collection_id = v_cx);  -- E1E
+    perform pg_temp.wh_5888_as(u_a);  -- E1E: volta ao mesmo cliente
     res := res || jsonb_build_object('id','1.3','ok', v_ok
-      and not exists (select 1 from public.collection_membership m where m.collection_id = v_cx),
+      and v_chkb,  -- E1E
       'detail','OWNER/PUBLIC/ADMIN/vazio → INVALID_ROLE (22023), nada gravado');
     j := public.invite_collection_member(v_cx, n_c, null);
     res := res || jsonb_build_object('id','1.4','ok', j ->> 'role' = 'VIEWER' and j ->> 'outcome' = 'INVITED',
@@ -1795,15 +1807,21 @@ begin
     res := res || jsonb_build_object('id','2.1','ok', j ->> 'outcome' = 'ALREADY_PENDING' and (j ->> 'membership_id')::uuid = m_d and j ->> 'role' = 'EDITOR',
       'detail','pendente + mesmo papel → ALREADY_PENDING');
     v_err := null; begin perform public.invite_collection_member(v_co, n_d, 'VIEWER'); exception when others then v_err := sqlerrm || '/' || sqlstate; end;
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
+    v_chk := (select m.role || '/' || m.status from public.collection_membership m where m.id = m_d);  -- E1E
+    perform pg_temp.wh_5888_as(u_a);  -- E1E: volta ao mesmo cliente
     res := res || jsonb_build_object('id','2.2','ok', v_err = 'INVITE_PENDING_ROLE_IMMUTABLE/55000'
-      and (select m.role || '/' || m.status from public.collection_membership m where m.id = m_d) = 'EDITOR/PENDING',
+      and v_chk = 'EDITOR/PENDING',  -- E1E
       'detail','pendente + outro papel → INVITE_PENDING_ROLE_IMMUTABLE, nada muda');
     v_err := null; begin perform public.invite_collection_member(v_co, n_d); exception when others then v_err := sqlerrm; end;
     res := res || jsonb_build_object('id','2.3','ok', v_err = 'INVITE_PENDING_ROLE_IMMUTABLE',
       'detail','pendente EDITOR + chamada sem papel (VIEWER) também é recusada — sem conversão silenciosa');
     v_err := null; begin perform public.set_collection_member_role(v_co, m_d, 'VIEWER'); exception when others then v_err := sqlerrm; end;
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
+    v_chk := (select m.role from public.collection_membership m where m.id = m_d);  -- E1E
+    perform pg_temp.wh_5888_as(u_a);  -- E1E: volta ao mesmo cliente
     res := res || jsonb_build_object('id','2.4','ok', v_err = 'INVITE_PENDING_ROLE_IMMUTABLE'
-      and (select m.role from public.collection_membership m where m.id = m_d) = 'EDITOR',
+      and v_chk = 'EDITOR',  -- E1E
       'detail','troca de papel de convite pendente recusada');
     perform pg_temp.wh_5888_as(u_d);
     j := public.get_my_collection_invites();
@@ -1858,8 +1876,11 @@ begin
     res := res || jsonb_build_object('id','4.1','ok', j ->> 'outcome' = 'UNCHANGED' and j ->> 'role' = 'EDITOR',
       'detail','mesmo papel → UNCHANGED (idempotente)');
     j := public.set_collection_member_role(v_co, m_b, ' viewer ');
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
+    v_chk := (select m.role || '/' || m.status from public.collection_membership m where m.id = m_b);  -- E1E
+    perform pg_temp.wh_5888_as(u_a);  -- E1E: volta ao mesmo cliente
     res := res || jsonb_build_object('id','4.2','ok', j ->> 'outcome' = 'CHANGED' and j ->> 'previous_role' = 'EDITOR' and j ->> 'role' = 'VIEWER'
-      and (select m.role || '/' || m.status from public.collection_membership m where m.id = m_b) = 'VIEWER/ACTIVE',
+      and v_chk = 'VIEWER/ACTIVE',  -- E1E
       'detail','EDITOR → VIEWER (normalizado), continua ACTIVE');
     perform pg_temp.wh_5888_as(u_b);
     res := res || jsonb_build_object('id','4.3','ok', public.get_shared_collection(v_co) ->> 'role' = 'VIEWER',
@@ -1875,9 +1896,13 @@ begin
       v_ok := v_ok and coalesce(j2 ->> 'e' = 'INVALID_ROLE', false);
     end loop;
     v_err := null; begin perform public.set_collection_member_role(v_co, m_b, null); exception when others then v_err := sqlerrm; end;
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
+    v_chk := (select m.role from public.collection_membership m where m.id = m_b);  -- E1E
+    v_chkb := (select c.owner_user_id from public.collection c where c.id = v_co) = u_a;  -- E1E
+    perform pg_temp.wh_5888_as(u_a);  -- E1E: volta ao mesmo cliente
     res := res || jsonb_build_object('id','4.5','ok', v_ok and v_err = 'INVALID_ROLE'
-      and (select m.role from public.collection_membership m where m.id = m_b) = 'EDITOR'
-      and (select c.owner_user_id from public.collection c where c.id = v_co) = u_a,
+      and v_chk = 'EDITOR'  -- E1E
+      and v_chkb,  -- E1E
       'detail','OWNER/PUBLIC/inválido/NULL → INVALID_ROLE; papel e titularidade intactos');
     v_err := null; begin perform public.set_collection_member_role(v_cx, m_b, 'VIEWER'); exception when others then v_err := sqlerrm; end;
     res := res || jsonb_build_object('id','4.6','ok', v_err = 'MEMBERSHIP_NOT_FOUND',
@@ -1886,22 +1911,31 @@ begin
     res := res || jsonb_build_object('id','4.7','ok', v_err = 'MEMBERSHIP_NOT_FOUND',
       'detail','participação inexistente → MEMBERSHIP_NOT_FOUND');
     v_err := null; begin perform public.invite_collection_member(v_co, n_b, 'VIEWER'); exception when others then v_err := sqlerrm; end;
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
+    v_chk := (select m.role from public.collection_membership m where m.id = m_b);  -- E1E
+    perform pg_temp.wh_5888_as(u_a);  -- E1E: volta ao mesmo cliente
     res := res || jsonb_build_object('id','4.8','ok', v_err = 'ALREADY_MEMBER'
-      and (select m.role from public.collection_membership m where m.id = m_b) = 'EDITOR',
+      and v_chk = 'EDITOR',  -- E1E
       'detail','convidar membro ativo com outro papel → ALREADY_MEMBER (troca só pela 5370)');
 
     -- 5. Segurança -------------------------------------------------------------------------
     perform pg_temp.wh_5888_as(u_b);   -- B é EDITOR de CO
     v_err := null; begin perform public.set_collection_member_role(v_co, m_b, 'VIEWER'); exception when others then v_err := sqlerrm; end;
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
+    v_chk := (select m.role from public.collection_membership m where m.id = m_b);  -- E1E
+    perform pg_temp.wh_5888_as(u_b);  -- E1E: volta ao mesmo cliente
     res := res || jsonb_build_object('id','5.1','ok', v_err = 'MEMBERSHIP_NOT_FOUND'
-      and (select m.role from public.collection_membership m where m.id = m_b) = 'EDITOR',
+      and v_chk = 'EDITOR',  -- E1E
       'detail','membro não altera o próprio papel');
     v_err := null; begin perform public.set_collection_member_role(v_co, m_d, 'VIEWER'); exception when others then v_err := sqlerrm; end;
     res := res || jsonb_build_object('id','5.2','ok', v_err = 'MEMBERSHIP_NOT_FOUND',
       'detail','EDITOR não altera papel de outro participante');
     v_err := null; begin perform public.invite_collection_member(v_co, n_c, 'EDITOR'); exception when others then v_err := sqlerrm; end;
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
+    v_chkb := not exists (select 1 from public.collection_membership m where m.collection_id = v_co and m.user_id = u_c);  -- E1E
+    perform pg_temp.wh_5888_as(u_b);  -- E1E: volta ao mesmo cliente
     res := res || jsonb_build_object('id','5.3','ok', v_err = 'COLLECTION_NOT_FOUND'
-      and not exists (select 1 from public.collection_membership m where m.collection_id = v_co and m.user_id = u_c),
+      and v_chkb,  -- E1E
       'detail','EDITOR não convida (C-154)');
     j := public.get_shared_collection(v_co);
     j2 := public.get_my_collection_sharing(v_co);
@@ -1926,13 +1960,19 @@ begin
       'detail','participação recusada não troca de papel');
     j := public.invite_collection_member(v_co, n_d, 'VIEWER');
     m_d2 := (j ->> 'membership_id')::uuid;
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
+    v_chkb := not exists (select 1 from public.collection_membership m where m.id = m_d);  -- E1E
+    perform pg_temp.wh_5888_as(u_a);  -- E1E: volta ao mesmo cliente
     res := res || jsonb_build_object('id','5.8','ok', j ->> 'outcome' = 'REINVITED' and j ->> 'role' = 'VIEWER' and m_d2 <> m_d
-      and not exists (select 1 from public.collection_membership m where m.id = m_d),
+      and v_chkb,  -- E1E
       'detail','recusado + outro papel → convite novo com id novo; linha antiga apagada');
     perform pg_temp.wh_5888_as(u_d);
     v_err := null; begin perform public.respond_collection_invite(m_d, true); exception when others then v_err := sqlerrm; end;
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
+    v_chk := (select m.status from public.collection_membership m where m.id = m_d2);  -- E1E
+    perform pg_temp.wh_5888_as(u_d);  -- E1E: volta ao mesmo cliente
     res := res || jsonb_build_object('id','5.9','ok', v_err = 'INVITE_NOT_FOUND'
-      and (select m.status from public.collection_membership m where m.id = m_d2) = 'PENDING',
+      and v_chk = 'PENDING',  -- E1E
       'detail','aba antiga não aceita o id anterior (papel não visto)');
     perform public.respond_collection_invite(m_d2, false);
     perform pg_temp.wh_5888_as(u_a);
@@ -1979,16 +2019,25 @@ begin
 
     -- 7. Sem escrita na E1-A ------------------------------------------------------------------
     v_err := null; begin perform public.update_collection_metadata(v_co, 'Renomeada', null); exception when others then v_err := 'refused'; end;
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
+    v_chk := (select c.name from public.collection c where c.id = v_co);  -- E1E
+    perform pg_temp.wh_5888_as(u_b);  -- E1E: volta ao mesmo cliente
     res := res || jsonb_build_object('id','7.1','ok', v_err = 'refused'
-      and (select c.name from public.collection c where c.id = v_co) = 'CO 5888',
+      and v_chk = 'CO 5888',  -- E1E
       'detail','EDITOR não edita metadados nesta etapa');
     v_err := null; begin perform public.set_collection_visibility(v_co, 'PUBLIC'); exception when others then v_err := 'refused'; end;
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
+    v_chk := (select c.visibility::text from public.collection c where c.id = v_co);  -- E1E
+    perform pg_temp.wh_5888_as(u_b);  -- E1E: volta ao mesmo cliente
     res := res || jsonb_build_object('id','7.2','ok', v_err = 'refused'
-      and (select c.visibility from public.collection c where c.id = v_co) = 'PRIVATE',
+      and v_chk = 'PRIVATE',  -- E1E
       'detail','EDITOR não altera visibilidade');
     v_err := null; begin perform public.remove_collection_member(v_co, m_b); exception when others then v_err := 'refused'; end;
+    execute 'reset role';  -- E1E: conferência interna (classe B) no contexto do dono
+    v_chkb := exists (select 1 from public.collection_membership m where m.id = m_b);  -- E1E
+    perform pg_temp.wh_5888_as(u_b);  -- E1E: volta ao mesmo cliente
     res := res || jsonb_build_object('id','7.3','ok', v_err = 'refused'
-      and exists (select 1 from public.collection_membership m where m.id = m_b),
+      and v_chkb,  -- E1E
       'detail','EDITOR não remove participações por esse caminho');
     v_err := null; begin perform count(*) from public.collection_membership; exception when others then v_err := sqlstate; end;
     res := res || jsonb_build_object('id','7.4','ok', v_err = '42501',

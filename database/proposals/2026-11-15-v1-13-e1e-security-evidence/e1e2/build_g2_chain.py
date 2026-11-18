@@ -13,8 +13,9 @@ com a moldura T0–T11 do P1 da E1-A:
   G2_C_CHAIN_FULL_FINAL_rollback.sql   cadeia completa; TODOS os harnesses no estado final
                                        (retenção de storage.objects durante todos eles)
 
-e o harness 5863 v1.2-E1E (S.4 adaptada ao contrato da 5377; PROPOSTA, depende de
-aprovação) e o G2_MANIFEST.sha256.
+e o harness 5863 v1.3-E1E (S.4 adaptada ao contrato da 5377; v1.3 = alias de pg_policies
+renomeado de p para pol, sem colidir com a variável record p — G2_B LIVE STOP 12 / SQLSTATE
+55000; a v1.2-E1E executada fica preservada como histórico) e o G2_MANIFEST.sha256.
 
     python3 -I -B .../e1e2/build_g2_chain.py           # gera
     python3 -I -B .../e1e2/build_g2_chain.py --check   # confere (código 0 = EM DIA)
@@ -85,19 +86,22 @@ E1A = ["5389", "5366", "5367", "5368", "5369", "5370"]
 CHAIN_NO_5377 = E1A + ["5371", "5372", "5373", "5374", "5375", "5376", "5378", "5379", "5380", "5381",
                        "5382", "5383", "5384", "5385", "5386", "5387", "5323", "5324", "5388"]
 
+HX = "2026-11-15-v1-13-e1e-security-evidence/e1e2/harness"   # harnesses corrigidos na E1-E
 # Harnesses: (pasta, arquivo, sha256, prefixo, verificações esperadas).
 HARN = {
-    "5861": (A, "5861_validate_collection_sharing_v1.4.sql", "9135bd0b8ab0dc7cd0d25bb630bf45cce0b835f66bd381544b33a55ee64bf146", 51),
+    # 5861 v1.5-E1E e 5888 v1.1-E1E (G2_A LIVE FAIL — TARGETED HARNESS CORRECTION-01): correções só de
+    # harness; originais da E1-A preservados (5861 v1.4 9135bd0b…, 5888 v1.0 c6e33639…).
+    "5861": (HX, "5861_validate_collection_sharing_v1.5-E1E.sql", "d086fa66375253d565dbe0f396cae54d166197fd2a03e64a3a097e1a1adeaf6f", 51),
     "5862": (V12P, "5862_validate_viewer_parity.sql", "f6f7dd4e6c3184a861dbf05785c0dc003324c68cde8fabd95668645b0108a260", 33),
     "5863": (V12V, "5863_validate_shared_binder_visual_assets.sql", "ec5e8da7064385ac219310c906a700dbf7156893b4600f0e302e8b3a9819f170", 37),
     "5864": (V12L, "5864_validate_card_set_logo_public_read.sql", "47e96959e15447dcd3821ea2f1a887f07be99fff4b057eda53370f57c65a449e", 7),
-    "5888": (A, "5888_validate_editor_role_foundation_HARNESS.sql", "c6e336396ba57fdcfddc849ee99f6f65a8cf4b688a32bd5efd9db0bdf70a8e48", 54),
-    "5889": (B1, "5889_validate_editor_core_binder_HARNESS.sql", "4982135d5b3f0b859a78755b1979342ef54032f563635fb7c76a152e38d0095d", 56),
-    "5890": (B2, "5890_validate_editor_curation_HARNESS.sql", "ae57e56a8cfba9608b7bf654bf5e9cfc45e6ebf9ed5125498e5acec225bc03ec", 45),
-    "5891": (B3, "5891_validate_editor_pokedex_history_HARNESS.sql", "133d0cc534fdfc82976f016bac341a3045fab54ece4d6a337c96af188ff53a77", 33),
-    "5892": (C1, "5892_validate_editor_bulk_operations_HARNESS.sql", "a3169b24312f702745529170b2a3e684b09573132c74b3e5859039cd4d70bc7d", 27),
-    "5893": (C2, "5893_validate_editor_remaining_bulk_operations_HARNESS.sql", "10619cd07d9a63369c640b59008004bc08863122c77627e913a0eec795d176a7", 24),
-    "5894": (D, "5894_validate_shared_reads_HARNESS.sql", "db567e0b7bca3ab81169969fd113992c67fff3b5877ee3d99475f9add8e1b869", 29),
+    "5888": (HX, "5888_validate_editor_role_foundation_HARNESS_v1.1-E1E.sql", "50aa49beb5c06d0c65720717e2fbfde16ee77a3506acf066a77d050a1c7087b6", 54),
+    "5889": (HX, "5889_validate_editor_core_binder_HARNESS_v1.4-E1E.sql", "7502a8eb7a9ed69ff7e9f72a8eb54d6d126a6fd2eb78c49125b618adf5c7606c", 56),  # E1E CONSOLIDATED HARNESS CORRECTION-01 (C1/C2; anterior v1.3-E1E 974fd0e1…, executada no G2_B v2)
+    "5890": (HX, "5890_validate_editor_curation_HARNESS_v1.3-E1E.sql", "0cb84f973d22995b25988cbc5be5540df2799ee1e5de0832158bd8bef0775aba", 45),  # E1E CONSOLIDATED HARNESS CORRECTION-01 (C1/C2; anterior v1.2-E1E 3614debf…, executada no G2_B v2)
+    "5891": (HX, "5891_validate_editor_pokedex_history_HARNESS_v1.2-E1E.sql", "74c9c1fb26da483367de0365e2ccc6d2f67465f86d425ecf2d000cb38dbf35b9", 33),  # E1E READINESS CORRECTION-01 (original 5891_validate_editor_pokedex_history_HARNESS.sql 133d0cc5…)
+    "5892": (HX, "5892_validate_editor_bulk_operations_HARNESS_v1.3-E1E.sql", "f5ad58f5e4eb33eef6c82b4ad63b8ab875398d9b240325547c4a9af89c6b0da8", 27),  # E1E CONSOLIDATED HARNESS CORRECTION-01 (C1/C2; anterior v1.2-E1E 3773eaa2…, executada no G2_B v2)
+    "5893": (HX, "5893_validate_editor_remaining_bulk_operations_HARNESS_v1.3-E1E.sql", "798ceb753c22cc68fb83807d45a94e67c19535b3d1cca5d41c81c101788e471d", 24),  # E1E CONSOLIDATED HARNESS CORRECTION-01 (C1/C2; anterior v1.2-E1E 6142a77d…, executada no G2_B v2)
+    "5894": (HX, "5894_validate_shared_reads_HARNESS_v1.4-E1E.sql", "31c76996533d7b3edcdd48be2e4c5ab02b0dc50ff57f53974769f2acda381b7c", 29),  # E1E CONSOLIDATED HARNESS CORRECTION-01 (C1/C2; anterior original v1.3 da E1-D db567e0b…, executada no G2_B v2)
     "5895": (os.path.relpath(G1, PROP), "5895_validate_v1_13_barrier_HARNESS.sql", "f7025b7a609912e43369c593e4dcd4f8352aa2433dafc2a8a8fca4677550bda6", 21),
 }
 # Pré-requisitos de cada harness e modo da barreira em que roda.
@@ -116,7 +120,7 @@ S4_OLD = """    and (select count(*) from pg_policies where schemaname = 'storag
        and (qual like '%binder-slot-image%' or qual like '%collection-cover%' or with_check like '%binder-slot-image%' or with_check like '%collection-cover%')
        and (coalesce(qual, '') || coalesce(with_check, '')) not like '%auth.uid()%'),
     'detail','7 políticas do dono intactas; total nos dois buckets = 9; toda política de escrita exige a pasta do próprio usuário');"""
-S4_NEW = """    and (select count(*) from pg_policies p  -- E1E
+S4_NEW = """    and (select count(*) from pg_policies pol  -- E1E
          join (values ('binder_slot_image_select_own','SELECT','binder-slot-image'),  -- E1E
                       ('binder_slot_image_insert_own','INSERT','binder-slot-image'),  -- E1E
                       ('binder_slot_image_delete_own','DELETE','binder-slot-image'),  -- E1E
@@ -124,44 +128,44 @@ S4_NEW = """    and (select count(*) from pg_policies p  -- E1E
                       ('collection_cover_insert_own','INSERT','collection-cover'),  -- E1E
                       ('collection_cover_update_own','UPDATE','collection-cover'),  -- E1E
                       ('collection_cover_delete_own','DELETE','collection-cover')) e(n, c, b)  -- E1E
-           on p.policyname = e.n and p.cmd = e.c  -- E1E
-        where p.schemaname = 'storage' and p.tablename = 'objects'  -- E1E
-          and p.permissive = 'PERMISSIVE' and p.roles = array['authenticated']::name[]  -- E1E
-          and (coalesce(p.qual, '') || coalesce(p.with_check, '')) like '%' || e.b || '%'  -- E1E
-          and (p.qual is null or (p.qual like '%foldername(name))[1]%' and p.qual like '%auth.uid()%'))  -- E1E
-          and (p.with_check is null or (p.with_check like '%foldername(name))[1]%' and p.with_check like '%auth.uid()%'))  -- E1E
-          and (p.cmd <> 'UPDATE' or (p.qual is not null and p.with_check is not null))) = 7  -- E1E
-    and (select count(*) from pg_policies p  -- E1E
-        where p.schemaname = 'storage' and p.tablename = 'objects'  -- E1E
-          and p.policyname in ('binder_slot_image_select_shared','collection_cover_select_shared')  -- E1E
-          and p.cmd = 'SELECT' and p.permissive = 'PERMISSIVE'  -- E1E
-          and p.roles @> array['anon','authenticated']::name[] and cardinality(p.roles) = 2  -- E1E
-          and p.qual like '%shared_visual_asset_readable%' and p.with_check is null) = 2  -- E1E
-    and (select count(*) from pg_policies p  -- E1E
+           on pol.policyname = e.n and pol.cmd = e.c  -- E1E
+        where pol.schemaname = 'storage' and pol.tablename = 'objects'  -- E1E
+          and pol.permissive = 'PERMISSIVE' and pol.roles = array['authenticated']::name[]  -- E1E
+          and (coalesce(pol.qual, '') || coalesce(pol.with_check, '')) like '%' || e.b || '%'  -- E1E
+          and (pol.qual is null or (pol.qual like '%foldername(name))[1]%' and pol.qual like '%auth.uid()%'))  -- E1E
+          and (pol.with_check is null or (pol.with_check like '%foldername(name))[1]%' and pol.with_check like '%auth.uid()%'))  -- E1E
+          and (pol.cmd <> 'UPDATE' or (pol.qual is not null and pol.with_check is not null))) = 7  -- E1E
+    and (select count(*) from pg_policies pol  -- E1E
+        where pol.schemaname = 'storage' and pol.tablename = 'objects'  -- E1E
+          and pol.policyname in ('binder_slot_image_select_shared','collection_cover_select_shared')  -- E1E
+          and pol.cmd = 'SELECT' and pol.permissive = 'PERMISSIVE'  -- E1E
+          and pol.roles @> array['anon','authenticated']::name[] and cardinality(pol.roles) = 2  -- E1E
+          and pol.qual like '%shared_visual_asset_readable%' and pol.with_check is null) = 2  -- E1E
+    and (select count(*) from pg_policies pol  -- E1E
          join (values ('collection_cover_insert_editor','INSERT'),  -- E1E
                       ('collection_cover_select_editor','SELECT'),  -- E1E
                       ('collection_cover_delete_editor','DELETE')) e(n, c)  -- E1E
-           on p.policyname = e.n and p.cmd = e.c  -- E1E
-        where p.schemaname = 'storage' and p.tablename = 'objects'  -- E1E
-          and p.permissive = 'PERMISSIVE' and p.roles = array['authenticated']::name[]  -- E1E
-          and ((e.c = 'INSERT' and p.qual is null and p.with_check like '%collection-cover%'  -- E1E
-                and p.with_check like '%collection_cover_editor_can_upload(name)%')  -- E1E
-               or (e.c <> 'INSERT' and p.with_check is null and p.qual like '%collection-cover%'  -- E1E
-                   and p.qual like '%owner_id%' and p.qual like '%auth.uid()%'  -- E1E
-                   and p.qual like '%collection_cover_editor_folder_ok(name)%'))) = 3  -- E1E
-    and (select count(*) from pg_policies p  -- E1E
-        where p.schemaname = 'storage' and p.tablename = 'objects'  -- E1E
-          and (coalesce(p.qual, '') || coalesce(p.with_check, '')) ~ '(binder-slot-image|collection-cover)') = 12  -- E1E
-    and not exists (select 1 from pg_policies p  -- E1E
-        where p.schemaname = 'storage' and p.tablename = 'objects'  -- E1E
-          and (coalesce(p.qual, '') || coalesce(p.with_check, '')) ~ '(binder-slot-image|collection-cover)'  -- E1E
-          and (p.policyname not in ('binder_slot_image_select_own','binder_slot_image_insert_own','binder_slot_image_delete_own',  -- E1E
+           on pol.policyname = e.n and pol.cmd = e.c  -- E1E
+        where pol.schemaname = 'storage' and pol.tablename = 'objects'  -- E1E
+          and pol.permissive = 'PERMISSIVE' and pol.roles = array['authenticated']::name[]  -- E1E
+          and ((e.c = 'INSERT' and pol.qual is null and pol.with_check like '%collection-cover%'  -- E1E
+                and pol.with_check like '%collection_cover_editor_can_upload(name)%')  -- E1E
+               or (e.c <> 'INSERT' and pol.with_check is null and pol.qual like '%collection-cover%'  -- E1E
+                   and pol.qual like '%owner_id%' and pol.qual like '%auth.uid()%'  -- E1E
+                   and pol.qual like '%collection_cover_editor_folder_ok(name)%'))) = 3  -- E1E
+    and (select count(*) from pg_policies pol  -- E1E
+        where pol.schemaname = 'storage' and pol.tablename = 'objects'  -- E1E
+          and (coalesce(pol.qual, '') || coalesce(pol.with_check, '')) ~ '(binder-slot-image|collection-cover)') = 12  -- E1E
+    and not exists (select 1 from pg_policies pol  -- E1E
+        where pol.schemaname = 'storage' and pol.tablename = 'objects'  -- E1E
+          and (coalesce(pol.qual, '') || coalesce(pol.with_check, '')) ~ '(binder-slot-image|collection-cover)'  -- E1E
+          and (pol.policyname not in ('binder_slot_image_select_own','binder_slot_image_insert_own','binder_slot_image_delete_own',  -- E1E
                                     'collection_cover_select_own','collection_cover_insert_own','collection_cover_update_own',  -- E1E
                                     'collection_cover_delete_own','binder_slot_image_select_shared','collection_cover_select_shared',  -- E1E
                                     'collection_cover_insert_editor','collection_cover_select_editor','collection_cover_delete_editor')  -- E1E
-               or p.permissive <> 'PERMISSIVE'  -- E1E
-               or ('anon' = any(p.roles) and p.cmd <> 'SELECT')  -- E1E
-               or 'public' = any(p.roles)))  -- E1E
+               or pol.permissive <> 'PERMISSIVE'  -- E1E
+               or ('anon' = any(pol.roles) and pol.cmd <> 'SELECT')  -- E1E
+               or 'public' = any(pol.roles)))  -- E1E
     and (select count(*) from pg_proc q  -- E1E
         where q.oid in (to_regprocedure('public.collection_cover_editor_folder_ok(text)'),  -- E1E
                         to_regprocedure('public.collection_cover_editor_can_upload(text)'))  -- E1E
@@ -176,7 +180,7 @@ S4_NEW = """    and (select count(*) from pg_policies p  -- E1E
     and (select q.prosrc from pg_proc q where q.oid = to_regprocedure('public.collection_cover_editor_can_upload(text)'))  -- E1E
           like '%public.collection_cover_editor_folder_ok(%',  -- E1E
     'detail','conjunto fechado de 12 políticas nos dois buckets, cada uma por nome, comando, papéis e predicado: 7 do dono (pasta do próprio usuário por auth.uid(), só authenticated; UPDATE com as duas expressões), 2 de leitura compartilhada (anon e authenticated, decisão delegada), 3 do EDITOR (5377: só authenticated; inserção pelo ajudante; leitura e exclusão só do próprio envio por owner_id = auth.uid() e pelo ajudante); nenhuma política inesperada, restritiva, de escrita para anon ou para PUBLIC; ajudantes definer, sem EXECUTE para anon, presos à identidade autenticada, à participação EDITOR ativa e à barreira; a pasta do próprio titular fica só com as políticas do dono');  -- E1E"""
-H5863 = "5863_validate_shared_binder_visual_assets_v1.2-E1E.sql"
+H5863 = "5863_validate_shared_binder_visual_assets_v1.3-E1E.sql"
 
 
 def sha256(b: bytes) -> str:
@@ -251,8 +255,10 @@ def harness_text(num: str) -> tuple[str, str]:
         if t.count(S4_OLD) != 1:
             raise SystemExit("ERRO: S.4 da 5863 não encontrada")
         t = t.replace(S4_OLD, S4_NEW)
-        t = ("/* E1-E2 — VARIANTE 5863 v1.2-E1E GERADA por e1e2/build_g2_chain.py. AUTORIZADA (CANONICAL BASELINE\n"
+        t = ("/* E1-E2 — VARIANTE 5863 v1.3-E1E GERADA por e1e2/build_g2_chain.py. AUTORIZADA (CANONICAL BASELINE\n"
              "   RECONCILIATION AND G2 CORRECTION-02): S.4 com conjunto fechado das 12 políticas e prova dos ajudantes da 5377.\n"
+             "   v1.3 (G2_B LIVE STOP 12 / SQLSTATE 55000): alias de pg_policies na S.4 = pol (era p, colidia com a variável\n"
+             "   record p da função); critérios idênticos. A v1.2-E1E executada fica preservada como histórico.\n"
              f"   Base: database/proposals/{folder}/{fname} sha256 {h}. Linhas mudadas marcadas \"-- E1E\". */\n") + t
     return t, sha256(t.encode("utf-8"))
 
@@ -291,11 +297,7 @@ Status......: GERADO por e1e2/build_g2_chain.py — NÃO EDITAR À MÃO. NÃO EX
               aprovada; revisão independente; autorização expressa e específica do
               proprietário (hash, executor, canal, janela). {extra}
               Mecanismo da barreira (G1) não homologado; G2 não iniciado.
-Canal.......: psql -X -v ON_ERROR_STOP=1 -f {name}  — conexão DIRETA única, não
-              interativo, sem -1. Mesma moldura T0–T11 do P1 da E1-A
-              (VALIDATION-STRATEGY-E1A.md §2): sessão somente leitura por padrão (T0),
-              trava de COMMIT (T4), LOCK NOWAIT antes do DDL (T6), sentinela que SEMPRE
-              aborta (T9) com SQLSTATE {ok}/{no}.
+{canal}
 Sequência...: {seq}
 Harnesses...: {harn}
 Total.......: {total} verificações (soma dos GATEs esperados)
@@ -490,7 +492,99 @@ VARIANTS = {
 }
 
 
-def build_variant(name: str, cfg: dict, inp: dict) -> str:
+# Variantes de CANAL: mesma derivação (mesmos blocos funcionais) de uma variante psql, trocando só a
+# moldura operacional. "mgmtapi" = Supabase Management API (MCP execute_sql): o texto inteiro vai em UMA
+# chamada pelo protocolo simples, que forma UMA transação implícita (prova G2A-PROOF-01: E2POK, bloco
+# posterior não alcançado, txid_status = aborted). Sem metacomandos do psql, sem BEGIN/ROLLBACK/RESET e
+# sem SET SESSION: o erro da sentinela (T9) aborta a transação implícita e interrompe o restante do texto;
+# a trava de COMMIT (T4) faz falhar qualquer confirmação implícita.
+CHANNEL_VARIANTS = {
+    "G2_A_E1A_PROTECTED_rollback_MGMTAPI.sql": ("G2_A_E1A_PROTECTED_rollback.sql", "mgmtapi"),
+    # G2_B/G2_C (MGMTAPI READINESS CORRECTION-01): mesma moldura de canal + sentinela compacta, porque a
+    # Supabase CLI 3.2.0 corta o corpo do erro em 1.024 caracteres (sanitizeErrorBody). Critério v_ok idêntico.
+    "G2_B_CHAIN_STORAGE_LAST_rollback_MGMTAPI.sql": ("G2_B_CHAIN_STORAGE_LAST_rollback.sql", "mgmtapi-compacta"),
+    "G2_C_CHAIN_FULL_FINAL_rollback_MGMTAPI.sql": ("G2_C_CHAIN_FULL_FINAL_rollback.sql", "mgmtapi-compacta"),
+}
+
+# Sentinela compacta (só variantes "mgmtapi-compacta"): troca SOMENTE a montagem de v_msg. O cálculo de v_total,
+# v_passes, v_gates, v_failed, v_trap, v_ms e v_ok (critério) é o mesmo texto da sentinela padrão.
+MSG_PADRAO = """  v_msg := 'MS_{tag} ' || case when v_ok then 'APROVADO ' else 'REPROVADO ' end || jsonb_build_object(
+    'ok', v_ok, 'total', v_total, 'passes', v_passes, 'gates', v_gates, 'failed', v_failed,
+    'erro_na_fixture', v_fixture, 'trap_intact', v_trap, 'duration_ms', v_ms,
+    'locks', (select coalesce(jsonb_object_agg(k, v), '{{}}'::jsonb) from pg_temp.g2_meta where k like 't_lock%'),
+    'server_version_num', (select v from pg_temp.g2_meta where k = 'server_version_num'),
+    'txid', pg_catalog.txid_current_if_assigned())::text;"""
+MSG_COMPACTA = """  -- [MGMTAPI] mensagem compacta (limite de 1.024 caracteres da CLI): sem textos de fixture nem horários de travas;
+  -- falhas (até 8) e erros inesperados (até 2, 70 caracteres, sem aspas/barras) limitados, com contagem total
+  -- e indicação explícita de truncamento: lista parcial NUNCA é a lista completa (ver failed_count/x1_count).
+  v_msg := 'MS_{tag} ' || case when v_ok then 'APROVADO ' else 'REPROVADO ' end || jsonb_build_object(
+    'ok', v_ok, 'txid', pg_catalog.txid_current_if_assigned(), 'total', v_total, 'passes', v_passes,
+    'gates', v_gates,
+    'failed_count', jsonb_array_length(v_failed),
+    'failed', coalesce((select jsonb_agg(e.value order by e.ordinality) from jsonb_array_elements(v_failed) with ordinality e
+                         where e.ordinality <= 8), '[]'::jsonb),
+    'failed_truncated', jsonb_array_length(v_failed) > 8,
+    'x1_count', (select count(*) from jsonb_array_elements_text(v_fixture) x where x.value ~ '^[0-9]{{4}}:erro inesperado'),
+    'x1', coalesce((select jsonb_agg(translate(left(q.value, 70), '"\\', '') order by q.ordinality)
+                     from (select x.value, x.ordinality from jsonb_array_elements_text(v_fixture) with ordinality x
+                           where x.value ~ '^[0-9]{{4}}:erro inesperado' order by x.ordinality limit 2) q), '[]'::jsonb),
+    'trap_intact', v_trap, 'duration_ms', v_ms,
+    'locks', (select count(*) from pg_temp.g2_meta where k like 't_lock%'),
+    'server_version_num', (select v from pg_temp.g2_meta where k = 'server_version_num'))::text;"""
+
+CANAL_PSQL = """Canal.......: psql -X -v ON_ERROR_STOP=1 -f {name}  — conexão DIRETA única, não
+              interativo, sem -1. Mesma moldura T0–T11 do P1 da E1-A
+              (VALIDATION-STRATEGY-E1A.md §2): sessão somente leitura por padrão (T0),
+              trava de COMMIT (T4), LOCK NOWAIT antes do DDL (T6), sentinela que SEMPRE
+              aborta (T9) com SQLSTATE {ok}/{no}."""
+
+CANAL_MGMTAPI = """Canal.......: Supabase Management API (MCP execute_sql) — UMA chamada com o texto
+              INTEGRAL, sem dividir nem acrescentar instruções. Variante de canal de {base}
+              (blocos funcionais idênticos; só a moldura muda): protocolo simples = UMA
+              transação IMPLÍCITA (prova G2A-PROOF-01 PASS). Sem metacomandos do psql, sem
+              BEGIN (T1), ROLLBACK (T10), RESET (T11) nem SET SESSION (T0). Trava de COMMIT
+              (T4) faz falhar qualquer confirmação implícita; LOCK NOWAIT antes do DDL (T6);
+              sentinela que SEMPRE aborta (T9) com SQLSTATE {ok}/{no}; ausência de
+              persistência conferida depois por txid_status(<txid da sentinela>) = aborted."""
+
+
+# Ajustes do T6 específicos do canal MGMTAPI (substituições exatas, cada uma precisa ocorrer 1 vez):
+#  A) sem T0, default_transaction_read_only não é 'on' neste canal (a S0 observou 'off'); a proteção do T0
+#     foi substituída pela transação implícita única (prova G2A-PROOF-01). transaction_read_only = 'off'
+#     continua obrigatório.
+#  B) exceção ÚNICA para o gatilho de evento padrão do Supabase issue_pg_net_access
+#     (supabase/postgres, init-scripts/00000000000003-post-setup.sql): só dispara em CREATE EXTENSION e só
+#     concede acesso quando a extensão criada é pg_net; o ensaio não executa CREATE EXTENSION. A exceção
+#     exige nome, evento, filtro de tag exatamente {CREATE EXTENSION} e função extensions.grant_pg_net_access;
+#     qualquer divergência continua RECUSADA.
+T6_MGMTAPI = [
+    ("""  if pg_catalog.current_setting('default_transaction_read_only') <> 'on' then
+    raise exception 'G2 T6: T0 não vigora nesta sessão (pooler/troca de backend?) — RECUSAR';
+  end if;
+""", """  -- [MGMTAPI] default_transaction_read_only não exigido: sem T0; transação implícita única (G2A-PROOF-01).
+"""),
+    ("""  where e.evtenabled <> 'D' and p.prosrc ~* '(net\\.|http_|pg_net|dblink)';
+""", """  where e.evtenabled <> 'D' and p.prosrc ~* '(net\\.|http_|pg_net|dblink)'
+    -- [MGMTAPI] exceção única: gatilho padrão do Supabase, só em CREATE EXTENSION (o ensaio não cria extensão)
+    and (e.evtname = 'issue_pg_net_access' and e.evtevent = 'ddl_command_end'
+             and e.evttags = array['CREATE EXTENSION']::text[]
+             and p.proname = 'grant_pg_net_access'
+             and (select x.nspname from pg_catalog.pg_namespace x where x.oid = p.pronamespace) = 'extensions') is not true;
+"""),
+]
+
+
+def t6_for(channel: str, text: str) -> str:
+    if channel == "psql":
+        return text
+    for old, new in T6_MGMTAPI:
+        if text.count(old) != 1:
+            raise SystemExit("ERRO: ajuste MGMTAPI do T6 não encontrado exatamente 1 vez")
+        text = text.replace(old, new)
+    return text
+
+
+def build_variant(name: str, cfg: dict, inp: dict, channel: str = "psql", base: str = "") -> str:
     seq = [x for k, x in cfg["plan"] if k == "mig"]
     check_order(seq, inp)
     applied, harns, mode = [], [], None
@@ -515,18 +609,27 @@ def build_variant(name: str, cfg: dict, inp: dict) -> str:
     total = sum(HARN[h][3] for h in harns)
     srcs = [f"{n}@{inp['files'][n][2][:16]}" for n in seq] + [f"H{h}@{harness_text(h)[1][:16]}" for h in harns]
     caps = ", ".join(f"'{c}'" for c in sorted(inp["caps"]))
-    parts = [HEADER.format(name=name, title=cfg["title"], extra=cfg["extra"], ok=cfg["ok"], no=cfg["no"],
+    compacta = channel == "mgmtapi-compacta"
+    if compacta:
+        channel = "mgmtapi"
+    if channel not in ("psql", "mgmtapi"):
+        raise SystemExit(f"ERRO: canal desconhecido: {channel}")
+    canal = (CANAL_PSQL if channel == "psql" else CANAL_MGMTAPI).format(name=name, base=base, ok=cfg["ok"], no=cfg["no"])
+    parts = [HEADER.format(name=name, title=cfg["title"], extra=cfg["extra"], ok=cfg["ok"], no=cfg["no"], canal=canal,
                            seq=" → ".join(seq), harn=", ".join(f"{h}[{MODE[h]}]" for h in harns), total=total,
                            stmt=cfg["stmt"], txn=cfg["txn"], cap=cfg["cap"], sources=", ".join(srcs))]
-    parts.append("\\set ON_ERROR_STOP on\n\\set VERBOSITY verbose\n")
-    parts.append("-- @@T0 padrão da sessão somente leitura\nSET SESSION default_transaction_read_only = on;\n")
-    parts.append("-- @@T1 bloco explícito\nBEGIN;\n")
+    if channel == "psql":
+        parts.append("\\set ON_ERROR_STOP on\n\\set VERBOSITY verbose\n")
+        parts.append("-- @@T0 padrão da sessão somente leitura\nSET SESSION default_transaction_read_only = on;\n")
+        parts.append("-- @@T1 bloco explícito\nBEGIN;\n")
+    else:
+        parts.append("-- [MGMTAPI] T0/T1 omitidos: o texto inteiro é UMA transação implícita (sem BEGIN, sem SET SESSION).\n")
     parts.append("-- @@T2 esta transação escreve\nSET TRANSACTION READ WRITE;\n")
     parts.append("-- @@T3 limites\n" + T3.format(stmt=cfg["stmt"], txn=cfg["txn"]) + "\n")
     parts.append("-- @@T4 trava de COMMIT\n" + T4 + "\n")
     parts.append("-- @@T5 evidência\n" + T5 + "\n")
     rels = ", ".join(f"to_regclass('{r}')" for r, _ in cfg["locks"]) + ", to_regclass('storage.objects')"
-    parts.append("-- @@T6 precheck\n" + T6.replace("{lock_rels}", rels) + "\n")
+    parts.append("-- @@T6 precheck\n" + t6_for(channel, T6.replace("{lock_rels}", rels)) + "\n")
     for rel, key in cfg["locks"]:
         parts.append(f"-- @@T6 lock imediato ou recusa (NOWAIT): {rel}\n" + lock_stmt(rel, key) + "\n")
     for k, x in cfg["plan"]:
@@ -544,10 +647,18 @@ def build_variant(name: str, cfg: dict, inp: dict) -> str:
                          + f"insert into pg_temp.g2_evidence (harness, seq, check_id, status, detail)\n"
                          + f"  select '{x}', seq, check_id, status, detail from pg_temp.wh_{x}_validate();\n")
     parts.append("-- @@T9 postcheck\n" + T9_POST.replace("{caps}", caps) + "\n")
-    parts.append("-- @@T9 sentinela\n" + T9_SENTINEL.format(total=total, cap=cfg["cap"], nharn=len(harns),
+    t9 = T9_SENTINEL
+    if compacta:
+        if t9.count(MSG_PADRAO) != 1:
+            raise SystemExit("ERRO: montagem padrão de v_msg não encontrada na sentinela")
+        t9 = t9.replace(MSG_PADRAO, MSG_COMPACTA)
+    parts.append("-- @@T9 sentinela\n" + t9.format(total=total, cap=cfg["cap"], nharn=len(harns),
                                                              ok=cfg["ok"], no=cfg["no"], tag=cfg["tag"]) + "\n")
-    parts.append("-- @@T10 fora do contrato\nROLLBACK;\n")
-    parts.append("-- @@T11 fora do contrato\nRESET default_transaction_read_only;\n")
+    if channel == "psql":
+        parts.append("-- @@T10 fora do contrato\nROLLBACK;\n")
+        parts.append("-- @@T11 fora do contrato\nRESET default_transaction_read_only;\n")
+    else:
+        parts.append("-- [MGMTAPI] T10/T11 omitidos: a sentinela aborta a transação implícita; nada é executado depois dela.\n")
     return "\n".join(parts)
 
 
@@ -558,6 +669,8 @@ def main() -> int:
     out[os.path.join(HERE, "harness", H5863)] = t5863.encode("utf-8")
     for name, cfg in VARIANTS.items():
         out[os.path.join(HERE, name)] = build_variant(name, cfg, inp).encode("utf-8")
+    for name, (base, channel) in CHANNEL_VARIANTS.items():
+        out[os.path.join(HERE, name)] = build_variant(name, VARIANTS[base], inp, channel, base).encode("utf-8")
     rows = [(sha256(rd(os.path.join(G1, "G1_MANIFEST.json"))), "../g1/G1_MANIFEST.json")]
     for num in sorted(inp["files"]):
         rows.append((inp["files"][num][2], os.path.relpath(inp["files"][num][0], HERE)))

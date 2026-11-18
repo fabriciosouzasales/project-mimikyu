@@ -4,7 +4,7 @@
 |-------|-------|
 | **Rodada** | `V1-13 / E1-E1 \| SECURITY EVIDENCE RECONCILIATION AND EXECUTION READINESS-01` (2026-11-15) |
 | **Etapa oficial** | 6 — E1-E (provas de segurança). E1-E1, E1-E2 e E1-E3 são **subdivisões internas** da etapa 6, não fases novas. |
-| **Status** | **PLANO DE EVIDÊNCIAS — DOCUMENTAL E ESTÁTICO. NADA EXECUTADO.** Sem conexão ao LIVE, sem S0, sem P1, sem SQL, sem harness, sem conta, sem fixture, sem commit. A aprovação deste plano **não** autoriza nenhuma execução. |
+| **Status** | **E1 DEPLOY — PASS LIVE / BARRIER CLOSED (2026-11-18).** S0 v1.1, G2_A e G2_B aprovados no LIVE; E1 implantada (26 migrations) com a barreira CLOSED (`e1e2/README.md` §14–15). Provas com sessão real (S8 concorrente, S10, PR-04B, P4-A/P4-B, Storage pela API) continuam pendentes. Histórico: **PLANO DE EVIDÊNCIAS — DOCUMENTAL E ESTÁTICO. NADA EXECUTADO.** Sem conexão ao LIVE, sem S0, sem P1, sem SQL, sem harness, sem conta, sem fixture, sem commit. A aprovação deste plano **não** autoriza nenhuma execução. |
 | **Revisão** | 1.2 — `D-E1 FORMALIZATION AND SERVER-SIDE BARRIER FEASIBILITY-03`: **D-E1 APROVADA (opção A)**; viabilidade estática da barreira em `BARRIER-FEASIBILITY-D-E1.md`. **Mecanismo NÃO aprovado; execução NÃO autorizada.** (1.1: P4 × etapas 7–10, isolamento da 5377, matriz de riscos.) |
 | **Base** | `main` em `dbfdbaa` (E1-A … E1-D versionadas localmente). Contrato C-234–C-244, D1–D14, DR-1 inalterados. |
 | **Vocabulário de estado** | **PREPARADO** (artefato escrito) · **ESTATICAMENTE VERIFICADO** (verificação de texto aprovada) · **EXECUTADO — PASS** · **EXECUTADO — FAIL** · **NÃO COMPROVADO** (sem execução dinâmica). Nenhuma prova recebe PASS dinâmico por inspeção. |

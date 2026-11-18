@@ -3,7 +3,7 @@
 | Campo | Valor |
 |-------|-------|
 | **Rodada** | `V1-13 / E1-E \| G1 SERVER-SIDE BARRIER PREPARATION-01` (2026-11-15) |
-| **Status** | **G1 PREPARADO — NÃO EXECUTADO.** Nenhum SQL (nem SELECT), nenhuma migration aplicada, nenhum harness em banco, nenhuma conta, nenhuma ativação, sem commit. Mecanismo **não homologado**. G2/G3 não iniciados. |
+| **Status** | **E1 DEPLOY — PASS LIVE / BARRIER CLOSED (2026-11-18).** 5389 aplicada no LIVE com a barreira CLOSED e registro vazio, seguida da cadeia (ver `e1e2/README.md` §15); nenhuma abertura (TEST/OPEN) nem identidade registrada. Histórico: **G1 PREPARADO — NÃO EXECUTADO.** Nenhum SQL (nem SELECT), nenhuma migration aplicada, nenhum harness em banco, nenhuma conta, nenhuma ativação, sem commit. Mecanismo **não homologado**. G2/G3 não iniciados. |
 | **Decisões** | D-E1 opção A (APROVADA). Alternativa C aprovada como arquitetura candidata do G1. C-234–C-244, D9–D14 inalterados. |
 | **Base** | `main` em `dbfdbaa`; arquivos auditados de E1-A … E1-D **não alterados** (as versões protegidas são geradas ao lado). |
 

@@ -193,22 +193,54 @@ for n in ("5366", "5367", "5368"):
     a = sect(p1, f"-- @@T7 {n}_").split("\n", 1)[1]
     b = sect(T["A"], f"-- @@T7 {n} ").split("\n", 1)[1]
     same.append(a.strip() == b.strip())
-h88a = sect(p1, "-- @@T8 5888_").split("\n", 1)[1].strip()
+# 5888 v1.1-E1E (TARGETED HARNESS CORRECTION-01): o G2 usa o harness corrigido; a disciplina da correção é a 3.3.
+_h88c = rd(os.path.join(HERE, "harness", "5888_validate_editor_role_foundation_HARNESS_v1.1-E1E.sql")).decode("utf-8")
+h88a = _h88c[_h88c.index("create or replace function pg_temp.wh_5888_"):_h88c.index("$fn$;", _h88c.index("create or replace function pg_temp.wh_5888_validate()")) + 5].strip()
 h88b = sect(T["A"], "-- @@T8 harness 5888 ").split("\n", 1)[1].split("insert into pg_temp.g2_evidence")[0].strip()
 p1_marks = re.findall(r"(?m)^-- @@(T\d+)", p1)
 a_marks = re.findall(r"(?m)^-- @@(T\d+)", T["A"])
 check("3.1", all(same) and h88a == h88b and sorted(set(p1_marks)) == sorted(set(a_marks))
       and "T3: PostgreSQL < 14" in p1 and "G2 T3: PostgreSQL < 14" in T["A"]
       and "LOCK TABLE public.collection_membership IN ACCESS EXCLUSIVE MODE NOWAIT;" in p1,
-      "P1-G preserva a moldura do P1 (mesmos blocos T0–T11), 5366–5368 byte a byte e o corpo da 5888; muda: 5389 antes, 5369/5370 protegidas, 5861 em CLOSED, 5888 em OPEN, postcheck da barreira, SQLSTATE E2AOK/E2ANO")
+      "P1-G preserva a moldura do P1 (mesmos blocos T0–T11), 5366–5368 byte a byte e o corpo da 5888 v1.1-E1E; muda: 5389 antes, 5369/5370 protegidas, 5861 em CLOSED, 5888 em OPEN, postcheck da barreira, SQLSTATE E2AOK/E2ANO")
+# 3.3 Correções de harness E1E (5861 v1.5-E1E, 5888 v1.1-E1E): originais preservados, delta só em linhas "-- E1E",
+#     mesmas verificações, sem GRANT/REVOKE/política, e nenhuma leitura direta de tabela sob o papel do cliente na 5888
+#     além da negativa 7.4 (classe C).
+import difflib as _dl
+_orig = {"5861": (os.path.join(PROP, "2026-11-14-v1-13-e1a-editor-role", "5861_validate_collection_sharing_v1.4.sql"), "9135bd0b8ab0dc7cd0d25bb630bf45cce0b835f66bd381544b33a55ee64bf146",
+                  os.path.join(HERE, "harness", "5861_validate_collection_sharing_v1.5-E1E.sql")),
+         "5888": (os.path.join(PROP, "2026-11-14-v1-13-e1a-editor-role", "5888_validate_editor_role_foundation_HARNESS.sql"), "c6e336396ba57fdcfddc849ee99f6f65a8cf4b688a32bd5efd9db0bdf70a8e48",
+                  os.path.join(HERE, "harness", "5888_validate_editor_role_foundation_HARNESS_v1.1-E1E.sql"))}
+_okc = []
+for _n, (_po, _ho, _pc) in _orig.items():
+    _bo = rd(_po); _o = _bo.decode("utf-8"); _c = rd(_pc).decode("utf-8")
+    _hdr = _c.index("*/")
+    _add = [l[1:] for l in _dl.unified_diff(_o.split("\n"), _c.split("\n"), lineterm="", n=0) if l.startswith("+") and not l.startswith("+++")]
+    _body_add = [l for l in _add if l in _c[_hdr:]]
+    _okc.append(sha(_bo) == _ho
+                and re.findall(r"'id','([^']+)'", _o) == re.findall(r"'id','([^']+)'", _c)
+                and all("E1E" in l for l in _body_add)
+                and not any(re.search(r"(?i)\b(grant|revoke|policy|row level|security definer|alter table)\b", l) for l in _body_add))
+_L = _orig["5888"][2]; _L = rd(_L).decode("utf-8").split("\n")
+_st = "owner"; _cli = []
+for _i in range([i for i, l in enumerate(_L) if "function pg_temp.wh_5888_validate()" in l][0], len(_L)):
+    _l = _L[_i]
+    if "wh_5888_as(" in _l and "perform" in _l: _st = "client"
+    if "execute 'reset role'" in _l: _st = "owner"
+    for _m in re.finditer(r"(from|update|into|join)\s+(public|auth|storage)\.([a-z_]+)(\s*\()?", _l):
+        if not _m.group(4) and _st == "client": _cli.append(_l.strip())
+_c61 = rd(_orig["5861"][2]).decode("utf-8")
+check("3.3", all(_okc) and len(_cli) == 1 and "perform count(*) from public.collection_membership" in _cli[0]
+      and "'binder_name','show_brand_mark'" in _c61 and "jsonb_typeof(j -> 'show_brand_mark') = 'boolean'" in _c61,
+      "harnesses corrigidos: originais E1-A preservados (sha256), delta só em linhas -- E1E, mesmas verificações, sem GRANT/REVOKE/política; 5888 sem leitura direta de tabela sob o cliente exceto a negativa 7.4; 5861 3.8 com as chaves da 5321 tipadas")
 check("3.2", sha(rd(P1)) == next(l.split()[0] for l in rd(os.path.join(os.path.dirname(P1), "MANIFEST.sha256")).decode().splitlines()
                                   if l.endswith("P1_DRYRUN_E1A_rollback.sql")),
       "P1 original preservado (sha256 igual ao do MANIFEST da E1-A)")
 
 # 4. Variante 5863 -------------------------------------------------------------------------------
 base63 = rd(os.path.join(PROP, "2026-10-30-v1-12-shared-binder-visual-assets", "5863_validate_shared_binder_visual_assets.sql")).decode()
-var63 = rd(os.path.join(HERE, "harness", "5863_validate_shared_binder_visual_assets_v1.2-E1E.sql")).decode()
-vlines = var63.split("\n")[3:]
+var63 = rd(os.path.join(HERE, "harness", "5863_validate_shared_binder_visual_assets_v1.3-E1E.sql")).decode()
+vlines = var63[var63.index("*/\n") + 3:].split("\n")
 removed = [l for l in base63.split("\n") if l not in vlines]
 added = [l for l in vlines if l not in base63.split("\n")]
 s4_base = base63[base63.index("res := res || jsonb_build_object('id','S.4'"):]
@@ -219,18 +251,40 @@ names12 = ["binder_slot_image_select_own", "binder_slot_image_insert_own", "bind
            "collection_cover_insert_editor", "collection_cover_select_editor", "collection_cover_delete_editor"]
 s4_var = var63[var63.index("res := res || jsonb_build_object('id','S.4'"):]
 s4_var = s4_var[:s4_var.index("res := res || jsonb_build_object('id','S.5'")]
-check("4.1", var63.startswith("/* E1-E2 — VARIANTE 5863 v1.2-E1E") and all("-- E1E" in l for l in added)
+check("4.1", var63.startswith("/* E1-E2 — VARIANTE 5863 v1.3-E1E") and all("-- E1E" in l for l in added)
       and all(l in s4_base.split("\n") for l in removed) and all(l in s4_var for l in added)
       and "AUTORIZADA" in var63.split("\n")[0] + var63.split("\n")[1],
-      f"5863 v1.2-E1E: só a S.4 muda ({len(added)} linhas novas, todas marcadas; {len(removed)} retiradas, todas da S.4 original); AUTORIZADA")
+      f"5863 v1.3-E1E: só a S.4 muda ({len(added)} linhas novas, todas marcadas; {len(removed)} retiradas, todas da S.4 original); AUTORIZADA")
 check("4.2", all(s4_var.count(f"'{n}'") >= 1 for n in names12) and ") = 7" in s4_var and ") = 2" in s4_var and ") = 3" in s4_var
-      and ") = 12" in s4_var and "p.permissive = 'PERMISSIVE'" in s4_var and "p.roles = array['authenticated']::name[]" in s4_var
-      and "'anon' = any(p.roles) and p.cmd <> 'SELECT'" in s4_var and "'public' = any(p.roles)" in s4_var
-      and "p.policyname not in (" in s4_var and "foldername(name))[1]" in s4_var
+      and ") = 12" in s4_var and "pol.permissive = 'PERMISSIVE'" in s4_var and "pol.roles = array['authenticated']::name[]" in s4_var
+      and "'anon' = any(pol.roles) and pol.cmd <> 'SELECT'" in s4_var and "'public' = any(pol.roles)" in s4_var
+      and "pol.policyname not in (" in s4_var and "foldername(name))[1]" in s4_var
       and "collection_cover_editor_can_upload(name)" in s4_var and "collection_cover_editor_folder_ok(name)" in s4_var
       and "q.prosrc like '%public.v1_13_capability_open()%'" in s4_var and "m.role = ''EDITOR''" in s4_var
       and "if v_owner = v_uid then%return false;" in s4_var and "not has_function_privilege('anon', q.oid, 'EXECUTE')" in s4_var,
       "5863 S.4: 12 políticas individualmente (nome, comando, papéis, predicado, permissiva), conjunto fechado, sem escrita anon nem PUBLIC; ajudantes presos à identidade, à participação EDITOR ativa e à barreira; pasta do titular só com as políticas do dono — não é só troca de contagem")
+
+# 4.3 STOP 12 (SQLSTATE 55000 na S.4): alias de pg_policies não colide com a variável record p; a v1.2-E1E
+#     e o G2_B MGMTAPI executados ficam preservados; nenhum homônimo alias/record nos quatro ensaios G2_B/G2_C.
+import runpy as _rp
+_sc = _rp.run_path(os.path.join(HERE, "scan_alias_collisions.py"))
+_v12 = rd(os.path.join(HERE, "harness", "5863_validate_shared_binder_visual_assets_v1.2-E1E.sql")).decode()
+_s4_12 = _v12[_v12.index("res := res || jsonb_build_object('id','S.4'"):]
+_s4_12 = _s4_12[:_s4_12.index("res := res || jsonb_build_object('id','S.5'")]
+_rows = [r for f in ("G2_B_CHAIN_STORAGE_LAST_rollback.sql", "G2_B_CHAIN_STORAGE_LAST_rollback_MGMTAPI.sql",
+                     "G2_C_CHAIN_FULL_FINAL_rollback.sql", "G2_C_CHAIN_FULL_FINAL_rollback_MGMTAPI.sql")
+         for r in _sc["scan"](os.path.join(HERE, f))]
+check("4.3", sha(_v12.encode("utf-8")) == "d20055b88a3b71664564e4024d0dc44b072941976cddc1329fc7a28525a5011d"
+      and sha(rd(os.path.join(HERE, "executed", "G2_B_CHAIN_STORAGE_LAST_rollback_MGMTAPI_EXECUTED-STOP12_9566d4f4.sql")))
+          == "9566d4f417307f353ea749e7364e9c2395a41f8019a02d5b70a6acba9217ea32"
+      and "pg_policies p  -- E1E" not in s4_var and s4_var.count("pg_policies pol  -- E1E") == 5
+      and not re.search(r"(?<![a-z0-9_.'%])p\.[a-z_]", nc(s4_var))
+      and s4_var.replace("pol.", "p.").replace("pg_policies pol ", "pg_policies p ") == _s4_12
+      and [r for r in _sc["scan"](os.path.join(HERE, "harness", "5863_validate_shared_binder_visual_assets_v1.2-E1E.sql"))
+           if r[6] == "DEFEITO"] != []
+      and not any(r[6] in ("DEFEITO", "REVISAR") for r in _rows),
+      f"5863 v1.3-E1E: S.4 = v1.2 com alias pg_policies p→pol (sem colisão com a variável record p; critérios idênticos); "
+      f"v1.2-E1E e G2_B MGMTAPI executado (STOP 12) preservados; varredura acusa a v1.2 e nenhum DEFEITO/REVISAR nos 4 ensaios ({len(_rows)} homônimos escalares/neutros)")
 
 # 5. S0 -------------------------------------------------------------------------------------------
 s0 = rd(os.path.join(HERE, "S0_G2_readonly.sql")).decode()
@@ -310,6 +364,214 @@ check("8.1", not bad_st, f"frontend, schema canônico e E1-A … E1-D sem altera
 rdme = rd(os.path.join(HERE, "README.md")).decode()
 check("8.2", all(x in rdme for x in ("G2 NÃO INICIADO", "NÃO EXECUTAD", "5863", "S0_G2_readonly.sql", "G3", "G4", "etapa 7")),
       "README da E1-E2: estado (G2 não iniciado, nada executado), adaptação da 5863, S0, separação G3/G4 e etapa 7")
+
+# 9. Variante de canal MGMTAPI do G2_A -----------------------------------------------------------
+va = rd(os.path.join(HERE, VAR["A"])).decode()
+vm = rd(os.path.join(HERE, "G2_A_E1A_PROTECTED_rollback_MGMTAPI.sql")).decode()
+def _core(t):
+    a = t.index("-- @@T2 ")
+    b = t.find("-- @@T10")
+    c = t.find("-- [MGMTAPI] T10")
+    return t[a:(c if c >= 0 else (b if b >= 0 else len(t)))].rstrip()
+def _top(t):
+    t = re.sub(r"\$([a-z0-9_]*)\$.*?\$\1\$", "$$", t, flags=re.S)
+    t = re.sub(r"'(?:[^']|'')*'", "''", t)
+    t = re.sub(r"(?s)/\*.*?\*/", "", t)
+    return re.sub(r"(?m)--.*$", "", t)
+tm = _top(vm)
+stm = [x.strip() for x in tm.split(";") if x.strip()]
+# Diferença permitida no T6 (CORRECTION-03), re-derivada aqui de forma independente do gerador.
+_A_OLD = ("  if pg_catalog.current_setting('default_transaction_read_only') <> 'on' then\n"
+          "    raise exception 'G2 T6: T0 não vigora nesta sessão (pooler/troca de backend?) — RECUSAR';\n"
+          "  end if;\n")
+_A_NEW = "  -- [MGMTAPI] default_transaction_read_only não exigido: sem T0; transação implícita única (G2A-PROOF-01).\n"
+_B_OLD = "  where e.evtenabled <> 'D' and p.prosrc ~* '(net\\.|http_|pg_net|dblink)';\n"
+_B_NEW = ("  where e.evtenabled <> 'D' and p.prosrc ~* '(net\\.|http_|pg_net|dblink)'\n"
+          "    -- [MGMTAPI] exceção única: gatilho padrão do Supabase, só em CREATE EXTENSION (o ensaio não cria extensão)\n"
+          "    and (e.evtname = 'issue_pg_net_access' and e.evtevent = 'ddl_command_end'\n"
+          "             and e.evttags = array['CREATE EXTENSION']::text[]\n"
+          "             and p.proname = 'grant_pg_net_access'\n"
+          "             and (select x.nspname from pg_catalog.pg_namespace x where x.oid = p.pronamespace) = 'extensions') is not true;\n")
+_ca = _core(va)
+check("9.1", _ca.count(_A_OLD) == 1 and _ca.count(_B_OLD) == 1
+      and _ca.replace(_A_OLD, _A_NEW).replace(_B_OLD, _B_NEW) == _core(vm) and len(_core(vm)) > 100000,
+      "MGMTAPI: T2–T9 idênticos ao G2_A exceto as 2 substituições autorizadas do T6 (limites, trava, NOWAIT, 6 migrations, 2 harnesses, postcheck e sentinela inalterados)")
+check("9.2", not re.search(r"(?m)^\s*\\", vm)
+      and not any(re.match(r"(?is)(begin|start\s+transaction|commit|end|rollback|savepoint|release|prepare\s+transaction|reset|set\s+session)\b", x) for x in stm)
+      and all(re.match(r"(?is)(set\s+(local|transaction)|create\s+(or\s+replace\s+)?function)\b", x) or not re.search(r"(?im)^\s*set\s", x) for x in stm),
+      "MGMTAPI: sem metacomando do psql, sem controle de transação explícito (BEGIN/COMMIT/ROLLBACK/SAVEPOINT/RESET/SET SESSION); SET só LOCAL/TRANSACTION ou atributo de função")
+_p = [vm.find(x) for x in ("-- @@T4", "-- @@T6 lock", "-- @@T7", "-- @@T9 sentinela")]
+check("9.3", min(_p) >= 0 and _p[0] < _p[1] < _p[2] < _p[3]
+      and "deferrable initially deferred" in vm and _top(vm[_p[3]:]).strip().endswith("$$;")
+      and "v_total = 105 and v_passes = 105" in vm and "txid_current_if_assigned()" in vm,
+      "MGMTAPI: trava de COMMIT e NOWAIT antes do DDL; sentinela (105 verificações, 2 GATEs, txid) é a última instrução")
+
+_t6 = vm[vm.index("-- @@T6 precheck"):vm.index("-- @@T6 lock")]
+check("9.4", "default_transaction_read_only') <> 'on'" not in _t6
+      and "current_setting('transaction_read_only') <> 'off'" in _t6
+      and _t6.count("issue_pg_net_access") == 1 and "e.evttags = array['CREATE EXTENSION']::text[]" in _t6
+      and "= 'extensions') is not true;" in _t6 and "and not (e.evtname" not in _t6
+      and "p.prosrc ~* '(net\\.|http_|pg_net|dblink|pg_notify|notify\\s)'" in _t6
+      and not re.search(r"(?i)\b(create|alter|drop)\s+extension\b", _top(vm)),
+      "MGMTAPI: T6 sem exigência de default_transaction_read_only = on; READ WRITE exigido; exceção só para issue_pg_net_access com tag {CREATE EXTENSION}; gatilhos de tabela intactos; ensaio sem CREATE/ALTER/DROP EXTENSION")
+
+# 9.5 Variantes MGMTAPI do G2_B e do G2_C (READINESS CORRECTION-01): mesma derivação do G2_A MGMTAPI (T6 ajustado)
+#     e só a montagem de v_msg da sentinela trocada pela forma compacta; critério v_ok idêntico.
+def _msg_split(core, marca):
+    i = core.index(marca); j = core.index("::text;\n", i) + len("::text;\n")
+    return core[:i], core[i:j], core[j:]
+_ok95 = []
+for _k, _f in (("B", "G2_B_CHAIN_STORAGE_LAST_rollback_MGMTAPI.sql"), ("C", "G2_C_CHAIN_FULL_FINAL_rollback_MGMTAPI.sql")):
+    _ps = _core(rd(os.path.join(HERE, VAR[_k])).decode()); _mg_t = rd(os.path.join(HERE, _f)).decode(); _mg = _core(_mg_t)
+    _ps = _ps.replace(_A_OLD, _A_NEW).replace(_B_OLD, _B_NEW)
+    _a1, _m1, _z1 = _msg_split(_ps, "  v_msg := 'MS_G2")
+    _a2, _m2, _z2 = _msg_split(_mg, "  -- [MGMTAPI] mensagem compacta")
+    _st = [x.strip() for x in _top(_mg_t).split(";") if x.strip()]
+    _ok95.append(_a1 == _a2 and _z1 == _z2
+                 and all(x in _m2 for x in ("'gates', v_gates", "'failed_count', jsonb_array_length(v_failed)", "'failed_truncated'", "'x1_count'",
+                                             "txid_current_if_assigned()", "'trap_intact', v_trap", "'duration_ms', v_ms", "'total', v_total", "'passes', v_passes"))
+                 and "v_fixture, 'trap_intact'" not in _m2
+                 and not re.search(r"(?m)^\s*\\", _mg_t)
+                 and not any(re.match(r"(?is)(begin|start\s+transaction|commit|end|rollback|savepoint|release|prepare\s+transaction|reset|set\s+session)\b", x) for x in _st)
+                 and _mg_t.find("-- @@T4") < _mg_t.find("-- @@T6 lock") < _mg_t.find("-- @@T7")
+                 and "LOCK TABLE storage.objects IN ACCESS EXCLUSIVE MODE NOWAIT;" in _mg_t
+                 and _top(_mg_t[_mg_t.index("-- @@T9 sentinela"):]).strip().endswith("$$;"))
+check("9.5", all(_ok95),
+      "G2_B/G2_C MGMTAPI: iguais ao psql exceto moldura de canal, T6 (2 ajustes aprovados) e v_msg compacta; v_ok, 417 verificações, 12 GATEs, travas NOWAIT (inclusive storage.objects), trava de COMMIT e sentinela terminal preservados; sem metacomando nem controle de transação")
+# 3.4 Correções de harness E1E da cadeia (5889 v1.4, 5890 v1.3, 5891 v1.2, 5892–5893 v1.3): originais preservados, delta só em linhas -- E1E,
+#     mesmas verificações, sem GRANT/REVOKE/política, e nenhuma conferência de estado sob cliente não titular.
+_cad = {"5889": ("2026-11-15-v1-13-e1b1-editor-core-binder/5889_validate_editor_core_binder_HARNESS.sql", "4982135d5b3f0b859a78755b1979342ef54032f563635fb7c76a152e38d0095d", "5889_validate_editor_core_binder_HARNESS_v1.4-E1E.sql"),
+        "5890": ("2026-11-15-v1-13-e1b2-editor-curation/5890_validate_editor_curation_HARNESS.sql", "ae57e56a8cfba9608b7bf654bf5e9cfc45e6ebf9ed5125498e5acec225bc03ec", "5890_validate_editor_curation_HARNESS_v1.3-E1E.sql"),
+        "5891": ("2026-11-15-v1-13-e1b3-pokedex-history/5891_validate_editor_pokedex_history_HARNESS.sql", "133d0cc534fdfc82976f016bac341a3045fab54ece4d6a337c96af188ff53a77", "5891_validate_editor_pokedex_history_HARNESS_v1.2-E1E.sql"),
+        "5892": ("2026-11-15-v1-13-e1c-bulk-operations/5892_validate_editor_bulk_operations_HARNESS.sql", "a3169b24312f702745529170b2a3e684b09573132c74b3e5859039cd4d70bc7d", "5892_validate_editor_bulk_operations_HARNESS_v1.3-E1E.sql"),
+        "5893": ("2026-11-15-v1-13-e1c2-remaining-bulk-operations/5893_validate_editor_remaining_bulk_operations_HARNESS.sql", "10619cd07d9a63369c640b59008004bc08863122c77627e913a0eec795d176a7", "5893_validate_editor_remaining_bulk_operations_HARNESS_v1.3-E1E.sql")}
+_ok34 = []; _rest = []
+for _n, (_po, _ho, _pc) in _cad.items():
+    _bo = rd(os.path.join(PROP, _po)); _o = _bo.decode("utf-8"); _c = rd(os.path.join(HERE, "harness", _pc)).decode("utf-8")
+    _hdr = _c.index("*/")
+    _add = [l[1:] for l in _dl.unified_diff(_o.split("\n"), _c.split("\n"), lineterm="", n=0) if l.startswith("+") and not l.startswith("+++")]
+    _body_add = [l for l in _add if l in _c[_hdr:]]
+    _ok34.append(sha(_bo) == _ho and re.findall(r"'id','([^']+)'", _o) == re.findall(r"'id','([^']+)'", _c)
+                 and all("E1E" in l for l in _body_add)
+                 and not any(re.search(r"(?i)\b(grant|revoke|policy|row level|security definer|alter table)\b", l) for l in _body_add))
+    _hl = {m.group(1): m.group(5) for m in re.finditer(r"create or replace function (pg_temp\.wh_\w+)\(([^)]*)\)(.*?)\$(\w*)\$(.*?)\$\4\$", _c, re.S)}
+    _rh = [h for h, b in _hl.items() if "validate" not in h and not h.endswith(("_as", "_try")) and re.search(r"(from|join)\s+(public|storage)\.", b)]
+    _L = _c.split("\n"); _u = "owner"
+    for _i in range([i for i, l in enumerate(_L) if re.search(r"function pg_temp\.wh_\w*validate\(\)", l)][0] + 1, len(_L)):
+        _cc = re.sub(r"--.*$", "", _L[_i])
+        for _m in re.finditer(r"pg_temp\.wh_%s_as\(\s*([a-z_0-9]+)\s*\)" % _n, _cc): _u = _m.group(1)
+        if "reset role" in _cc: _u = "owner"
+        if _u in ("owner", "u_a"): continue
+        if re.search(r"\b(from|join)\s+(public|storage)\.([a-z_0-9]+)\b(?!\s*\()", _cc) or any(h + "(" in _cc for h in _rh):
+            _rest.append(f"{_n}:{_L[_i].strip()[:60]}")
+# únicas leituras restantes sob cliente não titular: 5890 6.4 (EDITOR vê só os arquivos dele, sob RLS) e 6.9 (exclusão real pelo EDITOR)
+check("3.4", all(_ok34) and len(_rest) == 2 and all(x.startswith("5890:") and "storage.objects" in x for x in _rest),
+      f"5889 v1.4-E1E, 5890 v1.3-E1E, 5891 v1.2-E1E e 5892–5893 v1.3-E1E: originais preservados (sha256), delta só em linhas -- E1E, mesmas verificações, sem GRANT/REVOKE/política; sob cliente não titular só restam as leituras intencionais de storage.objects da 5890 6.4/6.9 ({len(_rest)})")
+
+
+# 3.5 CONSOLIDATED HARNESS CORRECTION-01 (G2_B v2 LIVE FAIL, E2BNO, TXID 815477): C1 caminhos de imagem de bolso
+#     canônicos (5889/5890/5892/5893), 10.2 com pré-condição de fixture (5889), C2 sem chamada à 5310 sob
+#     authenticated (5894); versões anteriores e texto executado preservados; delta só em linhas -- E1E.
+_E35 = os.path.join(HERE, "harness")
+_prev = {"5889": ("5889_validate_editor_core_binder_HARNESS_v1.3-E1E.sql", "974fd0e1bd8858830922a59aa51c72adc797371a6dd8b0c97b157d941d5c7f4c", "5889_validate_editor_core_binder_HARNESS_v1.4-E1E.sql"),
+         "5890": ("5890_validate_editor_curation_HARNESS_v1.2-E1E.sql", "3614debf43c356dbf22c1b27495e5d40454bc0671f1c1d37c2e97550eb9e2c69", "5890_validate_editor_curation_HARNESS_v1.3-E1E.sql"),
+         "5892": ("5892_validate_editor_bulk_operations_HARNESS_v1.2-E1E.sql", "3773eaa2668c113617d14e9c13d99c04e67a02e563cd0baeb927027294b11ffc", "5892_validate_editor_bulk_operations_HARNESS_v1.3-E1E.sql"),
+         "5893": ("5893_validate_editor_remaining_bulk_operations_HARNESS_v1.2-E1E.sql", "6142a77d8fe7f9ec27a8db409e5b053c2c3c7ecbac626199a4ff181535390495", "5893_validate_editor_remaining_bulk_operations_HARNESS_v1.3-E1E.sql"),
+         "5894": (os.path.join(PROP, "2026-11-15-v1-13-e1d-shared-reads", "5894_validate_shared_reads_HARNESS.sql"), "db567e0b7bca3ab81169969fd113992c67fff3b5877ee3d99475f9add8e1b869", "5894_validate_shared_reads_HARNESS_v1.4-E1E.sql")}
+_ok35 = {}
+_new = {}
+for _n, (_pf, _ph, _nf) in _prev.items():
+    _pb = rd(_pf if os.path.isabs(_pf) else os.path.join(_E35, _pf)); _pt = _pb.decode("utf-8")
+    _nt = rd(os.path.join(_E35, _nf)).decode("utf-8"); _new[_n] = _nt
+    _h = _nt.index("*/")
+    _ad = [l[1:] for l in _dl.unified_diff(_pt.split("\n"), _nt.split("\n"), lineterm="", n=0) if l.startswith("+") and not l.startswith("+++")]
+    _ba = [l for l in _ad if l in _nt[_h:]]
+    _ok35[_n] = (sha(_pb) == _ph and re.findall(r"'id','([^']+)'", _pt) == re.findall(r"'id','([^']+)'", _nt)
+                 and _ba and all("-- E1E" in l for l in _ba)
+                 and not any(re.search(r"(?i)\b(grant|revoke|policy|row level|security definer|alter table|create table)\b", l) for l in _ba))
+# preservação do texto executado do G2_B v2 e do v1
+_x35 = (sha(rd(os.path.join(HERE, "executed", "G2_B_CHAIN_STORAGE_LAST_rollback_MGMTAPI_EXECUTED-V2-E2BNO_ba19c2f7.sql")))
+        == "ba19c2f7aee0023ae51c5581d8f45ddd4ba5572f11907511ee76137582cef814"
+        and sha(rd(os.path.join(HERE, "executed", "G2_B_CHAIN_STORAGE_LAST_rollback_MGMTAPI_EXECUTED-STOP12_9566d4f4.sql")))
+        == "9566d4f417307f353ea749e7364e9c2395a41f8019a02d5b70a6acba9217ea32")
+# C1: os CHECKs reais da 5232 aplicados a um caminho de exemplo de cada forma usada nos ensaios
+_s5232 = rd(os.path.join(PROP, "..", "schema", "5232_create_collection_layout_slot_image_table.sql")).decode()
+_rx = re.search(r"chk_collection_layout_slot_image_path_format\s+check \(storage_path ~ '([^']+)'\)", _s5232).group(1)
+import uuid as _uu
+_ua, _ul, _ug = (str(_uu.uuid4()) for _ in range(3))
+_canon = _ua + "/" + _ul + "/" + _ug + ".webp"
+_c1sim = (re.fullmatch(_rx, _canon) is not None and _canon.split("/")[0] == _ua
+          and all(re.fullmatch(_rx, _ua + "/" + _ul + f"/wh{n}.webp") is None for n in ("5889", "5890", "5892", "5893")))
+_insert_pat = re.compile(r"insert into public\.collection_layout_(?:slot|region)_image \(([^)]*)\)\s*values \((.*?)\);", re.S)
+_canon_inline = re.compile(r"^(\w+)::text \|\| '/' \|\| [\w.]+::text \|\| '/' \|\| gen_random_uuid\(\)::text \|\| '\.(webp|jpg)'$")
+_c1rows = []
+for _f in ("G2_B_CHAIN_STORAGE_LAST_rollback.sql", "G2_B_CHAIN_STORAGE_LAST_rollback_MGMTAPI.sql",
+           "G2_C_CHAIN_FULL_FINAL_rollback.sql", "G2_C_CHAIN_FULL_FINAL_rollback_MGMTAPI.sql"):
+    _t = rd(os.path.join(HERE, _f)).decode()
+    _h8 = _t[_t.index("-- @@T8 harness"):_t.index("-- @@T9 postcheck")]
+    for _m in _insert_pat.finditer(_h8):
+        _cols = [c.strip() for c in _m.group(1).split(",")]
+        _vals = []; _d = 0; _cur = ""
+        for ch in nc(_m.group(2)):
+            if ch == "(": _d += 1
+            if ch == ")": _d -= 1
+            if ch == "," and _d == 0: _vals.append(_cur.strip()); _cur = ""
+            else: _cur += ch
+        _vals.append(_cur.strip())
+        _sp = _vals[_cols.index("storage_path")]; _ow = _vals[_cols.index("owner_user_id")]
+        _mi = _canon_inline.match(_sp)
+        if _mi: _ok = _mi.group(1) == _ow
+        else:
+            _ma = re.search(r"\b%s\s*:=\s*(\w+) \|\| '/' \|\| \w+ \|\| '/' \|\| gen_random_uuid\(\) \|\| '\.webp';" % re.escape(_sp), _h8)
+            _ok = bool(re.fullmatch(r"\w+", _sp)) and bool(_ma) and _ma.group(1) == _ow
+        _c1rows.append((_f, _ok))
+_c1 = (_c1sim and len(_c1rows) == 4 * 7 and all(o for _, o in _c1rows)
+       and not any(re.search(r"/wh58\d\d\.webp", rd(os.path.join(HERE, f)).decode()) for f in VAR.values()))
+check("3.5a", _c1 and all(_ok35[n] for n in ("5889", "5890", "5892", "5893")) and _x35,
+      f"C1: as {len(_c1rows) // 4} inserções de imagem de bolso/região de cada ensaio G2_B/G2_C usam <dono>/<uuid>/<uuid>.webp com dono = owner_user_id "
+      f"(regex real de chk_collection_layout_slot_image_path_format aceita o canônico e recusa 'wh589N.webp'); 5889 v1.4, 5890/5892/5893 v1.3: "
+      f"anteriores preservadas, delta só em linhas -- E1E, mesmas verificações; textos executados v1 e v2 preservados")
+# 10.2: pré-condição de fixture conjuntiva, avaliada no contexto do dono; slotp devolve NULL sem a página
+_t89 = _new["5889"]
+_q102 = _t89[_t89.index("res := res || jsonb_build_object('id','10.2'"):]; _q102 = _q102[:_q102.index("'detail',")]
+_pre102 = _t89[_t89.rindex("\n", 0, _t89.index("res := res || jsonb_build_object('id','10.2'")) - 120:_t89.index("res := res || jsonb_build_object('id','10.2'")]
+_slotp = re.search(r"function pg_temp\.wh_5889_slotp\(.*?\$sp\$(.*?)\$sp\$", _t89, re.S).group(1)
+_f101 = _t89[_t89.index("-- 10. Estados compostos"):_t89.index("res := res || jsonb_build_object('id','10.1'")]
+check("3.5b", "and exists (select 1 from public.collection_layout_slot_image ximg" in _q102
+      and "ximg.slot_id = pg_temp.wh_5889_slotp(v_layout, 2, 1, 1))" in _q102
+      and "xpg.layout_id = v_layout and xpg.page_number = 2 and xreg.top_row = 2 and xreg.left_column = 1" in _q102
+      and "xreg.height = 1 and xreg.width = 2)" in _q102 and " or " not in nc(_q102)
+      and "execute 'reset role'" in _pre102
+      and re.search(r"p\.page_number = p_page", _slotp) and "join public.collection_layout_page" in _slotp
+      and "pg_temp.wh_5889_slotp(v_layout, 2, 1, 1), u_a," in _f101 and "2, 1, 1, 2);" in _f101,
+      "5889 10.2: exige, em conjunção e no contexto do dono, a imagem em 2:1:1 e a mesclagem r2c1–r2c2 da página 2 que a 10.1 cria; "
+      "sem a página 2, wh_5889_slotp devolve NULL e o EXISTS é falso — o PASS do G2_B v2 (página ausente) não se repete")
+# C2: 5894 3.4 sem a 5310; leitura pública 5312 da mesma coleção, sob o EDITOR; critérios n/n2 intactos; 5310 continua sem EXECUTE
+_t94 = _new["5894"]; _t94o = rd(_prev["5894"][0]).decode()
+_b34 = _t94[_t94.index("res := res || jsonb_build_object('id','3.3'"):_t94.index("res := res || jsonb_build_object('id','4.1'")]
+_b34o = _t94o[_t94o.index("res := res || jsonb_build_object('id','3.3'"):_t94o.index("res := res || jsonb_build_object('id','4.1'")]
+_crit = lambda b: b[b.index("res := res || jsonb_build_object('id','3.4'"):b.index("'detail',", b.index("'id','3.4'"))]
+_s68 = rd(os.path.join(PROP, "2026-11-14-v1-13-e1a-editor-role", "5368_expose_member_role_in_sharing_reads.sql")).decode()
+_g68 = _s68[_s68.index("CREATE OR REPLACE FUNCTION public.get_shared_collection(p_collection_id UUID)"):]
+_g68 = _g68[:_g68.index("GRANT EXECUTE ON FUNCTION public.get_shared_collection(uuid) TO authenticated;") + 10]
+_s10 = rd(os.path.join(PROP, "..", "schema", "5310_create_collection_completion_summary_shared_function.sql")).decode()
+_harn_calls = [h for f in VAR.values() for h in re.findall(r"-- @@T8 harness (\d+)[^\n]*\n(?:(?!-- @@T).*\n)*?.*collection_completion_summary_shared\(c\.id\)", rd(os.path.join(HERE, f)).decode())]
+check("3.5c", _ok35["5894"] and "collection_completion_summary_shared" not in nc(_t94)
+      and re.search(r"perform pg_temp\.wh_5894_as\(u_b\);\s*v_j := public\.get_shared_collection\(v_cm\);", _b34)
+      and "v_j := public.get_shared_collection(v_cd);" in _b34
+      and "(v_j ->> 'satisfied_positions')::bigint = (select count(*) filter (where x.is_satisfied) from public.get_shared_master_set_positions(v_cm, 'ALL', 500, 0) x)" in _b34
+      and "(v_j ->> 'total_positions')::bigint = (select max(x.total_count) from public.get_shared_master_set_positions(v_cm, 'ALL', 500, 0) x)" in _b34
+      and "(v_j ->> 'satisfied_positions')::bigint = (select count(*) filter (where x.is_satisfied) from public.get_shared_pokedex_positions(v_cd, 'ALL', null, 500, 0) x)" in _b34
+      and "(v_j ->> 'total_positions')::bigint = (select max(x.total_count) from public.get_shared_pokedex_positions(v_cd, 'ALL', null, 500, 0) x)" in _b34
+      and _crit(_b34) == _crit(_b34o)
+      and "'total_positions', s.total_positions," in _g68 and "'satisfied_positions', s.satisfied_positions," in _g68
+      and "LEFT JOIN LATERAL public.collection_completion_summary_shared(c.id) s ON true" in _g68 and "WHERE c.id = p_collection_id;" in _g68
+      and "v_role NOT IN ('OWNER', 'VIEWER')" in _g68
+      and "total_positions BIGINT" in _s10 and "satisfied_positions BIGINT" in _s10
+      and "REVOKE ALL ON FUNCTION public.collection_completion_summary_shared(UUID) FROM PUBLIC, anon, authenticated;" in _s10
+      and not re.search(r"(?i)grant[^;]*collection_completion_summary_shared", "".join(rd(os.path.join(HERE, f)).decode() for f in VAR.values())),
+      "5894 3.4: sem chamada à 5310; o EDITOR lê satisfied/total pela 5312 (mesma 5310, mesma coleção, BIGINT), comparados às grades 5323/5324; "
+      "critério final (v_ok, n, n2) idêntico; 5310 continua sem EXECUTE para authenticated e nenhum GRANT nos ensaios")
 
 passes = sum(1 for _, ok, _ in R if ok)
 for cid, ok, det in R:

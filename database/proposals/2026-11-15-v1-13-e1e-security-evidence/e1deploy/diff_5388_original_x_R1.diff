@@ -1,0 +1,11 @@
+--- g1/protected/5388_create_get_shared_binder_activity_functions.sql (e0600cf3)
++++ recovery-r1/5388_create_get_shared_binder_activity_functions_R1.sql
+@@ -99,7 +99,7 @@
+      items: até 50 itens visíveis, com ordinal RENUMERADO 1..n entre os
+        visíveis (sem lacunas que revelem itens ocultos) e só os campos de
+        catálogo e posição: kind, effect, card_id, card_name, collector_number,
+-       card_set_code, variant_type_code, variant_type_name, from_*/to_*;
++       card_set_code, variant_type_code, variant_type_name, from_* e to_*;
+      items_truncated: item_count > 50.
+    NÃO sai: summary (contagens do evento inteiro, chaves e dados de outras
+      coleções), detail (pode ter physical_card_id, collection_id,
