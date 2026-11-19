@@ -251,6 +251,13 @@ export type SharedCollection = {
   cardSetLogoPath: string | null;
   ownerDisplayName: string;
   access: ShareAccess;
+  /**
+   * V1-13 (5368): papel do participante ativo (`role` da 5312). `EDITOR` só
+   * com `access = VIEWER` (o nível de leitura é o mesmo); qualquer outro caso
+   * = `VIEWER` para participante e `null` para titular/público. Só escolhe o
+   * que mostrar: toda escrita é autorizada no servidor.
+   */
+  role: "EDITOR" | "VIEWER" | null;
   membershipId: string | null;
   copies: number;
   progress: SharedProgress;
@@ -278,6 +285,7 @@ export function parseSharedCollection(data: unknown): SharedCollection | null {
     cardSetLogoPath: str(r.card_set_logo_path),
     ownerDisplayName: str(r.owner_display_name) ?? "Um colecionador",
     access,
+    role: access === "VIEWER" ? (r.role === "EDITOR" ? "EDITOR" : "VIEWER") : null,
     membershipId: access === "VIEWER" ? uuid(r.membership_id) : null,
     copies: num(r.copies_count) ?? 0,
     progress: progress(r),

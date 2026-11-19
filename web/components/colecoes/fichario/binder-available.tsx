@@ -43,8 +43,20 @@ export function AvailablePanel({
   onRetry,
   onClose,
   mode,
+  showOrigins = true,
+  hint = null,
+  emptyText = null,
+  emptyTitle = null,
 }: {
   mode: "side" | "bottom";
+  /** E2-1 (EDITOR): a lista já é só desta coleção (5373) — sem filtro de origem. */
+  showOrigins?: boolean;
+  /** Texto de apoio no lugar do padrão do titular. */
+  hint?: string | null;
+  /** Texto da lista vazia no lugar do padrão do titular. */
+  emptyText?: string | null;
+  /** Título da lista vazia no lugar do padrão do titular (E2-1: neutro enquanto a curadoria não foi comprovada). */
+  emptyTitle?: string | null;
   collectionName: string;
   state: AvailableState;
   editable: boolean;
@@ -66,9 +78,10 @@ export function AvailablePanel({
             {state.status === "ready" ? <span className={styles.count}>{state.total.toLocaleString("pt-BR")}</span> : null}
           </h3>
           <p className={styles.hint}>
-            {editable
-              ? "Cartas guardadas neste fichário ainda sem bolso. Arraste até um bolso vazio, ou toque na carta e depois no bolso."
-              : "Cartas guardadas neste fichário ainda sem bolso. Coleção em modo leitura."}
+            {hint ??
+              (editable
+                ? "Cartas guardadas neste fichário ainda sem bolso. Arraste até um bolso vazio, ou toque na carta e depois no bolso."
+                : "Cartas guardadas neste fichário ainda sem bolso. Coleção em modo leitura.")}
           </p>
         </div>
         <button type="button" className={styles.close} onClick={onClose} aria-label="Fechar Cartas disponíveis">
@@ -76,6 +89,7 @@ export function AvailablePanel({
         </button>
       </div>
 
+      {showOrigins ? (
       <div className={styles.filters} role="radiogroup" aria-label="Origem das cartas">
         {AVAILABLE_ORIGINS.map((option) => (
           <button
@@ -90,6 +104,7 @@ export function AvailablePanel({
           </button>
         ))}
       </div>
+      ) : null}
 
       <div className={styles.body}>
         {state.status === "loading" || state.status === "idle" ? (
@@ -111,8 +126,8 @@ export function AvailablePanel({
           </div>
         ) : state.items.length === 0 ? (
           <div className={styles.state}>
-            <span className={styles.stateTitle}>{origin === "ALL" ? "Tudo no lugar" : "Nada neste filtro"}</span>
-            {origin === "ALL"
+            <span className={styles.stateTitle}>{emptyTitle ?? (origin === "ALL" || emptyText ? "Tudo no lugar" : "Nada neste filtro")}</span>
+            {emptyText ? emptyText : origin === "ALL"
               ? "Todas as cartas guardadas neste fichário já estão nos bolsos."
               : origin === "THIS"
                 ? `Todas as cartas de ${collectionName} guardadas aqui já estão nos bolsos.`

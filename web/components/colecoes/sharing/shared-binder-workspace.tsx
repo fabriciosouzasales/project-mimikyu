@@ -3,14 +3,17 @@
 import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import { DndContext } from "@dnd-kit/core";
-import { ArrowLeft, Eye, Maximize2, Minimize2, X } from "lucide-react";
+import { DndContext, DragOverlay, pointerWithin } from "@dnd-kit/core";
+import { ArrowLeft, Eye, Layers, Maximize2, Minimize2, Pencil, X } from "lucide-react";
 import { readPublicBinderPages, readSharedBinderPages } from "@/app/colecoes/compartilhar/actions";
 import { FOCUS_RING, SideArrowButton, TopNavControls } from "@/components/colecoes/fichario/binder-chrome";
 import { BINDER_SPREAD_MEDIA, BinderObjectFrame } from "@/components/colecoes/fichario/binder-object";
 import { PageGrid } from "@/components/colecoes/fichario/binder-page-grid";
 import { CardViewTransitionContext, type SlotHandlers } from "@/components/colecoes/fichario/binder-slot";
 import { BinderCardView } from "@/components/colecoes/fichario/binder-card-view";
+import { AvailablePanel } from "@/components/colecoes/fichario/binder-available";
+import { TraySurface, TrayToggleButton } from "@/components/colecoes/fichario/binder-tray";
+import { EditorDragPreview, SharedEditorMessages, useSharedBinderEditor } from "@/components/colecoes/sharing/shared-binder-editor";
 import ws from "@/components/colecoes/fichario/workspace.module.css";
 import { formatCount } from "@/lib/colecoes/acervo";
 import {
@@ -86,6 +89,8 @@ export function SharedBinderWorkspace({
   initialAnchor = 1,
   initialPages,
   source = "shared",
+  memberRole = null,
+  editorEnabled = false,
 }: {
   collectionId: string;
   collectionName: string;
@@ -111,6 +116,15 @@ export function SharedBinderWorkspace({
    * pública (5318, sem sessão). Mesma apresentação, mesmo mascaramento (5315).
    */
   source?: "shared" | "public";
+  /** V1-13 (5368): papel do participante, só para o selo discreto. */
+  memberRole?: "EDITOR" | "VIEWER" | null;
+  /**
+   * V1-13 · E2-1: curadoria do EDITOR (colocar, mover/trocar, retirar). Vem do
+   * servidor da página: configuração D1 ligada + papel EDITOR + coleção ativa.
+   * Desligado = exatamente o leitor só leitura. Não é autorização: cada escrita
+   * é decidida no servidor.
+   */
+  editorEnabled?: boolean;
 }) {
   const reducedMotion = usePrefersReducedMotion();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -192,6 +206,7 @@ export function SharedBinderWorkspace({
   const [failed, setFailed] = useState<Set<number>>(() => (initialPages === null ? new Set([readBatchStart(initialAnchor)]) : new Set()));
   const inflight = useRef(new Set<number>());
 
+  const [filled, setFilled] = useState(ownFilled);
   const load = useCallback(
     async (batch: number) => {
       if (batch < 1 || batch > totalPages || inflight.current.has(batch)) return;
@@ -218,6 +233,29 @@ export function SharedBinderWorkspace({
     [collectionId, columns, rows, totalPages, source],
   );
 
+  const refresh = useCallback((pages: number[]) => {
+    for (const batch of new Set(pages.map((page) => readBatchStart(page)))) void load(batch);
+  }, [load]);
+  const editor = useSharedBinderEditor({
+    enabled: editorEnabled && source === "shared",
+    collectionId,
+    cache,
+    setCache,
+    refresh,
+    onFilledDelta: (delta) => setFilled((value) => (value === null ? value : Math.max(0, value + delta))),
+  });
+  const editing = editor.active;
+  const editorHandlers = editor.handlers;
+  const slotHandlers = useMemo(() => editorHandlers(handlers), [editorHandlers, handlers]);
+  const [docked, setDocked] = useState(false);
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 1280px)");
+    const apply = () => setDocked(media.matches);
+    apply();
+    media.addEventListener("change", apply);
+    return () => media.removeEventListener("change", apply);
+  }, []);
+
   useEffect(() => {
     const want = (page: number) => page >= 1 && page <= totalPages && !cache.has(page) && !failed.has(readBatchStart(page));
     for (const page of visiblePages) if (want(page)) void load(readBatchStart(page));
@@ -233,7 +271,10 @@ export function SharedBinderWorkspace({
       if (cardViewSlotId) return;
       const target = event.target as HTMLElement | null;
       if (target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
-      if (event.key === "ArrowLeft") go(view - 1);
+      if (event.key === "Escape" && (editor.confirm || editor.armed || editor.armedCard)) {
+        if (editor.confirm) editor.cancelConfirm();
+        else editor.setArmed(null);
+      } else if (event.key === "ArrowLeft") go(view - 1);
       else if (event.key === "ArrowRight") go(view + 1);
       else if (event.key === "Home") go(1);
       else if (event.key === "End") go(lastView);
@@ -245,7 +286,7 @@ export function SharedBinderWorkspace({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [go, view, lastView, onClose, cardViewSlotId]);
+  }, [go, view, lastView, onClose, cardViewSlotId, editor]);
 
   // ---- tela cheia (mesmo alvo do titular: a raiz do fichário) ----
   const [fullscreen, setFullscreen] = useState(false);
@@ -279,7 +320,13 @@ export function SharedBinderWorkspace({
 
   return (
     <CardViewTransitionContext.Provider value={cardViewSlotId ? null : cardViewTarget}>
-    <div ref={rootRef} className={cn("binder-nav-01-scope", ws.root)} data-variant={variant} data-fullscreen={fullscreen || undefined}>
+    <div
+      ref={rootRef}
+      className={cn("binder-nav-01-scope", ws.root)}
+      data-variant={variant}
+      data-fullscreen={fullscreen || undefined}
+      data-available={editing && editor.availableOpen ? (docked ? "side" : "bottom") : undefined}
+    >
       <div aria-hidden className={ws.glow} />
 
       <header className={ws.top}>
@@ -296,7 +343,8 @@ export function SharedBinderWorkspace({
             <p className={ws.facts}>
               {binderName !== collectionName ? `${collectionName} · ` : ""}de {ownerDisplayName} · {modelLabel(columns, rows)} · {formatCount(totalPages)}{" "}
               {totalPages === 1 ? "página" : "páginas"}
-              {ownFilled !== null ? ` · ${formatCount(ownFilled)} ${ownFilled === 1 ? "carta" : "cartas"}` : ""} · somente visualização
+              {filled !== null ? ` · ${formatCount(filled)} ${filled === 1 ? "carta" : "cartas"}` : ""}
+              {editing ? " · você pode organizar as cartas" : " · somente visualização"}
             </p>
           </div>
         </div>
@@ -308,10 +356,36 @@ export function SharedBinderWorkspace({
         )}
 
         <div className={ws.actions}>
-          <span className={styles.accessBadge} title="Você vê o fichário como o titular o montou, sem ferramentas de edição">
-            <Eye aria-hidden="true" />
-            <span className="sr-only sm:not-sr-only">Somente visualização</span>
-          </span>
+          {memberRole === "EDITOR" ? (
+            <span
+              className={styles.accessBadge}
+              title={
+                editing
+                  ? "Você é editor desta coleção: pode colocar, mover e retirar cartas do fichário. As cartas continuam do titular."
+                  : "Você é editor desta coleção. A organização compartilhada ainda não está disponível nesta tela."
+              }
+            >
+              <Pencil aria-hidden="true" />
+              <span className="sr-only sm:not-sr-only">Editor</span>
+            </span>
+          ) : (
+            <span className={styles.accessBadge} title="Você vê o fichário como o titular o montou, sem ferramentas de edição">
+              <Eye aria-hidden="true" />
+              <span className="sr-only sm:not-sr-only">Somente visualização</span>
+            </span>
+          )}
+          {editing ? (
+            <button
+              type="button"
+              className={cn(ws.iconButton, FOCUS_RING)}
+              onClick={() => (editor.availableOpen ? editor.closeAvailable() : editor.openAvailable())}
+              aria-pressed={editor.availableOpen}
+              aria-label={editor.availableOpen ? "Fechar Cartas disponíveis" : "Cartas disponíveis"}
+              title="Cartas disponíveis"
+            >
+              <Layers className="h-4 w-4" aria-hidden />
+            </button>
+          ) : null}
           {canFullscreen ? (
             <button
               type="button"
@@ -332,13 +406,24 @@ export function SharedBinderWorkspace({
         </div>
       </header>
 
-      {/* Os bolsos usam os ganchos de arrasto do titular desligados; o contexto só os hospeda. */}
-      <DndContext>
+      {/* Leitor: ganchos de arrasto desligados (o contexto só os hospeda). EDITOR (E2-1): os mesmos do titular. */}
+      <DndContext
+        sensors={editing ? editor.sensors : undefined}
+        collisionDetection={pointerWithin}
+        onDragStart={editing ? editor.onDragStart : undefined}
+        onDragEnd={editing ? editor.onDragEnd : undefined}
+        onDragCancel={editing ? editor.onDragCancel : undefined}
+      >
         <div className={ws.prev}>
           <SideArrowButton direction="prev" onClick={() => go(view - 1)} disabled={view <= 1} dragActive={false} />
         </div>
 
-        <section ref={stageRef} className={ws.stage} aria-label={`${binderName} — ${label}`} aria-roledescription="fichário somente leitura">
+        <section
+          ref={stageRef}
+          className={ws.stage}
+          aria-label={`${binderName} — ${label}`}
+          aria-roledescription={editing ? "fichário compartilhado, organização pelo editor" : "fichário somente leitura"}
+        >
           {totalPages === 0 ? (
             <p className="max-w-sm text-center text-sm text-muted-foreground">Este fichário ainda não tem páginas.</p>
           ) : fit.pocket > 0 ? (
@@ -362,17 +447,17 @@ export function SharedBinderWorkspace({
                   pocket={metrics.pocket}
                   gap={metrics.gap}
                   sizes={sizes}
-                  editable={false}
+                  editable={editing}
                   selected={EMPTY_IDS}
                   selectionActive={false}
-                  trayIds={EMPTY_IDS}
-                  armed={null}
-                  dragging={null}
-                  placing={false}
-                  placingAvailable={false}
+                  trayIds={editing ? editor.trayIds : EMPTY_IDS}
+                  armed={editing ? editor.armed : null}
+                  dragging={editing ? editor.dragging : null}
+                  placing={editing && (editor.armed !== null || editor.dragging?.kind === "slot" || editor.dragging?.kind === "tray")}
+                  placingAvailable={editing && (editor.armedCard !== null || editor.dragging?.kind === "available")}
                   focusCollectionId={null}
                   insertEnabled={false}
-                  handlers={handlers}
+                  handlers={slotHandlers}
                   onRetry={() => void load(readBatchStart(side))}
                 />
               )}
@@ -383,9 +468,61 @@ export function SharedBinderWorkspace({
         <div className={ws.next}>
           <SideArrowButton direction="next" onClick={() => go(view + 1)} disabled={view >= lastView} dragActive={false} />
         </div>
+
+        {editing && editor.availableOpen ? (
+          <AvailablePanel
+            mode={docked ? "side" : "bottom"}
+            collectionName={collectionName}
+            state={editor.available}
+            editable={editing}
+            armedId={editor.armedCard?.physicalCardId ?? null}
+            origin="THIS"
+            onOrigin={() => {}}
+            showOrigins={false}
+            hint={
+              editor.target
+                ? "Toque na carta para colocá-la no bolso escolhido."
+                : "Cartas desta coleção guardadas neste fichário e ainda sem bolso. Arraste até um bolso vazio, ou toque na carta e depois no bolso."
+            }
+            emptyTitle={editor.emptyState.title}
+            emptyText={editor.emptyState.text}
+            onArm={editor.armCard}
+            onLoadMore={editor.loadMore}
+            onRetry={editor.retryAvailable}
+            onClose={editor.closeAvailable}
+          />
+        ) : null}
+
+        {editing ? (
+          <DragOverlay dropAnimation={null}>
+            <EditorDragPreview editor={editor} pocket={fit.pocket} />
+          </DragOverlay>
+        ) : null}
       </DndContext>
 
-      <div className={ws.bottom} />
+      <div className={ws.bottom}>
+        {editing || editor.toast ? <SharedEditorMessages editor={editor} /> : null}
+        {editing ? (
+          <div className={ws.trayAnchor}>
+            {editor.trayOpen ? (
+              <TraySurface
+                items={editor.tray}
+                armed={editor.armed}
+                onArm={(id) => editor.setArmed(editor.armed === id ? null : id)}
+                onReturn={editor.returnFromTray}
+                onClose={() => editor.setTrayOpen(false)}
+              />
+            ) : null}
+            <TrayToggleButton
+              count={editor.tray.length}
+              open={editor.trayOpen}
+              dragActive={editor.dragging?.kind === "slot"}
+              disabled={!editing}
+              onToggle={() => editor.setTrayOpen(!editor.trayOpen)}
+            />
+          </div>
+        ) : null}
+      </div>
 
       <BinderCardView
         slot={cardViewSlot && canViewCard(cardViewSlot) ? cardViewSlot : null}

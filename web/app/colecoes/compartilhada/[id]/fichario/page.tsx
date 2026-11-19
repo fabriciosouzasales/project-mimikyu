@@ -4,6 +4,7 @@ import { BookOpen } from "lucide-react";
 import { AppShell } from "@/components/app-shell/app-shell";
 import { SharedBinderWorkspace } from "@/components/colecoes/sharing/shared-binder-workspace";
 import { resolveFinish } from "@/lib/colecoes/binder-finish";
+import { canShowEditorCuration, editorCurationFlagOn } from "@/lib/colecoes/editor-binder";
 import { collectionHref, isCollectionId } from "@/lib/colecoes/colecoes";
 import { sharedBatchStart, sharedCollectionHref } from "@/lib/colecoes/sharing";
 import { getSharedCollection, getSharedCollectionBinder, getSharedCollectionBinderPages } from "@/lib/colecoes/sharing-queries";
@@ -18,7 +19,10 @@ export const metadata: Metadata = { title: "Fichário compartilhado", robots: { 
  *
  * Exige sessão e participação ACTIVE (5314/5315 negam PUBLIC, convite
  * pendente/recusado, ex-participante e estranho — tudo vira 404, como a
- * coleção inexistente). O titular vai para o fichário completo dele. Sem
+ * coleção inexistente). O titular vai para o fichário completo dele.
+ * V1-13 · E2-1: o EDITOR (5312 `access = VIEWER`, `role = EDITOR`) usa a
+ * mesma rota; com a configuração D1 ligada e a coleção ativa, ganha colocar,
+ * mover/trocar e retirar — cada escrita autorizada no servidor. Sem
  * fichário, volta para a coleção compartilhada. O primeiro lote de páginas
  * sai no servidor; o resto o cliente lê sob demanda.
  */
@@ -67,6 +71,8 @@ export default async function FicharioCompartilhadoPage({
         initialAnchor={anchor}
         initialPages={initialPages}
         backHref={sharedCollectionHref(collectionId)}
+        memberRole={collection.role}
+        editorEnabled={canShowEditorCuration({ flagOn: editorCurationFlagOn(process.env), role: collection.role, archived: collection.archived })}
       />
     </AppShell>
   );

@@ -90,7 +90,8 @@ export function PageGrid({
                     gap={gap}
                     pageNumber={pageNumber}
                     priority={index < columns * 2}
-                    editable={editable}
+                    // E2-1: a mesclagem é do titular (C-238) — o EDITOR só vê a imagem.
+                    editable={editable && !handlers.editorCore}
                     showActions={!selectionActive}
                     placing={placing}
                     dimmed={focusCollectionId !== null}
