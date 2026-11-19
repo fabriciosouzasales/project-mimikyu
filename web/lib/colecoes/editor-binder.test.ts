@@ -22,6 +22,17 @@ import {
   patchMove,
   patchPlace,
   patchRemove,
+  patchRelease,
+  patchReserve,
+  applyLockLessons,
+  candidatesFromCatalogSearch,
+  candidatesFromSharedPositions,
+  editorPocketActions,
+  editorReserveScope,
+  knownLock,
+  lockLessons,
+  overlayLocks,
+  positionKey,
   placeableEmptyState,
   settleEditorOutcome,
   sharedSlotPosition,
@@ -250,4 +261,114 @@ test("lista vazia: 'Tudo no lugar' só com a curadoria comprovada; antes, texto 
   assert.notEqual(neutral.title, "Tudo no lugar");
   const text = `${neutral.title} ${neutral.text}`.toLowerCase();
   for (const banned of ["tudo no lugar", "já estão", "barreira", "bloque", "permiss", "titular", "local", "acervo"]) assert.ok(!text.includes(banned), banned);
+});
+
+// ---------------------------------------------------------------------------
+// E2-2 — reservas e fixação
+
+const POS = { page: 2, row: 1, column: 1 };
+const POS2 = { page: 2, row: 1, column: 2 };
+
+test("fixação em três estados: UNKNOWN por padrão, nunca vira 'solto' sozinho", () => {
+  const empty = new Map<string, "LOCKED" | "UNLOCKED">();
+  assert.equal(knownLock(empty, POS), "UNKNOWN");
+  assert.equal(knownLock(empty, null), "UNKNOWN");
+  const m = applyLockLessons(empty, [{ position: POS, state: "LOCKED" }]);
+  assert.equal(knownLock(m, POS), "LOCKED");
+  assert.equal(knownLock(m, POS2), "UNKNOWN", "outro bolso continua desconhecido");
+  assert.equal(positionKey(POS), "2:1:1");
+});
+
+test("P1/P2: só respostas conclusivas ensinam; recusa neutra ou do mover não ensina", () => {
+  const ok = (operation: string) => ({ ok: true as const, operation });
+  const no = (reason: "locked" | "not_editable" | "access_lost") => ({ ok: false as const, reason });
+  assert.deepEqual(lockLessons({ kind: "lock", locked: true, position: POS }, ok("LOCKED")), [{ position: POS, state: "LOCKED" }]);
+  assert.deepEqual(lockLessons({ kind: "lock", locked: true, position: POS }, ok("UNCHANGED")), [{ position: POS, state: "LOCKED" }], "já estava fixado");
+  assert.deepEqual(lockLessons({ kind: "lock", locked: false, position: POS }, ok("UNCHANGED")), [{ position: POS, state: "UNLOCKED" }], "já estava solto");
+  assert.deepEqual(lockLessons({ kind: "lock", locked: true, position: POS }, no("not_editable")), [], "recusa neutra não revela estado");
+  assert.deepEqual(lockLessons({ kind: "place", position: POS }, ok("ADD")), [{ position: POS, state: "UNLOCKED" }]);
+  assert.deepEqual(lockLessons({ kind: "remove", position: POS }, no("locked")), [{ position: POS, state: "LOCKED" }]);
+  assert.deepEqual(lockLessons({ kind: "move", from: POS, to: POS2 }, no("locked")), [], "no mover não se sabe qual bolso");
+  assert.equal(lockLessons({ kind: "move", from: POS, to: POS2 }, ok("SWAP")).length, 2);
+  assert.deepEqual(lockLessons({ kind: "reserve", position: POS }, ok("RESERVED")), [], "reservar é aceito em bolso fixado: não ensina");
+  assert.deepEqual(lockLessons({ kind: "release", position: POS }, ok("RELEASED")), []);
+});
+
+test("P2: o estado aprendido sobrevive à releitura (a leitura não informa fixação)", () => {
+  const reread = page(); // 5315: locked sempre false
+  const shown = overlayLocks(reread, new Map([["2:1:1", "LOCKED" as const]]));
+  assert.equal(at(shown.slots, 0).locked, true);
+  assert.equal(at(shown.slots, 1).locked, false);
+  assert.equal(overlayLocks(reread, new Map()), reread, "sem conhecimento, a página é a mesma");
+});
+
+test("ações oferecidas só sobre conteúdo de X visível; imagem/mesclagem nunca", () => {
+  const [occupied, empty, reserved] = [at(page().slots, 0), at(page().slots, 1), at(page().slots, 2)];
+  assert.deepEqual(editorPocketActions(empty, "UNKNOWN", false), { reserve: true, changeReserve: false, release: false, lock: false, unlock: false }, "vazio: só reservar; nunca fixar (C-237)");
+  assert.deepEqual(editorPocketActions(empty, "LOCKED", false).reserve, false, "vazio sabido fixado é do titular");
+  assert.deepEqual(editorPocketActions(occupied, "UNKNOWN", false), { reserve: false, changeReserve: false, release: false, lock: true, unlock: false });
+  assert.deepEqual(editorPocketActions(occupied, "LOCKED", false), { reserve: false, changeReserve: false, release: false, lock: false, unlock: true });
+  assert.equal(editorPocketActions(occupied, "UNKNOWN", true).lock, false, "carta na Bandeja não é fixada");
+  assert.deepEqual(editorPocketActions(reserved, "UNKNOWN", false), { reserve: false, changeReserve: true, release: true, lock: true, unlock: false });
+  assert.equal(editorPocketActions(reserved, "LOCKED", false).release, true, "P4: liberar com reserva visível, mesmo fixado — o servidor decide");
+  const imaged = { ...empty, image: { path: "p", focalY: 50, updatedAt: "", url: "u" } };
+  assert.deepEqual(editorPocketActions(imaged, "UNKNOWN", false), { reserve: false, changeReserve: false, release: false, lock: false, unlock: false });
+  assert.deepEqual(editorPocketActions({ ...empty, regionId: "r" }, "UNKNOWN", false).reserve, false);
+});
+
+test("reserva/liberação otimistas com reversão exata; mensagens de cada resultado", () => {
+  const p = page();
+  const cache = new Map([[2, p]]);
+  const cand = { key: PC, cardId: PC, variantTypeId: null, finishName: null, cardName: "Raichu", collectorNumber: "14", collectorTotal: 102, setCode: "base1", setName: "Base", imagePath: null, owned: false };
+  const reserved = applyPatch(cache, patchReserve(at(p.slots, 1), cand, CO));
+  assert.equal(at(reserved.cache.get(2)?.slots ?? [], 1).state, "RESERVED_EMPTY");
+  const s = settleEditorOutcome({ kind: "reserve", cardName: "Raichu" }, { ok: false, reason: "not_editable" }, reserved.previous);
+  assert.ok(s.revert);
+  assert.deepEqual(applyPatch(reserved.cache, s.revert).cache.get(2), p);
+  const released = applyPatch(cache, patchRelease(at(p.slots, 2)));
+  assert.equal(at(released.cache.get(2)?.slots ?? [], 2).state, "EMPTY");
+  assert.deepEqual(applyPatch(released.cache, released.previous).cache.get(2), p);
+
+  const msg = (op: Parameters<typeof settleEditorOutcome>[0], operation: string) => settleEditorOutcome(op, { ok: true, operation }, new Map()).toast.text;
+  assert.equal(msg({ kind: "reserve", cardName: "Raichu" }, "RESERVED"), "Bolso reservado para Raichu.");
+  assert.equal(msg({ kind: "reserve", cardName: "Raichu" }, "REPLACED"), "Reserva trocada para Raichu.");
+  assert.equal(msg({ kind: "reserve", cardName: "Raichu" }, "UNCHANGED"), "O bolso já estava reservado para essa carta.");
+  assert.equal(msg({ kind: "release" }, "RELEASED"), "Reserva liberada.");
+  assert.equal(msg({ kind: "release" }, "UNCHANGED"), "Esse bolso já estava sem reserva.");
+  assert.equal(msg({ kind: "lock", locked: true }, "LOCKED"), "Bolso fixado.");
+  assert.equal(msg({ kind: "lock", locked: false }, "UNLOCKED"), "Bolso solto.");
+  assert.equal(msg({ kind: "lock", locked: true }, "UNCHANGED"), "Esse bolso já estava fixado.");
+  assert.equal(msg({ kind: "lock", locked: false }, "UNCHANGED"), "Esse bolso já estava solto.");
+  for (const text of [msg({ kind: "release" }, "UNCHANGED"), msg({ kind: "reserve", cardName: "x" }, "UNCHANGED")]) {
+    assert.ok(!/outra coleção|titular|terceiros/.test(text), text);
+  }
+});
+
+test("perda de permissão em reserva/fixação desliga a edição; reserva não altera a contagem", () => {
+  const s = settleEditorOutcome({ kind: "lock", locked: true }, { ok: false, reason: "access_lost" }, new Map());
+  assert.deepEqual([s.disable, s.recheck], [true, true]);
+  assert.equal(settleEditorOutcome({ kind: "reserve", cardName: "x" }, { ok: true, operation: "RESERVED" }, new Map()).filledDelta, 0);
+});
+
+test("ReservePicker do EDITOR: fonte por tipo de coleção (Set padrão 5320, Master Set 5323, livre = Catálogo, Pokédex sem reserva)", () => {
+  assert.equal(editorReserveScope("STANDARD_SET"), "STANDARD_SET");
+  assert.equal(editorReserveScope("MASTER_SET"), "MASTER_SET");
+  assert.equal(editorReserveScope("NONE"), "FREE");
+  assert.equal(editorReserveScope("REFERENCE_POSITION"), null, "Pokédex");
+  assert.equal(editorReserveScope(null), null);
+  const set = { code: "base1", name: "Base" };
+  const std = candidatesFromSharedPositions("STANDARD_SET", [{ card_id: PC.toUpperCase(), card_name: "Pikachu", collector_number: "58", collector_total: 102, image_path: null, is_satisfied: false, copies_in_collection: 0, total_count: 102 }], set);
+  assert.deepEqual(std && at(std, 0), { key: PC, cardId: PC, variantTypeId: null, finishName: null, cardName: "Pikachu", collectorNumber: "58", collectorTotal: 102, setCode: "base1", setName: "Base", imagePath: null, owned: false });
+  const ms = candidatesFromSharedPositions("MASTER_SET", [{ card_id: PC, variant_type_id: PC2, variant_type_name: "Reverse Holo", card_name: "Pikachu", collector_number: "58", collector_total: 102, image_path: "x.png", is_satisfied: true }], set);
+  assert.equal(ms && at(ms, 0).key, `${PC}:${PC2}`);
+  assert.equal(ms && at(ms, 0).finishName, "Reverse Holo");
+  assert.equal(candidatesFromSharedPositions("MASTER_SET", [{ card_id: PC, card_name: "x" }], set), null, "Master Set sem acabamento é formato inválido");
+  assert.equal(candidatesFromSharedPositions("STANDARD_SET", {}, set), null);
+  const free = candidatesFromCatalogSearch([{ card_id: PC, card_name: "Pikachu", card_set_code: "sv1", card_set_name: "SV", image_path_en: "e.png" }, { card_name: "sem id" }]);
+  assert.equal(free?.length, 1);
+  assert.equal(free && at(free, 0).imagePath, "e.png");
+  // Nenhum candidato traz campo patrimonial (acervo, local, condição, quantidade disponível).
+  for (const c of [...(std ?? []), ...(ms ?? []), ...(free ?? [])]) {
+    assert.deepEqual(Object.keys(c).sort(), ["cardId", "cardName", "collectorNumber", "collectorTotal", "finishName", "imagePath", "key", "owned", "setCode", "setName", "variantTypeId"]);
+  }
 });

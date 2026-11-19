@@ -7,13 +7,17 @@ import {
   type EditorFailure,
   type PocketPosition,
   PLACEABLE_PAGE_SIZE,
+  candidatesFromCatalogSearch,
+  candidatesFromSharedPositions,
   classifyEditorFailure,
   editorCurationFlagOn,
+  editorReserveScope,
   isPocketPosition,
   parsePlaceableCards,
 } from "@/lib/colecoes/editor-binder";
 import type { AvailableCard } from "@/lib/colecoes/binder-share";
-import { SHARED_COLLECTION_PATH } from "@/lib/colecoes/sharing";
+import type { ReserveCandidate, ReserveScope } from "@/lib/colecoes/binder-reserve";
+import { SHARED_COLLECTION_PATH, parseSharedCollection } from "@/lib/colecoes/sharing";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -136,4 +140,142 @@ export async function editorRemoveCard(input: { collectionId: string; position: 
   if (operationOf(data) !== "REMOVED") return fail("editor_remove_binder_card", startedAt, null);
   done("editor_remove_binder_card", startedAt, input.collectionId, "REMOVED");
   return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// V1-13 · E2-2 — reservas e fixação pelo EDITOR (5375), por posição. Mesma
+// fronteira: a configuração D1 só evita chamadas; a autorização é do banco.
+
+/** Reservar (ou trocar a reserva de) um bolso para uma carta — sempre registrada para esta coleção. */
+export async function editorSetReservation(input: {
+  collectionId: string;
+  position: PocketPosition;
+  cardId: string;
+  /** Master Set: acabamento esperado; `null` = só a carta. */
+  variantTypeId: string | null;
+}): Promise<{ ok: true; operation: "RESERVED" | "REPLACED" | "UNCHANGED" } | Fail> {
+  if (!enabled()) return { ok: false, reason: "disabled" };
+  if (!isCollectionId(input?.collectionId) || !isPocketPosition(input.position) || !isUuid(input.cardId) || (input.variantTypeId !== null && !isUuid(input.variantTypeId))) {
+    return { ok: false, reason: "invalid" };
+  }
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("editor_set_binder_reservation", {
+    p_collection_id: input.collectionId,
+    p_page: input.position.page,
+    p_row: input.position.row,
+    p_column: input.position.column,
+    p_card_id: input.cardId,
+    p_card_variant_id: null,
+    p_expected_variant_type_id: input.variantTypeId,
+  });
+  if (error) return fail("editor_set_binder_reservation", startedAt, error);
+  const operation = operationOf(data);
+  if (operation !== "RESERVED" && operation !== "REPLACED" && operation !== "UNCHANGED") return fail("editor_set_binder_reservation", startedAt, null);
+  done("editor_set_binder_reservation", startedAt, input.collectionId, operation);
+  return { ok: true, operation };
+}
+
+/** Liberar a reserva desta coleção num bolso. Sem reserva → UNCHANGED (sem evento). */
+export async function editorClearReservation(input: { collectionId: string; position: PocketPosition }): Promise<{ ok: true; operation: "RELEASED" | "UNCHANGED" } | Fail> {
+  if (!enabled()) return { ok: false, reason: "disabled" };
+  if (!isCollectionId(input?.collectionId) || !isPocketPosition(input.position)) return { ok: false, reason: "invalid" };
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("editor_clear_binder_reservation", {
+    p_collection_id: input.collectionId,
+    p_page: input.position.page,
+    p_row: input.position.row,
+    p_column: input.position.column,
+  });
+  if (error) return fail("editor_clear_binder_reservation", startedAt, error);
+  const operation = operationOf(data);
+  if (operation !== "RELEASED" && operation !== "UNCHANGED") return fail("editor_clear_binder_reservation", startedAt, null);
+  done("editor_clear_binder_reservation", startedAt, input.collectionId, operation);
+  return { ok: true, operation };
+}
+
+/** Fixar (`locked = true`) ou soltar um bolso desta coleção. */
+export async function editorSetLock(input: { collectionId: string; position: PocketPosition; locked: boolean }): Promise<{ ok: true; operation: "LOCKED" | "UNLOCKED" | "UNCHANGED" } | Fail> {
+  if (!enabled()) return { ok: false, reason: "disabled" };
+  if (!isCollectionId(input?.collectionId) || !isPocketPosition(input.position) || typeof input.locked !== "boolean") return { ok: false, reason: "invalid" };
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("editor_set_binder_lock", {
+    p_collection_id: input.collectionId,
+    p_page: input.position.page,
+    p_row: input.position.row,
+    p_column: input.position.column,
+    p_locked: input.locked,
+  });
+  if (error) return fail("editor_set_binder_lock", startedAt, error);
+  const operation = operationOf(data);
+  if (operation !== "LOCKED" && operation !== "UNLOCKED" && operation !== "UNCHANGED") return fail("editor_set_binder_lock", startedAt, null);
+  done("editor_set_binder_lock", startedAt, input.collectionId, operation);
+  return { ok: true, operation };
+}
+
+const POSITIONS_PAGE = 500;
+const POSITIONS_MAX = 4000;
+
+/**
+ * Cartas para o seletor de reserva do EDITOR, pela leitura que o participante
+ * já tem, conforme o tipo da coleção: Set padrão → 5320; Master Set → 5323;
+ * coleção livre → Catálogo (`search_cards`, como o titular). Pokédex não tem
+ * reserva por carta. Nada do acervo do titular.
+ */
+export async function readEditorReserveCandidates(input: {
+  collectionId: string;
+  query?: string;
+  offset?: number;
+}): Promise<{ ok: true; scope: ReserveScope; candidates: ReserveCandidate[]; total: number; complete: boolean } | { ok: false; reason: "invalid" | "not_found" | "unsupported" | "unavailable" }> {
+  if (!enabled()) return { ok: false, reason: "unavailable" };
+  if (!isCollectionId(input?.collectionId)) return { ok: false, reason: "invalid" };
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const header = await supabase.rpc("get_shared_collection", { p_collection_id: input.collectionId });
+  if (header.error) return { ok: false, reason: "unavailable" };
+  const collection = parseSharedCollection(header.data);
+  if (!collection || collection.access !== "VIEWER") return { ok: false, reason: "not_found" };
+  const scope = editorReserveScope(collection.completionPolicy);
+  if (scope === null) return { ok: false, reason: "unsupported" };
+
+  if (scope === "FREE") {
+    const query = typeof input.query === "string" ? input.query.trim().slice(0, 120) : "";
+    if (query.length < 2) return { ok: true, scope, candidates: [], total: 0, complete: true };
+    const offset = Number.isInteger(input.offset) && (input.offset as number) > 0 ? Math.min(input.offset as number, 5000) : 0;
+    const { data, error } = await supabase.rpc("search_cards", {
+      p_query: query,
+      p_card_id: null,
+      p_card_set_code: null,
+      p_category_code: null,
+      p_rarity_code: null,
+      p_limit: 36,
+      p_offset: offset,
+    });
+    const candidates = error ? null : candidatesFromCatalogSearch(data);
+    if (!candidates) {
+      console.error(JSON.stringify({ scope: "colecoes.editor_binder", fn: "search_cards", ms: Date.now() - startedAt, code: error?.code ?? "BAD_SHAPE" }));
+      return { ok: false, reason: "unavailable" };
+    }
+    const total = Number((data as Array<{ total_count?: unknown }>)[0]?.total_count ?? 0) || candidates.length;
+    return { ok: true, scope, candidates, total, complete: offset + candidates.length >= total };
+  }
+
+  const fn = scope === "MASTER_SET" ? "get_shared_master_set_positions" : "get_shared_collection_positions";
+  const set = { code: collection.cardSetCode, name: collection.cardSetName };
+  const candidates: ReserveCandidate[] = [];
+  let total = 0;
+  for (let offset = 0; offset < POSITIONS_MAX; offset += POSITIONS_PAGE) {
+    const { data, error } = await supabase.rpc(fn, { p_collection_id: input.collectionId, p_filter: "ALL", p_limit: POSITIONS_PAGE, p_offset: offset });
+    const rows = error ? null : candidatesFromSharedPositions(scope, data, set);
+    if (!rows) {
+      console.error(JSON.stringify({ scope: "colecoes.editor_binder", fn, ms: Date.now() - startedAt, code: error?.code ?? "BAD_SHAPE" }));
+      return { ok: false, reason: "unavailable" };
+    }
+    total = Math.max(total, Number((data as Array<{ total_count?: unknown }>)[0]?.total_count ?? 0) || 0);
+    candidates.push(...rows);
+    if (rows.length < POSITIONS_PAGE) break;
+  }
+  return { ok: true, scope, candidates, total: Math.max(total, candidates.length), complete: candidates.length >= total };
 }

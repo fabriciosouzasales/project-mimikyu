@@ -72,6 +72,7 @@ export default async function FicharioCompartilhadoPage({
         initialPages={initialPages}
         backHref={sharedCollectionHref(collectionId)}
         memberRole={collection.role}
+        completionPolicy={collection.completionPolicy}
         editorEnabled={canShowEditorCuration({ flagOn: editorCurationFlagOn(process.env), role: collection.role, archived: collection.archived })}
       />
     </AppShell>

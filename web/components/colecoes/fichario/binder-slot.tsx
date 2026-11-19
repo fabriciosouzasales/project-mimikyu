@@ -33,6 +33,7 @@ import { type SpeciesReference, formatNationalNumber, shouldShowSpeciesReference
 import { speciesArtworkUrl } from "@/lib/pokedex/artwork";
 import { type VariantPrice, formatBrl, isPriceMuted, isPriceShown, priceAccessibleText, priceIndicator, priceState } from "@/lib/pricing/variant-pricing";
 import { StateGlyph } from "@/components/card/variant-price-summary";
+import { editorPocketActions } from "@/lib/colecoes/editor-binder";
 import { cn } from "@/lib/utils";
 import { type BinderWishTarget, binderWishState, binderWishTarget, wishToggleLabel } from "@/lib/wishlist/wishlist";
 import { PocketArt } from "./binder-page";
@@ -477,7 +478,11 @@ export function BinderSlotView({
             {image ? (
               handlers.editorCore ? null : <ImageQuickActions slot={slot} size={control} handlers={handlers} canInsertGap={canInsertGap} />
             ) : (
-              <QuickActions slot={slot} occupied={occupied} reserved={reserved} inTray={inTray} size={control} handlers={handlers} canInsertGap={canInsertGap} />
+              handlers.editorCore ? (
+                <EditorQuickActions slot={slot} occupied={occupied} reserved={reserved} inTray={inTray} size={control} handlers={handlers} />
+              ) : (
+                <QuickActions slot={slot} occupied={occupied} reserved={reserved} inTray={inTray} size={control} handlers={handlers} canInsertGap={canInsertGap} />
+              )
             )}
           </div>
         </>
@@ -989,8 +994,6 @@ function QuickActions({
   const canReserve = canReserveCurrent(slot);
   // V1-07: reservar bolso vazio para uma carta escolhida / trocar a reservada (só o fichário do dono fornece).
   const reserveFor = !occupied && !inTray ? (handlers.reserveForMode?.(slot) ?? null) : null;
-  // E2-1: o EDITOR só vê Ver carta, Bandeja, Adicionar carta e Tirar do fichário.
-  const core = handlers.editorCore === true;
   return (
     <TooltipPrimitive.Provider delayDuration={250} skipDelayDuration={100}>
       <div className="absolute inset-x-0 bottom-[6%] flex items-center justify-center">
@@ -1000,7 +1003,7 @@ function QuickActions({
           className="flex items-center gap-px rounded-full px-0.5 py-0.5"
           style={{ background: "hsl(0 0% 0% / 0.62)", boxShadow: "0 2px 8px rgba(0,0,0,0.5), inset 0 1px 0 hsl(0 0% 100% / 0.06)" }}
         >
-          {canInsertGap && !core ? <QuickButton icon={BetweenVerticalStart} label="Abrir espaço antes deste bolso" onClick={() => handlers.onInsertGap(slot)} size={size} /> : null}
+          {canInsertGap ? <QuickButton icon={BetweenVerticalStart} label="Abrir espaço antes deste bolso" onClick={() => handlers.onInsertGap(slot)} size={size} /> : null}
           {handlers.onViewCard && canViewCard(slot) ? <QuickButton icon={ZoomIn} label="Ver carta" onClick={() => handlers.onViewCard?.(slot)} size={size} /> : null}
           {occupied ? (
             inTray ? (
@@ -1019,10 +1022,10 @@ function QuickActions({
           {!occupied && !slot.locked && !inTray ? (
             <QuickButton icon={Plus} label="Adicionar carta" onClick={() => handlers.onAddCard(slot)} size={size} />
           ) : null}
-          {!core && reserveFor === "reserve" && handlers.onReserveFor ? (
+          {reserveFor === "reserve" && handlers.onReserveFor ? (
             <QuickButton icon={BookmarkPlus} label="Reservar este bolso para uma carta…" onClick={() => handlers.onReserveFor?.(slot)} size={size} tone="reserve" />
           ) : null}
-          {!core && (occupied || reserved || reservation) ? (
+          {occupied || reserved || reservation ? (
             reservation ? (
               <>
                 {reserveFor === "change" && handlers.onReserveFor ? (
@@ -1041,7 +1044,6 @@ function QuickActions({
               />
             )
           ) : null}
-          {core ? null : (
           <QuickButton
             icon={slot.locked ? Lock : LockOpen}
             label={inTray ? "Fixar — devolva a carta da Bandeja primeiro" : slot.locked ? "Soltar bolso" : "Fixar bolso"}
@@ -1051,7 +1053,88 @@ function QuickActions({
             tone="lock"
             disabled={inTray && !slot.locked}
           />
-          )}
+          {occupied ? (
+            <QuickButton
+              icon={Trash2}
+              label={slot.locked ? "Tirar do fichário — solte o bolso primeiro" : inTray ? "Tirar do fichário — devolva da Bandeja primeiro" : "Tirar do fichário"}
+              onClick={() => handlers.onRemove(slot)}
+              size={size}
+              tone="danger"
+              disabled={slot.locked || inTray}
+            />
+          ) : null}
+        </div>
+      </div>
+    </TooltipPrimitive.Provider>
+  );
+}
+
+/**
+ * V1-13 · E2-1/E2-2 — cápsula do bolso para o EDITOR no fichário
+ * compartilhado. Só as ações do incremento, e só sobre conteúdo desta coleção
+ * visível (`editorPocketActions`, C-237): Ver carta · Bandeja · Adicionar carta
+ * · Reservar/Trocar/Liberar reserva · Fixar/Soltar · Tirar do fichário.
+ * `slot.locked` aqui é o que a sessão APRENDEU (P1/P2); falso pode ser
+ * desconhecido — oferecer não é autorizar: o servidor decide cada chamada.
+ */
+function EditorQuickActions({
+  slot,
+  occupied,
+  reserved,
+  inTray,
+  size,
+  handlers,
+}: {
+  slot: BinderSlot;
+  occupied: boolean;
+  reserved: boolean;
+  inTray: boolean;
+  size: number;
+  handlers: SlotHandlers;
+}) {
+  const can = editorPocketActions(slot, slot.locked ? "LOCKED" : "UNKNOWN", inTray);
+  return (
+    <TooltipPrimitive.Provider delayDuration={250} skipDelayDuration={100}>
+      <div className="absolute inset-x-0 bottom-[6%] flex items-center justify-center">
+        <div
+          role="toolbar"
+          aria-label="Ações do bolso"
+          className="flex items-center gap-px rounded-full px-0.5 py-0.5"
+          style={{ background: "hsl(0 0% 0% / 0.62)", boxShadow: "0 2px 8px rgba(0,0,0,0.5), inset 0 1px 0 hsl(0 0% 100% / 0.06)" }}
+        >
+          {handlers.onViewCard && canViewCard(slot) ? <QuickButton icon={ZoomIn} label="Ver carta" onClick={() => handlers.onViewCard?.(slot)} size={size} /> : null}
+          {occupied ? (
+            inTray ? (
+              <QuickButton icon={Undo2} label="Devolver da Bandeja a este bolso" onClick={() => handlers.onReturnFromTray(slot)} size={size} active tone="tray" />
+            ) : (
+              <QuickButton
+                icon={Inbox}
+                label={slot.locked ? "Levar para a Bandeja — solte o bolso primeiro" : "Levar para a Bandeja"}
+                onClick={() => handlers.onToTray(slot)}
+                size={size}
+                tone="tray"
+                disabled={slot.locked}
+              />
+            )
+          ) : null}
+          {!occupied && !slot.locked && !inTray ? <QuickButton icon={Plus} label="Adicionar carta" onClick={() => handlers.onAddCard(slot)} size={size} /> : null}
+          {can.reserve && handlers.onReserveFor ? (
+            <QuickButton icon={BookmarkPlus} label="Reservar este bolso para uma carta…" onClick={() => handlers.onReserveFor?.(slot)} size={size} tone="reserve" />
+          ) : null}
+          {reserved && can.changeReserve && handlers.onReserveFor ? (
+            <QuickButton icon={Replace} label="Trocar carta reservada…" onClick={() => handlers.onReserveFor?.(slot)} size={size} tone="reserve" />
+          ) : null}
+          {can.release ? <QuickButton icon={BookmarkX} label="Liberar reserva deste bolso" onClick={() => handlers.onClearReserve(slot)} size={size} active tone="reserve" /> : null}
+          {can.lock || can.unlock ? (
+            <QuickButton
+              icon={slot.locked ? Lock : LockOpen}
+              label={slot.locked ? "Soltar bolso" : "Fixar bolso"}
+              onClick={() => handlers.onToggleLock(slot)}
+              size={size}
+              active={slot.locked}
+              tone="lock"
+            />
+          ) : null}
           {occupied ? (
             <QuickButton
               icon={Trash2}

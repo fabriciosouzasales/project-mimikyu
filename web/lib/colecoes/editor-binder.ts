@@ -1,7 +1,9 @@
 import type { BinderPage, BinderSlot } from "./binder.ts";
-import { applyMove, applyRemove, isOccupied } from "./binder.ts";
+import { applyClearReservation, applyMove, applyRemove, isOccupied } from "./binder.ts";
 import type { AvailableCard } from "./binder-share.ts";
 import { applyPlaceAvailable } from "./binder-share.ts";
+import type { ReserveCandidate, ReserveScope } from "./binder-reserve.ts";
+import { applyReserveFor, reserveScopeOf } from "./binder-reserve.ts";
 
 /**
  * V1-13 · E2-1 — curadoria do fichário compartilhado pelo EDITOR (colocar,
@@ -267,7 +269,10 @@ export type EditorOperation =
   | { kind: "place"; cardName: string; page: number }
   | { kind: "move"; cardName: string; otherName: string | null; page: number }
   | { kind: "remove" }
-  | { kind: "undo"; cardName: string };
+  | { kind: "undo"; cardName: string }
+  | { kind: "reserve"; cardName: string }
+  | { kind: "release" }
+  | { kind: "lock"; locked: boolean };
 
 export type EditorSettlement = {
   /** Patch que desfaz a mudança otimista (só nas recusas). */
@@ -315,5 +320,203 @@ export function settleEditorOutcome(op: EditorOperation, outcome: EditorOutcome,
       return { revert: null, toast: { tone: "success", text: "A carta saiu do fichário e continua na coleção." }, filledDelta: -1, disable: false, recheck: false };
     case "undo":
       return { revert: null, toast: { tone: "success", text: `${op.cardName} voltou para o bolso.` }, filledDelta: added, disable: false, recheck: false };
+    case "reserve":
+      return {
+        revert: null,
+        toast: {
+          tone: "success",
+          text:
+            outcome.operation === "UNCHANGED"
+              ? "O bolso já estava reservado para essa carta."
+              : outcome.operation === "REPLACED"
+                ? `Reserva trocada para ${op.cardName}.`
+                : `Bolso reservado para ${op.cardName}.`,
+        },
+        filledDelta: 0,
+        disable: false,
+        recheck: false,
+      };
+    case "release":
+      return { revert: null, toast: { tone: "success", text: outcome.operation === "UNCHANGED" ? "Esse bolso já estava sem reserva." : "Reserva liberada." }, filledDelta: 0, disable: false, recheck: false };
+    case "lock":
+      return {
+        revert: null,
+        toast: {
+          tone: "success",
+          text: outcome.operation === "UNCHANGED" ? (op.locked ? "Esse bolso já estava fixado." : "Esse bolso já estava solto.") : op.locked ? "Bolso fixado." : "Bolso solto.",
+        },
+        filledDelta: 0,
+        disable: false,
+        recheck: false,
+      };
   }
+}
+
+// ---------------------------------------------------------------------------
+// V1-13 · E2-2 — reservas e fixação pelo EDITOR (5375).
+
+/**
+ * Estado de fixação que a TELA conhece de um bolso (P1). A leitura
+ * compartilhada (5315) nunca informa fixação; o estado vem só de respostas
+ * conclusivas do servidor nesta sessão e é preservado nas releituras (P2),
+ * podendo estar desatualizado. UNKNOWN nunca significa "solto": a autorização
+ * de cada escrita continua no servidor.
+ */
+export type LockKnowledge = "LOCKED" | "UNLOCKED" | "UNKNOWN";
+
+export function positionKey(p: PocketPosition): string {
+  return `${p.page}:${p.row}:${p.column}`;
+}
+
+export function knownLock(map: ReadonlyMap<string, "LOCKED" | "UNLOCKED">, position: PocketPosition | null): LockKnowledge {
+  return position ? (map.get(positionKey(position)) ?? "UNKNOWN") : "UNKNOWN";
+}
+
+/**
+ * O que uma resposta do servidor ENSINA sobre a fixação (só respostas
+ * conclusivas; o resto não muda nada):
+ *  - fixar/soltar aceito ou UNCHANGED → o estado pedido vale agora;
+ *  - colocar, retirar, mover, reservar ou liberar aceitos → não havia trava que
+ *    impedisse ESSA operação no bolso (colocar/retirar/mover recusam bolso
+ *    fixado: o bolso estava solto); reservar/liberar não ensinam (o servidor
+ *    aceita reserva em bolso fixado);
+ *  - recusa SLOT_LOCKED numa operação de UM bolso → ele está fixado. No mover
+ *    não se sabe qual dos dois: nada é aprendido.
+ */
+export type LockLesson = { position: PocketPosition; state: "LOCKED" | "UNLOCKED" };
+
+export function lockLessons(
+  op: { kind: "lock"; locked: boolean; position: PocketPosition } | { kind: "place" | "remove" | "undo"; position: PocketPosition } | { kind: "move"; from: PocketPosition; to: PocketPosition } | { kind: "reserve" | "release"; position: PocketPosition },
+  outcome: EditorOutcome,
+): LockLesson[] {
+  if (op.kind === "lock") {
+    return outcome.ok ? [{ position: op.position, state: op.locked ? "LOCKED" : "UNLOCKED" }] : [];
+  }
+  if (op.kind === "reserve" || op.kind === "release") return [];
+  if (outcome.ok) {
+    return op.kind === "move"
+      ? [
+          { position: op.from, state: "UNLOCKED" },
+          { position: op.to, state: "UNLOCKED" },
+        ]
+      : [{ position: op.position, state: "UNLOCKED" }];
+  }
+  if (outcome.reason === "locked" && op.kind !== "move") return [{ position: op.position, state: "LOCKED" }];
+  return [];
+}
+
+export function applyLockLessons(map: ReadonlyMap<string, "LOCKED" | "UNLOCKED">, lessons: LockLesson[]): Map<string, "LOCKED" | "UNLOCKED"> {
+  const next = new Map(map);
+  for (const lesson of lessons) next.set(positionKey(lesson.position), lesson.state);
+  return next;
+}
+
+/** Página para a tela: o bolso que a sessão SABE fixado ganha `locked` (selo e bloqueio local); UNKNOWN/UNLOCKED ficam como vieram. */
+export function overlayLocks(page: BinderPage, map: ReadonlyMap<string, "LOCKED" | "UNLOCKED">): BinderPage {
+  if (map.size === 0) return page;
+  let changed = false;
+  const slots = page.slots.map((slot) => {
+    const position = sharedSlotPosition(slot.slotId);
+    const locked = knownLock(map, position) === "LOCKED";
+    if (slot.locked === locked) return slot;
+    changed = true;
+    return { ...slot, locked };
+  });
+  return changed ? { ...page, slots } : page;
+}
+
+/**
+ * Ações de reserva/fixação que a tela OFERECE ao EDITOR num bolso — só sobre
+ * conteúdo de X visível (C-237). Nunca em bolso com imagem ou mesclagem.
+ * Bolso aparentemente vazio pode ser de terceiros: oferecer reservar não é
+ * afirmar que é livre; a resposta do servidor decide.
+ */
+export type EditorPocketActions = { reserve: boolean; changeReserve: boolean; release: boolean; lock: boolean; unlock: boolean };
+
+export function editorPocketActions(slot: BinderSlot, lock: LockKnowledge, inTray: boolean): EditorPocketActions {
+  const none: EditorPocketActions = { reserve: false, changeReserve: false, release: false, lock: false, unlock: false };
+  if (slot.image || slot.regionId) return none;
+  const occupied = isOccupied(slot);
+  const reserved = !occupied && slot.state === "RESERVED_EMPTY";
+  const ownContent = occupied || reserved;
+  return {
+    // Reservar: bolso vazio que a sessão não sabe fixado (fixado sem conteúdo de X é do titular).
+    reserve: !occupied && !reserved && lock !== "LOCKED" && !inTray,
+    // Reserva visível de X: trocar e liberar (P4: liberar mesmo fixado; o servidor decide).
+    changeReserve: reserved,
+    release: reserved,
+    // Fixar/soltar: só com conteúdo de X visível; nunca com a carta na Bandeja.
+    lock: ownContent && lock !== "LOCKED" && !inTray,
+    unlock: ownContent && lock === "LOCKED",
+  };
+}
+
+export function patchReserve(slot: BinderSlot, candidate: ReserveCandidate, collectionId: string): SlotPatch {
+  return new Map([[slot.slotId, applyReserveFor(slot, candidate, collectionId)]]);
+}
+
+export function patchRelease(slot: BinderSlot): SlotPatch {
+  return new Map([[slot.slotId, applyClearReservation(slot)]]);
+}
+
+// ---- cartas para reservar, pela leitura compartilhada do tipo da coleção ----
+
+/** Escopo da reserva para o EDITOR: o do tipo da coleção (Pokédex e desconhecidos não têm reserva por carta). */
+export function editorReserveScope(completionPolicy: string | null | undefined): ReserveScope | null {
+  return reserveScopeOf(completionPolicy);
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const text = (v: unknown) => (typeof v === "string" && v.trim() !== "" ? v : null);
+
+/** 5320 (Set padrão) ou 5323 (Master Set) → candidatos. Só campos de catálogo e "já tem" da coleção (sem acervo). */
+export function candidatesFromSharedPositions(
+  scope: "STANDARD_SET" | "MASTER_SET",
+  rows: unknown,
+  set: { code: string | null; name: string | null },
+): ReserveCandidate[] | null {
+  if (!Array.isArray(rows)) return null;
+  const out: ReserveCandidate[] = [];
+  for (const row of rows) {
+    if (!row || typeof row !== "object") return null;
+    const r = row as Record<string, unknown>;
+    if (typeof r.card_id !== "string" || !UUID_RE.test(r.card_id)) return null;
+    const cardId = r.card_id.toLowerCase();
+    const variant = scope === "MASTER_SET" && typeof r.variant_type_id === "string" && UUID_RE.test(r.variant_type_id) ? r.variant_type_id.toLowerCase() : null;
+    if (scope === "MASTER_SET" && !variant) return null;
+    out.push({
+      key: variant ? `${cardId}:${variant}` : cardId,
+      cardId,
+      variantTypeId: variant,
+      finishName: scope === "MASTER_SET" ? text(r.variant_type_name) : null,
+      cardName: text(r.card_name) ?? "Carta",
+      collectorNumber: text(r.collector_number),
+      collectorTotal: Number.isInteger(r.collector_total) ? (r.collector_total as number) : null,
+      setCode: set.code,
+      setName: set.name,
+      imagePath: text(r.image_path),
+      owned: typeof r.is_satisfied === "boolean" ? r.is_satisfied : null,
+    });
+  }
+  return out;
+}
+
+/** `search_cards` (Catálogo, coleção livre) → candidatos — mesma leitura do titular. */
+export function candidatesFromCatalogSearch(rows: unknown): ReserveCandidate[] | null {
+  if (!Array.isArray(rows)) return null;
+  return rows
+    .filter((r): r is Record<string, unknown> => !!r && typeof r === "object" && typeof (r as Record<string, unknown>).card_id === "string" && UUID_RE.test((r as Record<string, unknown>).card_id as string))
+    .map((r) => ({
+      key: (r.card_id as string).toLowerCase(),
+      cardId: (r.card_id as string).toLowerCase(),
+      variantTypeId: null,
+      finishName: null,
+      cardName: text(r.card_name) ?? "Carta",
+      collectorNumber: text(r.collector_number),
+      collectorTotal: typeof r.collector_total === "number" ? r.collector_total : null,
+      setCode: text(r.card_set_code),
+      setName: text(r.card_set_name),
+      imagePath: text(r.image_path_pt) ?? text(r.image_path_en),
+      owned: null,
+    }));
 }

@@ -14,6 +14,9 @@ import { BinderCardView } from "@/components/colecoes/fichario/binder-card-view"
 import { AvailablePanel } from "@/components/colecoes/fichario/binder-available";
 import { TraySurface, TrayToggleButton } from "@/components/colecoes/fichario/binder-tray";
 import { EditorDragPreview, SharedEditorMessages, useSharedBinderEditor } from "@/components/colecoes/sharing/shared-binder-editor";
+import { ReservePicker } from "@/components/colecoes/fichario/binder-reserve-picker";
+import { readEditorReserveCandidates } from "@/app/colecoes/compartilhada/[id]/fichario/actions";
+import { editorReserveScope } from "@/lib/colecoes/editor-binder";
 import ws from "@/components/colecoes/fichario/workspace.module.css";
 import { formatCount } from "@/lib/colecoes/acervo";
 import {
@@ -91,6 +94,7 @@ export function SharedBinderWorkspace({
   source = "shared",
   memberRole = null,
   editorEnabled = false,
+  completionPolicy = null,
 }: {
   collectionId: string;
   collectionName: string;
@@ -125,6 +129,8 @@ export function SharedBinderWorkspace({
    * é decidida no servidor.
    */
   editorEnabled?: boolean;
+  /** E2-2: tipo da coleção (5312), só para escolher a fonte das cartas na reserva do EDITOR. */
+  completionPolicy?: string | null;
 }) {
   const reducedMotion = usePrefersReducedMotion();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -243,7 +249,9 @@ export function SharedBinderWorkspace({
     setCache,
     refresh,
     onFilledDelta: (delta) => setFilled((value) => (value === null ? value : Math.max(0, value + delta))),
+    reserveScope: editorReserveScope(completionPolicy),
   });
+  const reserveScope = editorReserveScope(completionPolicy);
   const editing = editor.active;
   const editorHandlers = editor.handlers;
   const slotHandlers = useMemo(() => editorHandlers(handlers), [editorHandlers, handlers]);
@@ -271,6 +279,8 @@ export function SharedBinderWorkspace({
       if (cardViewSlotId) return;
       const target = event.target as HTMLElement | null;
       if (target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
+      // E2-2: com o seletor de reserva aberto, o teclado é dele (Esc fecha o diálogo, setas não viram página).
+      if (editor.reserveTarget) return;
       if (event.key === "Escape" && (editor.confirm || editor.armed || editor.armedCard)) {
         if (editor.confirm) editor.cancelConfirm();
         else editor.setArmed(null);
@@ -440,7 +450,7 @@ export function SharedBinderWorkspace({
               renderPage={(side, metrics) => (
                 <PageGrid
                   pageNumber={side}
-                  page={cache.get(side) ?? null}
+                  page={editing ? editor.view(cache.get(side) ?? null) : (cache.get(side) ?? null)}
                   failed={failed.has(readBatchStart(side))}
                   columns={columns}
                   rows={rows}
@@ -523,6 +533,26 @@ export function SharedBinderWorkspace({
           </div>
         ) : null}
       </div>
+
+      {editing && editor.reserveTarget && reserveScope ? (
+        <ReservePicker
+          host={rootRef.current}
+          target={editor.slotById(editor.reserveTarget.slot.slotId)?.slot ?? editor.reserveTarget.slot}
+          pageNumber={editor.reserveTarget.page}
+          collectionId={collectionId}
+          mode={editor.reserveTarget.mode}
+          targets={[{ collectionId, name: collectionName, role: "OWNER", scope: reserveScope }]}
+          initialCollectionId={collectionId}
+          ownerCollectionId={collectionId}
+          loadedSlots={[]}
+          busy={editor.busy}
+          onConfirm={(candidate) => editor.confirmReserve(candidate)}
+          onRelease={editor.releaseFromPicker}
+          onClose={editor.closeReserve}
+          loadCandidates={readEditorReserveCandidates}
+          audience="editor"
+        />
+      ) : null}
 
       <BinderCardView
         slot={cardViewSlot && canViewCard(cardViewSlot) ? cardViewSlot : null}

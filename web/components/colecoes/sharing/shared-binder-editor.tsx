@@ -4,7 +4,15 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { type DragEndEvent, type DragStartEvent, PointerSensor, TouchSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { AlertTriangle, CheckCircle2, Inbox, RotateCcw, X } from "lucide-react";
-import { editorMoveCard, editorPlaceCard, editorRemoveCard, readEditorPlaceableCards } from "@/app/colecoes/compartilhada/[id]/fichario/actions";
+import {
+  editorClearReservation,
+  editorMoveCard,
+  editorPlaceCard,
+  editorRemoveCard,
+  editorSetLock,
+  editorSetReservation,
+  readEditorPlaceableCards,
+} from "@/app/colecoes/compartilhada/[id]/fichario/actions";
 import type { AvailableState } from "@/components/colecoes/fichario/binder-available";
 import type { SlotDragData, SlotHandlers } from "@/components/colecoes/fichario/binder-slot";
 import type { TrayItem } from "@/components/colecoes/fichario/binder-tray";
@@ -12,6 +20,7 @@ import ws from "@/components/colecoes/fichario/workspace.module.css";
 import { Button } from "@/components/ui/button";
 import { cardFrontUrl } from "@/lib/colecoes/acervo";
 import { type BinderPage, type BinderSlot, isOccupied } from "@/lib/colecoes/binder";
+import type { ReserveCandidate, ReserveScope } from "@/lib/colecoes/binder-reserve";
 import type { AvailableCard } from "@/lib/colecoes/binder-share";
 import {
   type EditorOperation,
@@ -27,6 +36,13 @@ import {
   patchMove,
   patchPlace,
   patchRemove,
+  patchRelease,
+  patchReserve,
+  applyLockLessons,
+  knownLock,
+  lockLessons,
+  overlayLocks,
+  type LockLesson,
   placeableEmptyState,
   settleEditorOutcome,
   sharedSlotPosition,
@@ -56,6 +72,7 @@ export function useSharedBinderEditor({
   setCache,
   refresh,
   onFilledDelta,
+  reserveScope = null,
 }: {
   /** Configuração ligada (D1) + papel EDITOR + coleção ativa, decidido no servidor da página. */
   enabled: boolean;
@@ -65,6 +82,8 @@ export function useSharedBinderEditor({
   /** Relê os lotes das páginas (estado autorizado). */
   refresh: (pages: number[]) => void;
   onFilledDelta: (delta: number) => void;
+  /** E2-2: escopo da reserva pelo tipo da coleção; `null` (Pokédex) = sem "Reservar para uma carta". */
+  reserveScope?: ReserveScope | null;
 }) {
   const router = useRouter();
   const [active, setActive] = useState(enabled);
@@ -84,6 +103,16 @@ export function useSharedBinderEditor({
   const [confirmed, setConfirmed] = useState(false);
   /** Exemplares colocados nesta sessão, por posição — base do "Desfazer" quando a lista não basta. */
   const placedHere = useRef(new Map<string, string>());
+  /**
+   * E2-2 (P1/P2): fixação APRENDIDA nesta sessão por posição. Ausente = UNKNOWN
+   * (nunca "solto"). Sobrevive às releituras, que não informam fixação; muda só
+   * com resposta conclusiva do servidor.
+   */
+  const [locks, setLocks] = useState<Map<string, "LOCKED" | "UNLOCKED">>(() => new Map());
+  const [reserveTarget, setReserveTarget] = useState<{ slot: BinderSlot; page: number; mode: "reserve" | "change" } | null>(null);
+  const learn = useCallback((lessons: LockLesson[]) => {
+    if (lessons.length > 0) setLocks((prev) => applyLockLessons(prev, lessons));
+  }, []);
 
   const setToast = useCallback((next: Toast | null) => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -93,10 +122,16 @@ export function useSharedBinderEditor({
 
   const slotById = useCallback(
     (slotId: string): { slot: BinderSlot; page: number } | null => {
-      for (const [number, page] of cache) for (const slot of page.slots) if (slot.slotId === slotId) return { slot, page: number };
+      for (const [number, page] of cache) {
+        for (const slot of page.slots) {
+          if (slot.slotId !== slotId) continue;
+          // O que a tela sabe da fixação (P1): `locked` só quando aprendido.
+          return { slot: { ...slot, locked: knownLock(locks, sharedSlotPosition(slot.slotId)) === "LOCKED" }, page: number };
+        }
+      }
       return null;
     },
-    [cache],
+    [cache, locks],
   );
 
   /** Aplica o patch ao estado mais recente e devolve o conteúdo anterior dos bolsos tocados (lido agora, para reverter). */
@@ -137,6 +172,7 @@ export function useSharedBinderEditor({
     setTarget(null);
     setConfirm(null);
     setAvailableOpen(false);
+    setReserveTarget(null);
   }, []);
 
   /** Fecha a escrita: reverte o otimista nas recusas, mostra a mensagem e desliga/relê quando o acesso mudou. */
@@ -162,6 +198,10 @@ export function useSharedBinderEditor({
     async (slot: BinderSlot, card: AvailableCard, page: number) => {
       const position = sharedSlotPosition(slot.slotId);
       if (!active || busy || !position) return;
+      if (slot.locked) {
+        setToast({ tone: "error", text: editorFailureMessage("locked") });
+        return;
+      }
       if (!editorCanTarget(slot) || isOccupied(slot)) {
         setToast({ tone: "info", text: "Escolha um bolso vazio para colocar a carta." });
         return;
@@ -172,12 +212,13 @@ export function useSharedBinderEditor({
       const previous = patch(patchPlace(slot, card));
       setAvailable((prev) => ({ ...prev, items: prev.items.filter((c) => c.physicalCardId !== card.physicalCardId), total: Math.max(0, prev.total - 1) }));
       const outcome: EditorOutcome = await editorPlaceCard({ collectionId, position, physicalCardId: card.physicalCardId }).catch(() => ({ ok: false, reason: "unknown" }) as const);
+      learn(lockLessons({ kind: "place", position }, outcome));
       if (settle({ kind: "place", cardName: card.cardName, page: position.page }, outcome, previous)) placedHere.current.set(key(position), card.physicalCardId);
       void loadAvailable(0);
       refresh([page]);
       setBusy(false);
     },
-    [active, busy, collectionId, loadAvailable, patch, refresh, setToast, settle],
+    [active, busy, collectionId, learn, loadAvailable, patch, refresh, setToast, settle],
   );
 
   // ---- mover / trocar (C-237) ----
@@ -187,6 +228,10 @@ export function useSharedBinderEditor({
       const from = source ? sharedSlotPosition(source.slot.slotId) : null;
       const dest = sharedSlotPosition(to.slotId);
       if (!active || busy || !source || !from || !dest || fromId === to.slotId) return;
+      if (source.slot.locked || to.locked) {
+        setToast({ tone: "error", text: editorFailureMessage("locked") });
+        return;
+      }
       if (!editorCanPick(source.slot)) {
         setToast({ tone: "error", text: editorFailureMessage("source_empty") });
         refresh([source.page]);
@@ -202,6 +247,7 @@ export function useSharedBinderEditor({
       setTray((prev) => prev.filter((item) => item.slotId !== fromId));
       const outcome: EditorOutcome = await editorMoveCard({ collectionId, from, to: dest }).catch(() => ({ ok: false, reason: "unknown" }) as const);
       const op: EditorOperation = { kind: "move", cardName: source.slot.present?.cardName ?? "A carta", otherName: to.present?.cardName ?? null, page: dest.page };
+      learn(lockLessons({ kind: "move", from, to: dest }, outcome));
       if (settle(op, outcome, previous)) {
         const a = placedHere.current.get(key(from));
         const b = placedHere.current.get(key(dest));
@@ -213,7 +259,7 @@ export function useSharedBinderEditor({
       refresh(source.page === toPage ? [toPage] : [source.page, toPage]);
       setBusy(false);
     },
-    [active, busy, collectionId, patch, refresh, setToast, settle, slotById],
+    [active, busy, collectionId, learn, patch, refresh, setToast, settle, slotById],
   );
 
   // ---- retirar (C-236) + desfazer (D2) ----
@@ -238,11 +284,12 @@ export function useSharedBinderEditor({
         const candidate = known && items?.some((c) => c.physicalCardId === known) ? known : (findUndoCandidate(items ?? [], removedSlot)?.physicalCardId ?? null);
         if (candidate) undo = { position, physicalCardId: candidate, cardName: removedSlot.present?.cardName ?? "A carta" };
       }
+      learn(lockLessons({ kind: "remove", position }, outcome));
       settle({ kind: "remove" }, outcome, previous, undo ? { undo } : {});
       refresh([found.page]);
       setBusy(false);
     },
-    [active, busy, collectionId, loadAvailable, patch, refresh, settle, slotById],
+    [active, busy, collectionId, learn, loadAvailable, patch, refresh, settle, slotById],
   );
 
   /** Desfazer = NOVA colocação, validada por inteiro no servidor e com novo evento no histórico (D2). */
@@ -255,12 +302,84 @@ export function useSharedBinderEditor({
         () => ({ ok: false, reason: "unknown" }) as const,
       );
       // Falha no desfazer: a carta continua na coleção, fora do bolso; nada mais é tentado.
+      learn(lockLessons({ kind: "undo", position: undo.position }, outcome));
       if (settle({ kind: "undo", cardName: undo.cardName }, outcome, new Map())) placedHere.current.set(key(undo.position), undo.physicalCardId);
       void loadAvailable(0);
       refresh([undo.position.page]);
       setBusy(false);
     },
-    [active, busy, collectionId, loadAvailable, refresh, setToast, settle],
+    [active, busy, collectionId, learn, loadAvailable, refresh, setToast, settle],
+  );
+
+  // ---- E2-2: reservar / trocar (5375; sempre registrada para esta coleção) ----
+  const runReserve = useCallback(
+    async (slotId: string, candidate: ReserveCandidate) => {
+      const found = slotById(slotId);
+      const position = found ? sharedSlotPosition(found.slot.slotId) : null;
+      setReserveTarget(null);
+      if (!active || busy || !found || !position) return;
+      setBusy(true);
+      const previous = patch(patchReserve(found.slot, candidate, collectionId));
+      const outcome: EditorOutcome = await editorSetReservation({ collectionId, position, cardId: candidate.cardId, variantTypeId: candidate.variantTypeId }).catch(
+        () => ({ ok: false, reason: "unknown" }) as const,
+      );
+      learn(lockLessons({ kind: "reserve", position }, outcome));
+      settle({ kind: "reserve", cardName: candidate.cardName }, outcome, previous);
+      refresh([found.page]);
+      setBusy(false);
+    },
+    [active, busy, collectionId, learn, patch, refresh, settle, slotById],
+  );
+
+  // ---- E2-2: liberar reserva (P4: só com reserva visível de X; o servidor decide, inclusive em bolso fixado) ----
+  const runRelease = useCallback(
+    async (slotId: string) => {
+      const found = slotById(slotId);
+      const position = found ? sharedSlotPosition(found.slot.slotId) : null;
+      setReserveTarget(null);
+      if (!active || busy || !found || !position || found.slot.state !== "RESERVED_EMPTY") return;
+      setBusy(true);
+      const previous = patch(patchRelease(found.slot));
+      const outcome: EditorOutcome = await editorClearReservation({ collectionId, position }).catch(() => ({ ok: false, reason: "unknown" }) as const);
+      learn(lockLessons({ kind: "release", position }, outcome));
+      settle({ kind: "release" }, outcome, previous);
+      refresh([found.page]);
+      setBusy(false);
+    },
+    [active, busy, collectionId, learn, patch, refresh, settle, slotById],
+  );
+
+  // ---- E2-2: fixar / soltar (otimista só no estado aprendido, que reverte com segurança) ----
+  const runLock = useCallback(
+    async (slotId: string, lockedWanted: boolean) => {
+      const found = slotById(slotId);
+      const position = found ? sharedSlotPosition(found.slot.slotId) : null;
+      if (!active || busy || !found || !position) return;
+      if (lockedWanted && trayIdsRef.current.has(slotId)) {
+        setToast({ tone: "info", text: "Devolva a carta da Bandeja antes de fixar o bolso." });
+        return;
+      }
+      setBusy(true);
+      const k = key(position);
+      const before = locks.get(k) ?? null;
+      setLocks((prev) => new Map(prev).set(k, lockedWanted ? "LOCKED" : "UNLOCKED"));
+      const outcome: EditorOutcome = await editorSetLock({ collectionId, position, locked: lockedWanted }).catch(() => ({ ok: false, reason: "unknown" }) as const);
+      if (outcome.ok) {
+        learn(lockLessons({ kind: "lock", locked: lockedWanted, position }, outcome));
+      } else {
+        // Recusa: volta ao que se sabia antes (inclusive UNKNOWN); nada é deduzido de uma recusa neutra.
+        setLocks((prev) => {
+          const next = new Map(prev);
+          if (before) next.set(k, before);
+          else next.delete(k);
+          return next;
+        });
+      }
+      settle({ kind: "lock", locked: lockedWanted }, outcome, new Map());
+      refresh([found.page]);
+      setBusy(false);
+    },
+    [active, busy, collectionId, learn, locks, refresh, setToast, settle, slotById],
   );
 
   const openAvailable = useCallback(
@@ -319,11 +438,22 @@ export function useSharedBinderEditor({
           if (armed === slot.slotId) setArmed(null);
         },
         onRemove: (slot) => {
-          if (editorCanPick(slot)) setConfirm(slot);
+          const entry = slotById(slot.slotId);
+          if (entry && editorCanPick(entry.slot)) setConfirm(entry.slot);
+        },
+        onReserveFor: reserveScope === null ? undefined : (slot) => {
+          const entry = slotById(slot.slotId);
+          if (!entry) return;
+          setReserveTarget({ slot: entry.slot, page: entry.page, mode: entry.slot.state === "RESERVED_EMPTY" ? "change" : "reserve" });
+        },
+        onClearReserve: (slot) => void runRelease(slot.slotId),
+        onToggleLock: (slot) => {
+          const entry = slotById(slot.slotId);
+          if (entry) void runLock(slot.slotId, !entry.slot.locked);
         },
       };
     },
-    [active, armed, armedCard, move, openAvailable, place, setToast, slotById],
+    [active, armed, armedCard, move, openAvailable, place, reserveScope, runLock, runRelease, setToast, slotById],
   );
 
   // ---- arrastar (mesmos ganchos do titular) ----
@@ -355,6 +485,8 @@ export function useSharedBinderEditor({
   const onDragCancel = useCallback(() => setDragging(null), []);
 
   const trayIds = useMemo(() => new Set(tray.map((item) => item.slotId)), [tray]);
+  const trayIdsRef = useRef(trayIds);
+  trayIdsRef.current = trayIds;
   const availableById = useMemo(() => new Map(available.items.map((card) => [card.physicalCardId, card])), [available.items]);
 
   return {
@@ -409,6 +541,13 @@ export function useSharedBinderEditor({
     dismissToast: () => setToast(null),
     runUndo,
     slotById,
+    /** Página com a fixação que a sessão aprendeu (selo e bloqueio local). */
+    view: (page: BinderPage | null) => (page ? overlayLocks(page, locks) : null),
+    locks,
+    reserveTarget,
+    closeReserve: () => setReserveTarget(null),
+    confirmReserve: (candidate: ReserveCandidate) => reserveTarget && void runReserve(reserveTarget.slot.slotId, candidate),
+    releaseFromPicker: () => reserveTarget && void runRelease(reserveTarget.slot.slotId),
   };
 }
 

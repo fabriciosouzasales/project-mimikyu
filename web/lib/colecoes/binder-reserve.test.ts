@@ -188,9 +188,14 @@ test("estrutura: gravação pela 5128 existente, sem coleção informada; leitur
   assert.ok(run.includes("refreshPages([entry.page])"), "releitura confirma");
 });
 
-test("superfícies: fichário compartilhado não oferece a ação; Pokédex sem escopo; ação existente do bolso ocupado preservada", () => {
+test("superfícies: fichário compartilhado só leitura não oferece a ação; Pokédex sem escopo; ação existente do bolso ocupado preservada", () => {
   const shared = code(read("components/colecoes/sharing/shared-binder-workspace.tsx"));
-  assert.ok(!/reserveForMode|onReserveFor|reserveScope/.test(shared));
+  // V1-13 · E2-2: a reserva no fichário compartilhado existe SÓ para o EDITOR com a curadoria ligada
+  // (seletor montado sob `editing`); o leitor (VIEWER/público) continua sem nenhum gancho de reserva.
+  const readOnly = shared.slice(shared.indexOf("const READ_ONLY_HANDLERS"), shared.indexOf("const EMPTY_IDS"));
+  assert.ok(readOnly.length > 0 && !/reserveForMode|onReserveFor/.test(readOnly), "leitor sem gancho de reserva");
+  assert.ok(!/reserveForMode/.test(shared), "o fichário compartilhado não usa o reserveForMode do titular");
+  assert.ok(shared.includes("editing && editor.reserveTarget && reserveScope ?"), "seletor só na curadoria do EDITOR");
   const slotSrc = code(read("components/colecoes/fichario/binder-slot.tsx"));
   assert.ok(slotSrc.includes('"Reservar este bolso para a carta"') || slotSrc.includes("Reservar este bolso para a carta"), "D4: ação do bolso ocupado continua");
   assert.ok(slotSrc.includes("Reservar este bolso para uma carta…") && slotSrc.includes("Trocar carta reservada…") && slotSrc.includes("Liberar reserva deste bolso"));

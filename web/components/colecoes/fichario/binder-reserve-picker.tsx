@@ -72,6 +72,8 @@ export function ReservePicker({
   onCollectionChange,
   onRelease,
   onClose,
+  loadCandidates = null,
+  audience = "owner",
 }: {
   host: HTMLElement | null;
   target: BinderSlot;
@@ -94,6 +96,14 @@ export function ReservePicker({
   onCollectionChange?: (collectionId: string) => void;
   onRelease: () => void;
   onClose: () => void;
+  /**
+   * V1-13 · E2-2: fonte das cartas no lugar de `readReservationCandidates`
+   * (leitura do titular). O EDITOR usa as leituras compartilhadas da coleção.
+   * Ausente = comportamento do titular.
+   */
+  loadCandidates?: ((input: { collectionId: string; query?: string; offset?: number }) => ReturnType<typeof readReservationCandidates>) | null;
+  /** Quem escolhe: só ajusta textos que falam do acervo de quem reserva ("você ainda não tem"). */
+  audience?: "owner" | "editor";
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
@@ -116,7 +126,10 @@ export function ReservePicker({
       lastQuery.current = q;
       if (offset === 0) setLoad({ status: "loading" });
       else setLoad((prev) => (prev.status === "ready" ? { ...prev, loadingMore: true } : prev));
-      const result = await readReservationCandidates({ collectionId, targetCollectionId: reserveCollection, query: q, offset }).catch(() => ({
+      const read = loadCandidates
+        ? loadCandidates({ collectionId, query: q, offset })
+        : readReservationCandidates({ collectionId, targetCollectionId: reserveCollection, query: q, offset });
+      const result = await read.catch(() => ({
         ok: false as const,
         reason: "unavailable" as const,
       }));
@@ -134,7 +147,7 @@ export function ReservePicker({
         complete: result.complete,
       }));
     },
-    [collectionId, reserveCollection],
+    [collectionId, reserveCollection, loadCandidates],
   );
 
   // Abre (e a cada coleção escolhida) carregando as posições do objetivo (Set/Master Set) ou o estado inicial da busca (livre).
@@ -286,7 +299,7 @@ export function ReservePicker({
                 {free && query.trim().length < 2 ? (
                   <>
                     <strong>Busque a carta no catálogo</strong>
-                    Digite ao menos 2 letras do nome ou o número. Pode ser uma carta que você ainda não tem.
+                    Digite ao menos 2 letras do nome ou o número. {audience === "editor" ? "Pode ser uma carta que a coleção ainda não tem." : "Pode ser uma carta que você ainda não tem."}
                   </>
                 ) : (
                   <>
@@ -366,7 +379,11 @@ export function ReservePicker({
                   ) : null}
                 </>
               ) : (
-                <p className={own.choiceHint}>Escolha a carta que este bolso vai guardar — pode ser uma que você ainda não tem.</p>
+                <p className={own.choiceHint}>
+                  {audience === "editor"
+                    ? "Escolha a carta que este bolso vai guardar — pode ser uma que a coleção ainda não tem."
+                    : "Escolha a carta que este bolso vai guardar — pode ser uma que você ainda não tem."}
+                </p>
               )}
             </div>
 
