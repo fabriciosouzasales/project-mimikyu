@@ -31,6 +31,27 @@ const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), [tabi
 const ORGANIZE_MAX_PAGES = 400;
 
 /**
+ * V1-13 · E2-3A: gravação da nova ordem fornecida por quem abre a visão geral
+ * (fichário compartilhado do EDITOR, endereçado por número de página). Ausente
+ * = o fluxo do titular (5127 por ids), inalterado. `reset` = a ordem montada
+ * ficou desatualizada: volta à ordem gravada (relida) e limpa a seleção.
+ */
+/**
+ * E2-3A (C1): quem vê a visão geral. `editor` = leitura compartilhada mascarada:
+ * os textos falam só do que é desta coleção e nunca afirmam que uma página está
+ * vazia (ela pode guardar conteúdo que o participante não vê). `owner` = textos
+ * do titular, inalterados.
+ */
+export type OverviewAudience = "owner" | "editor";
+
+/** Rótulo curto de uma página para o EDITOR: só cartas desta coleção, sem "vazia" nem capacidade. */
+function editorCardsLabel(occupied: number): string {
+  return occupied === 0 ? "sem cartas desta coleção" : `${formatCount(occupied)} ${occupied === 1 ? "carta desta coleção" : "cartas desta coleção"}`;
+}
+
+export type OverviewReorder = (order: BinderPage[]) => Promise<{ ok: true; message: string } | { ok: false; message: string; reset: boolean }>;
+
+/**
  * Visão geral de páginas (P2-B-PAGE-OVERVIEW-AND-TOOL-RAIL-01).
  *
  * Modal sobre o fichário (sem mudar de rota): miniaturas de todas as páginas
@@ -76,6 +97,9 @@ export function BinderOverview({
   onRequestAddPages,
   onRequestRemovePage,
   removeSuspended = false,
+  reorder = null,
+  canRemovePage = null,
+  audience = "owner",
   onClose,
 }: {
   host: HTMLElement | null;
@@ -100,6 +124,12 @@ export function BinderOverview({
   onRequestRemovePage?: ((pageNumber: number) => void) | null;
   /** Confirmação de remoção aberta por cima: teclado e clique-fora são dela. */
   removeSuspended?: boolean;
+  /** E2-3A: gravação alternativa da ordem (EDITOR). Ausente = titular. */
+  reorder?: OverviewReorder | null;
+  /** E2-3A: lixeira da miniatura pela regra de quem abre (EDITOR: só o que ele vê). Ausente = `pageRemovalBlockers`. */
+  canRemovePage?: ((page: BinderPage, totalPages: number) => boolean) | null;
+  /** E2-3A (C1): textos neutros para a leitura mascarada do EDITOR. Ausente = titular. */
+  audience?: OverviewAudience;
   onClose: () => void;
 }) {
   const suspendedRef = useRef(removeSuspended);
@@ -192,12 +222,14 @@ export function BinderOverview({
               </h2>
               <p className={styles.summary}>
                 {formatCount(totalPages)} {totalPages === 1 ? "página" : "páginas"} · {capacity} bolsos por página ({columns} × {rows}) ·{" "}
-                {formatCount(filled)} de {formatCount(totalPages * capacity)} com carta
+                {audience === "editor"
+                  ? `${formatCount(filled)} ${filled === 1 ? "carta desta coleção" : "cartas desta coleção"}`
+                  : `${formatCount(filled)} de ${formatCount(totalPages * capacity)} com carta`}
               </p>
             </div>
           </div>
           <div className={styles.headerActions}>
-            {editable && layoutId ? (
+            {editable && (layoutId || reorder) ? (
               <div className={styles.segmented} role="radiogroup" aria-label="Modo da visão geral">
                 <button type="button" role="radio" aria-checked={mode === "browse"} onClick={() => setMode("browse")}>
                   Navegar
@@ -230,6 +262,7 @@ export function BinderOverview({
             currentPages={currentPages}
             loadBatch={ensure}
             onRetry={retry}
+            audience={audience}
             onPick={(page) => {
               onGoToPage(page);
               onClose();
@@ -247,7 +280,10 @@ export function BinderOverview({
           <OrganizePanel
             key={totalPages}
             collectionId={collectionId}
-            layoutId={layoutId as string}
+            layoutId={layoutId}
+            reorder={reorder}
+            canRemovePage={canRemovePage}
+            audience={audience}
             totalPages={totalPages}
             columns={columns}
             rows={rows}
@@ -287,6 +323,7 @@ function BrowseGrid({
   onRetry,
   onPick,
   onAddPages,
+  audience,
 }: {
   views: { view: number; sides: (number | "inner")[] }[];
   columns: number;
@@ -298,6 +335,7 @@ function BrowseGrid({
   onRetry: (page: number) => void;
   onPick: (page: number) => void;
   onAddPages: (() => void) | null;
+  audience: OverviewAudience;
 }) {
   const listRef = useRef<HTMLUListElement>(null);
 
@@ -343,7 +381,7 @@ function BrowseGrid({
                 <span className={styles.caption}>
                   <span className={styles.captionPages}>
                     {pages.map((page) => (
-                      <PageCaption key={page} number={page} page={cache.get(page) ?? null} />
+                      <PageCaption key={page} number={page} page={cache.get(page) ?? null} audience={audience} />
                     ))}
                   </span>
                   {current ? <span className={styles.currentTag}>Atual</span> : null}
@@ -371,9 +409,18 @@ function BrowseGrid({
   );
 }
 
-function PageCaption({ number, page }: { number: number; page: BinderPage | null }) {
+function PageCaption({ number, page, audience }: { number: number; page: BinderPage | null; audience: OverviewAudience }) {
   if (!page) return <span className={styles.pageCaption}>Pág. {number}</span>;
   const occupancy = pageOccupancy(page);
+  if (audience === "editor") {
+    // C1: só o que é desta coleção; nada de "vazia" nem de capacidade (o restante pode estar mascarado).
+    return (
+      <span className={styles.pageCaption}>
+        Pág. {number}
+        {occupancy.occupied > 0 ? <span className={styles.pageCount}>{formatCount(occupancy.occupied)}</span> : null}
+      </span>
+    );
+  }
   const empty = occupancy.occupied === 0 && occupancy.reservedMissing === 0 && occupancy.images === 0;
   return (
     <span className={styles.pageCaption}>
@@ -386,7 +433,7 @@ function PageCaption({ number, page }: { number: number; page: BinderPage | null
 }
 
 /** Página em miniatura: carta (imagem preguiçosa), reserva (contorno tracejado) ou bolso vazio. */
-const MiniPage = memo(function MiniPage({ page, columns, rows }: { page: BinderPage | null; columns: number; rows: number }) {
+export const MiniPage = memo(function MiniPage({ page, columns, rows }: { page: BinderPage | null; columns: number; rows: number }) {
   const style = { "--cols": columns } as React.CSSProperties;
   if (!page) {
     return (
@@ -440,9 +487,15 @@ function OrganizePanel({
   onCancel,
   onRequestRemovePage,
   onApplied,
+  reorder,
+  canRemovePage,
+  audience,
 }: {
   collectionId: string;
-  layoutId: string;
+  layoutId: string | null;
+  reorder: OverviewReorder | null;
+  canRemovePage: ((page: BinderPage, totalPages: number) => boolean) | null;
+  audience: OverviewAudience;
   totalPages: number;
   columns: number;
   rows: number;
@@ -497,6 +550,24 @@ function OrganizePanel({
     if (!changed || saving) return;
     setSaving(true);
     setError(null);
+    if (reorder) {
+      const outcome = await reorder(current);
+      setSaving(false);
+      if (!outcome.ok) {
+        setError(outcome.message);
+        if (outcome.reset) {
+          setOrder(null);
+          setPicked([]);
+        }
+        return;
+      }
+      onApplied(outcome.message);
+      return;
+    }
+    if (!layoutId) {
+      setSaving(false);
+      return;
+    }
     const result = await reorderPages({ collectionId, layoutId, pageIds: current.map((page) => page.pageId) });
     setSaving(false);
     if (!result.ok) {
@@ -538,7 +609,13 @@ function OrganizePanel({
             <>
               {" "}
               <strong>Remover:</strong>{" "}
-              {changed ? "aplique ou descarte a nova ordem para remover uma página vazia." : "use a lixeira das páginas vazias."}
+              {audience === "editor"
+                ? changed
+                  ? "aplique ou descarte a nova ordem para remover uma página."
+                  : "use a lixeira das páginas sem cartas nem reservas desta coleção; o fichário é conferido antes de remover."
+                : changed
+                  ? "aplique ou descarte a nova ordem para remover uma página vazia."
+                  : "use a lixeira das páginas vazias."}
             </>
           ) : null}
         </p>
@@ -549,23 +626,27 @@ function OrganizePanel({
               const empty = occupancy.occupied === 0 && occupancy.reservedMissing === 0 && occupancy.images === 0;
               const isPicked = picked.includes(page.pageId);
               const moved = page.pageNumber !== index + 1;
-              const removable = canRemove && pageRemovalBlockers(page, totalPages).length === 0;
+              const removable = canRemove && (canRemovePage ? canRemovePage(page, totalPages) : pageRemovalBlockers(page, totalPages).length === 0);
               return (
                 <li key={page.pageId} className={styles.tileItem}>
                   <button
                     type="button"
                     className={styles.pageTile}
                     aria-pressed={isPicked}
-                    aria-label={`Posição ${index + 1}: página ${page.pageNumber}${moved ? " (movida)" : ""}, ${empty ? "vazia" : `${occupancy.occupied} de ${occupancy.capacity} com carta`}`}
+                    aria-label={`Posição ${index + 1}: página ${page.pageNumber}${moved ? " (movida)" : ""}, ${audience === "editor" ? editorCardsLabel(occupancy.occupied) : empty ? "vazia" : `${occupancy.occupied} de ${occupancy.capacity} com carta`}`}
                     onClick={() => toggle(page.pageId)}
                   >
                     <MiniPage page={page} columns={columns} rows={rows} />
                     <span className={styles.tileCaption}>
                       <strong>{index + 1}</strong>
                       {moved ? <span className={styles.movedTag}>era {page.pageNumber}</span> : null}
-                      <span className={styles.pageCount} data-empty={empty || undefined}>
-                        {empty ? "vazia" : `${occupancy.occupied}/${occupancy.capacity}`}
-                      </span>
+                      {audience === "editor" ? (
+                        occupancy.occupied > 0 ? <span className={styles.pageCount}>{formatCount(occupancy.occupied)}</span> : null
+                      ) : (
+                        <span className={styles.pageCount} data-empty={empty || undefined}>
+                          {empty ? "vazia" : `${occupancy.occupied}/${occupancy.capacity}`}
+                        </span>
+                      )}
                     </span>
                   </button>
                   {removable ? <RemovePageButton pageNumber={page.pageNumber} onClick={() => onRequestRemovePage?.(page.pageNumber)} /> : null}
@@ -593,7 +674,9 @@ function OrganizePanel({
           </button>
         </div>
         <p className={styles.footerStatus} role="status" aria-live="polite">
-          {changed
+          {saving && reorder
+            ? "Conferindo as páginas com o fichário antes de gravar a nova ordem…"
+            : changed
             ? `${movedCount === 1 ? "1 página mudou" : `${movedCount} páginas mudaram`} de posição — ainda não gravado.`
             : "Ordem igual à gravada."}
         </p>

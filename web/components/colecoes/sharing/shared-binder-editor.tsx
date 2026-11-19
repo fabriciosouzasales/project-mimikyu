@@ -47,6 +47,7 @@ import {
   settleEditorOutcome,
   sharedSlotPosition,
 } from "@/lib/colecoes/editor-binder";
+import { structuralBlocker } from "@/lib/colecoes/editor-binder-pages";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const IDLE: AvailableState = { status: "idle", items: [], total: 0, loadingMore: false };
@@ -489,6 +490,47 @@ export function useSharedBinderEditor({
   trayIdsRef.current = trayIds;
   const availableById = useMemo(() => new Map(available.items.map((card) => [card.physicalCardId, card])), [available.items]);
 
+  // ---- E2-3A: integração com as operações de página (estado único de "ocupado") ----
+  const blocker = structuralBlocker({
+    busy,
+    trayCount: tray.length,
+    armed: armed !== null,
+    armedCard: armedCard !== null,
+    dragging: dragging !== null,
+    confirming: confirm !== null,
+    reserving: reserveTarget !== null,
+  });
+  const structuralRef = useRef(false);
+  /** Reserva o "ocupado" da curadoria para uma operação de página; `false` = não pode agora. */
+  const beginStructural = useCallback((): boolean => {
+    if (!active || blocker !== null || structuralRef.current) return false;
+    structuralRef.current = true;
+    setBusy(true);
+    setTarget(null);
+    return true;
+  }, [active, blocker]);
+  const endStructural = useCallback(() => {
+    structuralRef.current = false;
+    setBusy(false);
+  }, []);
+  /**
+   * Números de página mudaram (remover/reordenar, ou resultado incerto): o que
+   * a sessão sabia por POSIÇÃO deixa de valer. Fixação volta a UNKNOWN (P1, o
+   * lado seguro) e o "Desfazer" por posição deixa de ser oferecido.
+   */
+  const afterRenumber = useCallback(() => {
+    setLocks(new Map());
+    placedHere.current.clear();
+    setToastState((prev) => (prev?.undo ? null : prev));
+  }, []);
+  const loseAccess = useCallback(
+    (recheck: boolean) => {
+      disable();
+      if (recheck) router.refresh();
+    },
+    [disable, router],
+  );
+
   return {
     active,
     busy,
@@ -548,6 +590,13 @@ export function useSharedBinderEditor({
     closeReserve: () => setReserveTarget(null),
     confirmReserve: (candidate: ReserveCandidate) => reserveTarget && void runReserve(reserveTarget.slot.slotId, candidate),
     releaseFromPicker: () => reserveTarget && void runRelease(reserveTarget.slot.slotId),
+    /** E2-3A: motivo pelo qual as páginas não podem mudar agora (`null` = livre). */
+    structuralBlocker: blocker,
+    beginStructural,
+    endStructural,
+    afterRenumber,
+    loseAccess,
+    notify: setToast,
   };
 }
 

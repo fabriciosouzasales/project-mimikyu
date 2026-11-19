@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { DndContext, DragOverlay, pointerWithin } from "@dnd-kit/core";
-import { ArrowLeft, Eye, Layers, Maximize2, Minimize2, Pencil, X } from "lucide-react";
+import { ArrowLeft, Eye, Layers, LayoutGrid, Maximize2, Minimize2, Pencil, X } from "lucide-react";
 import { readPublicBinderPages, readSharedBinderPages } from "@/app/colecoes/compartilhar/actions";
 import { FOCUS_RING, SideArrowButton, TopNavControls } from "@/components/colecoes/fichario/binder-chrome";
 import { BINDER_SPREAD_MEDIA, BinderObjectFrame } from "@/components/colecoes/fichario/binder-object";
@@ -14,6 +14,9 @@ import { BinderCardView } from "@/components/colecoes/fichario/binder-card-view"
 import { AvailablePanel } from "@/components/colecoes/fichario/binder-available";
 import { TraySurface, TrayToggleButton } from "@/components/colecoes/fichario/binder-tray";
 import { EditorDragPreview, SharedEditorMessages, useSharedBinderEditor } from "@/components/colecoes/sharing/shared-binder-editor";
+import { EditorRemovePageDialog, toBinderCache, useEditorPages } from "@/components/colecoes/sharing/shared-binder-pages";
+import { AddPagesDialog } from "@/components/colecoes/fichario/binder-add-pages";
+import { BinderOverview } from "@/components/colecoes/fichario/binder-overview";
 import { ReservePicker } from "@/components/colecoes/fichario/binder-reserve-picker";
 import { readEditorReserveCandidates } from "@/app/colecoes/compartilhada/[id]/fichario/actions";
 import { editorReserveScope } from "@/lib/colecoes/editor-binder";
@@ -34,7 +37,7 @@ import {
 } from "@/lib/colecoes/binder";
 import { canViewCard } from "@/lib/colecoes/binder-card-view";
 import type { BinderFinish } from "@/lib/colecoes/binder-finish";
-import { type SharedBinderIdentity, type SharedBinderPage, sharedPageToBinderPage } from "@/lib/colecoes/sharing";
+import { type SharedBinderIdentity, type SharedBinderPage } from "@/lib/colecoes/sharing";
 import { usePrefersReducedMotion } from "@/lib/use-prefers-reduced-motion";
 import { canUseViewTransitions, runWithViewTransition } from "@/lib/view-transitions";
 import { cn } from "@/lib/utils";
@@ -159,7 +162,8 @@ export function SharedBinderWorkspace({
     [openCardView],
   );
   const stageRef = useRef<HTMLElement>(null);
-  const totalPages = pageCount;
+  // E2-3A: o total muda quando o EDITOR adiciona/remove páginas (relido do servidor depois de cada operação).
+  const [totalPages, setTotalPages] = useState(pageCount);
   const binderName = identity?.name ?? collectionName;
   const showBrandMark = identity?.showBrandMark ?? true;
 
@@ -211,12 +215,15 @@ export function SharedBinderWorkspace({
   );
   const [failed, setFailed] = useState<Set<number>>(() => (initialPages === null ? new Set([readBatchStart(initialAnchor)]) : new Set()));
   const inflight = useRef(new Set<number>());
+  /** E2-3A: numeração mudou → leituras em voo, com a numeração antiga, são descartadas. */
+  const generation = useRef(0);
 
   const [filled, setFilled] = useState(ownFilled);
   const load = useCallback(
     async (batch: number) => {
       if (batch < 1 || batch > totalPages || inflight.current.has(batch)) return;
       inflight.current.add(batch);
+      const gen = generation.current;
       setFailed((prev) => {
         if (!prev.has(batch)) return prev;
         const next = new Set(prev);
@@ -225,6 +232,7 @@ export function SharedBinderWorkspace({
       });
       const read = source === "public" ? readPublicBinderPages : readSharedBinderPages;
       const result = await read({ collectionId, firstPage: batch, columns, rows }).catch(() => ({ ok: false }) as const);
+      if (gen !== generation.current) return;
       inflight.current.delete(batch);
       if (!result.ok) {
         setFailed((prev) => new Set(prev).add(batch));
@@ -253,6 +261,34 @@ export function SharedBinderWorkspace({
   });
   const reserveScope = editorReserveScope(completionPolicy);
   const editing = editor.active;
+
+  // ---- E2-3A: páginas pelo EDITOR (5382), sem otimismo; releitura antes e depois ----
+  const replaceCache = useCallback((pages: Map<number, BinderPage>) => {
+    generation.current += 1;
+    inflight.current.clear();
+    setFailed(new Set());
+    setCache(pages);
+  }, []);
+  const invalidate = useCallback(() => replaceCache(new Map()), [replaceCache]);
+  const cacheRef = useRef(cache);
+  cacheRef.current = cache;
+  const pages = useEditorPages({
+    editor,
+    collectionId,
+    columns,
+    rows,
+    totalPages,
+    onHeader: (header) => {
+      setTotalPages(header.pageCount);
+      setFilled((value) => (value === null ? value : header.ownFilled));
+    },
+    replaceCache,
+    invalidate,
+    cachedNumbers: () => [...cacheRef.current.keys()],
+  });
+  useEffect(() => {
+    setAnchor((value) => clampPage(value, totalPages));
+  }, [totalPages]);
   const editorHandlers = editor.handlers;
   const slotHandlers = useMemo(() => editorHandlers(handlers), [editorHandlers, handlers]);
   const [docked, setDocked] = useState(false);
@@ -281,6 +317,8 @@ export function SharedBinderWorkspace({
       if (target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
       // E2-2: com o seletor de reserva aberto, o teclado é dele (Esc fecha o diálogo, setas não viram página).
       if (editor.reserveTarget) return;
+      // E2-3A: visão geral e diálogos de página cuidam do próprio teclado.
+      if (pages.dialogOpen) return;
       if (event.key === "Escape" && (editor.confirm || editor.armed || editor.armedCard)) {
         if (editor.confirm) editor.cancelConfirm();
         else editor.setArmed(null);
@@ -296,7 +334,7 @@ export function SharedBinderWorkspace({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [go, view, lastView, onClose, cardViewSlotId, editor]);
+  }, [go, view, lastView, onClose, cardViewSlotId, editor, pages.dialogOpen]);
 
   // ---- tela cheia (mesmo alvo do titular: a raiz do fichário) ----
   const [fullscreen, setFullscreen] = useState(false);
@@ -384,6 +422,18 @@ export function SharedBinderWorkspace({
               <span className="sr-only sm:not-sr-only">Somente visualização</span>
             </span>
           )}
+          {editing && pages.available ? (
+            <button
+              type="button"
+              className={cn(ws.iconButton, FOCUS_RING)}
+              onClick={pages.openOverview}
+              aria-haspopup="dialog"
+              aria-label="Páginas do fichário"
+              title="Páginas: visão geral, adicionar, remover e reordenar"
+            >
+              <LayoutGrid className="h-4 w-4" aria-hidden />
+            </button>
+          ) : null}
           {editing ? (
             <button
               type="button"
@@ -554,6 +604,62 @@ export function SharedBinderWorkspace({
         />
       ) : null}
 
+      {editing && pages.overviewOpen ? (
+        <BinderOverview
+          host={rootRef.current}
+          collectionId={collectionId}
+          layoutId={null}
+          editable={pages.available}
+          columns={columns}
+          rows={rows}
+          totalPages={totalPages}
+          filled={filled ?? 0}
+          currentPages={visiblePages}
+          cache={cache}
+          failed={failed}
+          loadBatch={(page) => void load(readBatchStart(page))}
+          onRetry={() => {}}
+          onGoToPage={(page) => {
+            const target = clampPage(page, totalPages);
+            setDirection(target >= anchor ? 1 : -1);
+            setAnchor(target);
+          }}
+          onReordered={(message) => editor.notify({ tone: "success", text: message })}
+          onRequestAddPages={pages.openAdd}
+          onRequestRemovePage={(pageNumber) => pages.openRemove([pageNumber], pageNumber)}
+          removeSuspended={pages.remove !== null}
+          reorder={pages.reorder}
+          canRemovePage={pages.canRemovePage}
+          audience="editor"
+          onClose={pages.closeOverview}
+        />
+      ) : null}
+
+      {editing && pages.addOpen ? (
+        <AddPagesDialog
+          host={rootRef.current}
+          columns={columns}
+          rows={rows}
+          totalPages={totalPages}
+          busy={pages.adding}
+          onConfirm={(count) => void pages.runAdd(count)}
+          onClose={pages.closeAdd}
+        />
+      ) : null}
+
+      {editing && pages.remove ? (
+        <EditorRemovePageDialog
+          host={rootRef.current}
+          state={pages.remove}
+          busy={pages.removing}
+          columns={columns}
+          rows={rows}
+          onChoose={pages.chooseRemove}
+          onConfirm={pages.confirmRemove}
+          onClose={pages.closeRemove}
+        />
+      ) : null}
+
       <BinderCardView
         slot={cardViewSlot && canViewCard(cardViewSlot) ? cardViewSlot : null}
         container={rootRef.current}
@@ -563,24 +669,4 @@ export function SharedBinderWorkspace({
     </div>
     </CardViewTransitionContext.Provider>
   );
-}
-
-/** Lote lido → páginas do fichário. Página do lote que não veio (≤ total) = folha vazia. */
-function toBinderCache(pages: SharedBinderPage[], batch: number, total: number, columns: number, rows: number): Map<number, BinderPage> {
-  const byNumber = new Map(pages.map((page) => [page.pageNumber, page]));
-  const cache = new Map<number, BinderPage>();
-  for (let number = batch; number <= Math.min(total, batch + 3); number += 1) {
-    cache.set(number, sharedPageToBinderPage(byNumber.get(number) ?? { pageNumber: number, pockets: emptyPockets(columns, rows) }));
-  }
-  return cache;
-}
-
-function emptyPockets(columns: number, rows: number) {
-  const pockets = [];
-  for (let row = 1; row <= rows; row += 1) {
-    for (let column = 1; column <= columns; column += 1) {
-      pockets.push({ row, column, kind: "empty" as const, cardName: null, collectorNumber: null, collectorTotal: null, setCode: null, variantLabel: null, languageCode: null, imagePath: null });
-    }
-  }
-  return pockets;
 }

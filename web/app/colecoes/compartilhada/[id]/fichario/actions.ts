@@ -15,9 +15,10 @@ import {
   isPocketPosition,
   parsePlaceableCards,
 } from "@/lib/colecoes/editor-binder";
+import { type PageFailure, classifyPageFailure, reorderChanged, reorderPayload } from "@/lib/colecoes/editor-binder-pages";
 import type { AvailableCard } from "@/lib/colecoes/binder-share";
 import type { ReserveCandidate, ReserveScope } from "@/lib/colecoes/binder-reserve";
-import { SHARED_COLLECTION_PATH, parseSharedCollection } from "@/lib/colecoes/sharing";
+import { SHARED_COLLECTION_PATH, parseSharedBinder, parseSharedCollection } from "@/lib/colecoes/sharing";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -278,4 +279,86 @@ export async function readEditorReserveCandidates(input: {
     if (rows.length < POSITIONS_PAGE) break;
   }
   return { ok: true, scope, candidates, total: Math.max(total, candidates.length), complete: candidates.length >= total };
+}
+
+// ---------------------------------------------------------------------------
+// V1-13 · E2-3A — páginas pelo EDITOR (5382), só no fichário exclusivo da
+// coleção. Nenhuma das três ações lê `hint`/`details` do erro: a recusa vira um
+// motivo estável pelo nome da exceção (classifyPageFailure). Sem repetição
+// automática: quem chama relê o estado e decide.
+
+type PageFail = { ok: false; reason: PageFailure };
+
+function pageFail(fn: string, startedAt: number, error: { code?: string; message?: string } | null): PageFail {
+  const reason = classifyPageFailure(error?.code, error?.message);
+  console.error(JSON.stringify({ scope: "colecoes.editor_binder", fn, ms: Date.now() - startedAt, code: error?.code ?? "BAD_SHAPE", reason }));
+  return { ok: false, reason };
+}
+
+function firstRow(data: unknown): Record<string, unknown> | null {
+  const row = Array.isArray(data) ? data[0] : null;
+  return row && typeof row === "object" ? (row as Record<string, unknown>) : null;
+}
+
+/** Cabeçalho autorizado do fichário compartilhado (5314) — releitura antes e depois das operações de página. */
+export async function readEditorBinderHeader(input: { collectionId: string }): Promise<{ ok: true; pageCount: number; columns: number; rows: number; ownFilled: number } | PageFail> {
+  if (!enabled()) return { ok: false, reason: "disabled" };
+  if (!isCollectionId(input?.collectionId)) return { ok: false, reason: "invalid" };
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("get_shared_collection_binder", { p_collection_id: input.collectionId });
+  if (error) return pageFail("get_shared_collection_binder", startedAt, error);
+  const binder = parseSharedBinder(data);
+  // Sem fichário ou formato inesperado: a tela trata como acesso que mudou (relê a coleção).
+  if (!binder || !binder.hasBinder) return { ok: false, reason: "access_lost" };
+  return { ok: true, pageCount: binder.pageCount, columns: binder.columns, rows: binder.rows, ownFilled: binder.ownFilled };
+}
+
+/** Adicionar UMA página vazia no fim (5382). O lote é feito por quem chama, uma página por vez. */
+export async function editorAddPage(input: { collectionId: string }): Promise<{ ok: true; pageNumber: number } | PageFail> {
+  if (!enabled()) return { ok: false, reason: "disabled" };
+  if (!isCollectionId(input?.collectionId)) return { ok: false, reason: "invalid" };
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("editor_add_binder_page", { p_collection_id: input.collectionId });
+  if (error) return pageFail("editor_add_binder_page", startedAt, error);
+  const pageNumber = Number(firstRow(data)?.page_number);
+  if (!Number.isInteger(pageNumber) || pageNumber < 1) return pageFail("editor_add_binder_page", startedAt, null);
+  done("editor_add_binder_page", startedAt, input.collectionId, "PAGE_ADDED");
+  return { ok: true, pageNumber };
+}
+
+/**
+ * Remover a página de NÚMERO informado (5382), só se estiver totalmente vazia
+ * e sem conteúdo de terceiros. A confirmação de referências de espécie nunca é
+ * enviada (D2): página com referência é recusada.
+ */
+export async function editorRemovePage(input: { collectionId: string; pageNumber: number }): Promise<{ ok: true; removedPageNumber: number } | PageFail> {
+  if (!enabled()) return { ok: false, reason: "disabled" };
+  if (!isCollectionId(input?.collectionId) || !Number.isInteger(input.pageNumber) || input.pageNumber < 1 || input.pageNumber > 100000) return { ok: false, reason: "invalid" };
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("editor_remove_binder_page", { p_collection_id: input.collectionId, p_page_number: input.pageNumber });
+  if (error) return pageFail("editor_remove_binder_page", startedAt, error);
+  const removed = Number(firstRow(data)?.removed_page_number);
+  if (removed !== input.pageNumber) return pageFail("editor_remove_binder_page", startedAt, null);
+  done("editor_remove_binder_page", startedAt, input.collectionId, "PAGE_REMOVED");
+  return { ok: true, removedPageNumber: removed };
+}
+
+/** Reordenar (5382): `order[i]` = número ATUAL da página que passa a ser a página i+1. Permutação completa. */
+export async function editorReorderPages(input: { collectionId: string; order: number[] }): Promise<{ ok: true; changed: boolean } | PageFail> {
+  if (!enabled()) return { ok: false, reason: "disabled" };
+  const order = Array.isArray(input?.order) ? input.order : null;
+  if (!isCollectionId(input?.collectionId) || !order || order.length < 1 || order.length > 10000) return { ok: false, reason: "invalid" };
+  const payload = reorderPayload(order.map((pageNumber) => ({ pageNumber })), order.length);
+  if (!payload) return { ok: false, reason: "invalid" };
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("editor_reorder_binder_pages", { p_collection_id: input.collectionId, p_page_numbers_ordered: payload });
+  if (error) return pageFail("editor_reorder_binder_pages", startedAt, error);
+  if (!Array.isArray(data) || data.length !== payload.length) return pageFail("editor_reorder_binder_pages", startedAt, null);
+  const changed = reorderChanged(payload);
+  done("editor_reorder_binder_pages", startedAt, input.collectionId, changed ? "PAGES_REORDERED" : "UNCHANGED");
+  return { ok: true, changed };
 }
