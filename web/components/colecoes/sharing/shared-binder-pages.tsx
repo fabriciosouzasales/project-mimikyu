@@ -396,6 +396,8 @@ export function useEditorPages({
     reorder,
     canRemovePage: (page: BinderPage, total: number) => editorRemovalBlockers(page, total).length === 0,
     dialogOpen: overviewOpen || addOpen || remove !== null,
+    /** E2-3B: mesma releitura autorizada depois de cada operação estrutural (cabeçalho + páginas carregadas). */
+    syncAfter,
   };
 }
 

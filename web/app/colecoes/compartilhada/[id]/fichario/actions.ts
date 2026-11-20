@@ -16,6 +16,18 @@ import {
   parsePlaceableCards,
 } from "@/lib/colecoes/editor-binder";
 import { type PageFailure, classifyPageFailure, reorderChanged, reorderPayload } from "@/lib/colecoes/editor-binder-pages";
+import {
+  type EditorGapFailure,
+  type EditorGapInsert,
+  type EditorGapUndo,
+  classifyEditorGapFailure,
+  isGapPlanToken,
+  isGapUndoToken,
+  parseEditorGapClose,
+  parseEditorGapInsert,
+  parseEditorGapPreview,
+} from "@/lib/colecoes/editor-binder-gap";
+import type { GapPreview } from "@/lib/colecoes/binder-insert";
 import type { AvailableCard } from "@/lib/colecoes/binder-share";
 import type { ReserveCandidate, ReserveScope } from "@/lib/colecoes/binder-reserve";
 import { SHARED_COLLECTION_PATH, parseSharedBinder, parseSharedCollection } from "@/lib/colecoes/sharing";
@@ -361,4 +373,96 @@ export async function editorReorderPages(input: { collectionId: string; order: n
   const changed = reorderChanged(payload);
   done("editor_reorder_binder_pages", startedAt, input.collectionId, changed ? "PAGES_REORDERED" : "UNCHANGED");
   return { ok: true, changed };
+}
+
+// ---------------------------------------------------------------------------
+// V1-13 · E2-3B — abrir e fechar espaço pelo EDITOR (5385), por POSIÇÃO. Uma
+// chamada por pedido, sem repetição; `hint`/`details` nunca são lidos.
+
+type GapEditorFail = { ok: false; reason: EditorGapFailure };
+
+function gapEditorFail(fn: string, startedAt: number, error: { code?: string; message?: string } | null): GapEditorFail {
+  const reason = classifyEditorGapFailure(error?.code, error?.message);
+  console.error(JSON.stringify({ scope: "colecoes.editor_binder", fn, ms: Date.now() - startedAt, code: error?.code ?? "BAD_SHAPE", reason }));
+  return { ok: false, reason };
+}
+
+/** Prévia (não grava): plano e token da 5385 para o bolso nesta posição. */
+export async function editorPreviewGap(input: { collectionId: string; position: PocketPosition }): Promise<{ ok: true; preview: GapPreview } | GapEditorFail> {
+  if (!enabled()) return { ok: false, reason: "disabled" };
+  if (!isCollectionId(input?.collectionId) || !isPocketPosition(input.position)) return { ok: false, reason: "invalid" };
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("editor_preview_binder_insert_gap", {
+    p_collection_id: input.collectionId,
+    p_page: input.position.page,
+    p_row: input.position.row,
+    p_column: input.position.column,
+  });
+  if (error) return gapEditorFail("editor_preview_binder_insert_gap", startedAt, error);
+  const preview = parseEditorGapPreview(data);
+  if (!preview) return gapEditorFail("editor_preview_binder_insert_gap", startedAt, null);
+  return { ok: true, preview };
+}
+
+/** Abre o espaço com o token da prévia; outra página e página nova só com a confirmação já dada. */
+export async function editorInsertGap(input: {
+  collectionId: string;
+  position: PocketPosition;
+  planToken: string;
+  confirmCrossPage: boolean;
+  confirmAddPage: boolean;
+}): Promise<{ ok: true; result: EditorGapInsert } | GapEditorFail> {
+  if (!enabled()) return { ok: false, reason: "disabled" };
+  if (!isCollectionId(input?.collectionId) || !isPocketPosition(input.position) || !isGapPlanToken(input.planToken)) return { ok: false, reason: "invalid" };
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("editor_insert_binder_gap", {
+    p_collection_id: input.collectionId,
+    p_page: input.position.page,
+    p_row: input.position.row,
+    p_column: input.position.column,
+    p_plan_token: input.planToken,
+    p_confirm_cross_page: input.confirmCrossPage === true,
+    p_confirm_add_page: input.confirmAddPage === true,
+  });
+  if (error) return gapEditorFail("editor_insert_binder_gap", startedAt, error);
+  const result = parseEditorGapInsert(data, input.position);
+  if (!result) return gapEditorFail("editor_insert_binder_gap", startedAt, null);
+  done("editor_insert_binder_gap", startedAt, input.collectionId, result.outcome);
+  return { ok: true, result };
+}
+
+/** Desfaz um espaço aberto (token u1), se o trecho ainda está como a abertura o deixou. */
+export async function editorCloseGap(input: { collectionId: string; undo: EditorGapUndo }): Promise<{ ok: true; movedPockets: number; pageRemoved: boolean } | GapEditorFail> {
+  if (!enabled()) return { ok: false, reason: "disabled" };
+  const undo = input?.undo;
+  if (
+    !isCollectionId(input?.collectionId) ||
+    !undo ||
+    !isPocketPosition(undo.gap) ||
+    !isPocketPosition(undo.end) ||
+    !isGapUndoToken(undo.undoToken) ||
+    (undo.addedPageNumber !== null && !(Number.isInteger(undo.addedPageNumber) && undo.addedPageNumber >= 1))
+  ) {
+    return { ok: false, reason: "invalid" };
+  }
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("editor_close_binder_gap", {
+    p_collection_id: input.collectionId,
+    p_gap_page: undo.gap.page,
+    p_gap_row: undo.gap.row,
+    p_gap_column: undo.gap.column,
+    p_end_page: undo.end.page,
+    p_end_row: undo.end.row,
+    p_end_column: undo.end.column,
+    p_undo_token: undo.undoToken,
+    p_added_page_number: undo.addedPageNumber,
+  });
+  if (error) return gapEditorFail("editor_close_binder_gap", startedAt, error);
+  const result = parseEditorGapClose(data);
+  if (!result) return gapEditorFail("editor_close_binder_gap", startedAt, null);
+  done("editor_close_binder_gap", startedAt, input.collectionId, "CLOSED");
+  return { ok: true, ...result };
 }

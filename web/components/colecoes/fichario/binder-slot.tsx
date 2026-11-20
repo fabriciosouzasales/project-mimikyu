@@ -479,7 +479,7 @@ export function BinderSlotView({
               handlers.editorCore ? null : <ImageQuickActions slot={slot} size={control} handlers={handlers} canInsertGap={canInsertGap} />
             ) : (
               handlers.editorCore ? (
-                <EditorQuickActions slot={slot} occupied={occupied} reserved={reserved} inTray={inTray} size={control} handlers={handlers} />
+                <EditorQuickActions slot={slot} occupied={occupied} reserved={reserved} inTray={inTray} size={control} handlers={handlers} canInsertGap={canInsertGap} />
               ) : (
                 <QuickActions slot={slot} occupied={occupied} reserved={reserved} inTray={inTray} size={control} handlers={handlers} canInsertGap={canInsertGap} />
               )
@@ -1084,6 +1084,7 @@ function EditorQuickActions({
   inTray,
   size,
   handlers,
+  canInsertGap = false,
 }: {
   slot: BinderSlot;
   occupied: boolean;
@@ -1091,6 +1092,8 @@ function EditorQuickActions({
   inTray: boolean;
   size: number;
   handlers: SlotHandlers;
+  /** E2-3B: abrir espaço antes deste bolso (a fenda do ponteiro tem o mesmo comando; aqui, teclado e toque). */
+  canInsertGap?: boolean;
 }) {
   const can = editorPocketActions(slot, slot.locked ? "LOCKED" : "UNKNOWN", inTray);
   return (
@@ -1135,6 +1138,7 @@ function EditorQuickActions({
               tone="lock"
             />
           ) : null}
+          {canInsertGap ? <QuickButton icon={BetweenVerticalStart} label="Abrir espaço antes deste bolso" onClick={() => handlers.onInsertGap(slot)} size={size} /> : null}
           {occupied ? (
             <QuickButton
               icon={Trash2}

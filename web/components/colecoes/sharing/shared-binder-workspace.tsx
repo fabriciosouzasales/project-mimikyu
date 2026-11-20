@@ -15,6 +15,8 @@ import { AvailablePanel } from "@/components/colecoes/fichario/binder-available"
 import { TraySurface, TrayToggleButton } from "@/components/colecoes/fichario/binder-tray";
 import { EditorDragPreview, SharedEditorMessages, useSharedBinderEditor } from "@/components/colecoes/sharing/shared-binder-editor";
 import { EditorRemovePageDialog, toBinderCache, useEditorPages } from "@/components/colecoes/sharing/shared-binder-pages";
+import { useEditorGap } from "@/components/colecoes/sharing/shared-binder-gap";
+import { GapDialog } from "@/components/colecoes/fichario/binder-layout-tools";
 import { AddPagesDialog } from "@/components/colecoes/fichario/binder-add-pages";
 import { BinderOverview } from "@/components/colecoes/fichario/binder-overview";
 import { ReservePicker } from "@/components/colecoes/fichario/binder-reserve-picker";
@@ -289,8 +291,17 @@ export function SharedBinderWorkspace({
   useEffect(() => {
     setAnchor((value) => clampPage(value, totalPages));
   }, [totalPages]);
+
+  // ---- E2-3B: abrir/fechar espaço pelo EDITOR (5385), mesma releitura autorizada da E2-3A ----
+  const gap = useEditorGap({ editor, collectionId, available: pages.available, syncAfter: pages.syncAfter });
+  const startGap = gap.start;
+  const gapOn = editing && pages.available;
+
   const editorHandlers = editor.handlers;
-  const slotHandlers = useMemo(() => editorHandlers(handlers), [editorHandlers, handlers]);
+  const slotHandlers = useMemo(() => {
+    const next = editorHandlers(handlers);
+    return gapOn ? { ...next, onInsertGap: (slot: Parameters<SlotHandlers["onInsertGap"]>[0]) => void startGap(slot) } : next;
+  }, [editorHandlers, gapOn, handlers, startGap]);
   const [docked, setDocked] = useState(false);
   useEffect(() => {
     const media = window.matchMedia("(min-width: 1280px)");
@@ -318,7 +329,7 @@ export function SharedBinderWorkspace({
       // E2-2: com o seletor de reserva aberto, o teclado é dele (Esc fecha o diálogo, setas não viram página).
       if (editor.reserveTarget) return;
       // E2-3A: visão geral e diálogos de página cuidam do próprio teclado.
-      if (pages.dialogOpen) return;
+      if (pages.dialogOpen || gap.dialog) return;
       if (event.key === "Escape" && (editor.confirm || editor.armed || editor.armedCard)) {
         if (editor.confirm) editor.cancelConfirm();
         else editor.setArmed(null);
@@ -334,7 +345,7 @@ export function SharedBinderWorkspace({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [go, view, lastView, onClose, cardViewSlotId, editor, pages.dialogOpen]);
+  }, [go, view, lastView, onClose, cardViewSlotId, editor, pages.dialogOpen, gap.dialog]);
 
   // ---- tela cheia (mesmo alvo do titular: a raiz do fichário) ----
   const [fullscreen, setFullscreen] = useState(false);
@@ -516,7 +527,7 @@ export function SharedBinderWorkspace({
                   placing={editing && (editor.armed !== null || editor.dragging?.kind === "slot" || editor.dragging?.kind === "tray")}
                   placingAvailable={editing && (editor.armedCard !== null || editor.dragging?.kind === "available")}
                   focusCollectionId={null}
-                  insertEnabled={false}
+                  insertEnabled={gapOn && editor.structuralBlocker === null}
                   handlers={slotHandlers}
                   onRetry={() => void load(readBatchStart(side))}
                 />
@@ -646,6 +657,8 @@ export function SharedBinderWorkspace({
           onClose={pages.closeAdd}
         />
       ) : null}
+
+      {editing && gap.dialog ? <GapDialog host={rootRef.current} state={gap.dialog} onConfirm={gap.confirm} onClose={gap.close} /> : null}
 
       {editing && pages.remove ? (
         <EditorRemovePageDialog

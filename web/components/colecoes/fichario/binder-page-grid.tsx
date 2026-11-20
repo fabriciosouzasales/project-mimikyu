@@ -8,6 +8,7 @@ import { regionCells } from "@/lib/colecoes/binder-region";
 import { isForeignSlot } from "@/lib/colecoes/binder-share";
 import { cn } from "@/lib/utils";
 import { BinderSlotView, GapGutter, RegionPocketView, type SlotDragData, type SlotHandlers } from "./binder-slot";
+import { editorCanInsertGap } from "@/lib/colecoes/editor-binder-gap";
 
 /**
  * Folha de bolsos do fichário (extraída de `BinderWorkspace` em V1-12 VIEWER
@@ -102,8 +103,10 @@ export function PageGrid({
             }
             const inTray = trayIds.has(slot.slotId);
             // Abrir espaço só antes de um bolso com conteúdo e fora de barreira (fixado/mesclado).
-            const insertable =
-              insertEnabled && !inTray && !slot.locked && !slot.regionId && (isOccupied(slot) || Boolean(slot.expectedCardId) || Boolean(slot.image));
+            // E2-3B: o EDITOR só antes de carta ou reserva desta coleção que ele vê (nunca imagem do titular).
+            const insertable = handlers.editorCore
+              ? insertEnabled && !inTray && editorCanInsertGap(slot)
+              : insertEnabled && !inTray && !slot.locked && !slot.regionId && (isOccupied(slot) || Boolean(slot.expectedCardId) || Boolean(slot.image));
             return (
             <div role="listitem" key={slot.slotId} className="relative">
               {insertable && slot.column > 1 ? (

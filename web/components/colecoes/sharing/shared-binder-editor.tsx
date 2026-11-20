@@ -53,7 +53,8 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const IDLE: AvailableState = { status: "idle", items: [], total: 0, loadingMore: false };
 const key = (p: PocketPosition) => `${p.page}:${p.row}:${p.column}`;
 
-type Toast = { tone: "success" | "error" | "info"; text: string; undo?: UndoRemoval };
+/** E2-3B: `action` = ação única da mensagem (o "Desfazer" do espaço), válida só enquanto a mensagem estiver na tela. */
+type Toast = { tone: "success" | "error" | "info"; text: string; undo?: UndoRemoval; action?: { label: string; run: () => void } };
 
 /**
  * V1-13 · E2-1 — curadoria do EDITOR no fichário compartilhado: colocar,
@@ -118,7 +119,7 @@ export function useSharedBinderEditor({
   const setToast = useCallback((next: Toast | null) => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
     setToastState(next);
-    if (next) toastTimer.current = setTimeout(() => setToastState(null), next.tone === "error" ? 7000 : next.undo ? 9000 : 3500);
+    if (next) toastTimer.current = setTimeout(() => setToastState(null), next.tone === "error" ? 7000 : next.undo || next.action ? 9000 : 3500);
   }, []);
 
   const slotById = useCallback(
@@ -521,7 +522,7 @@ export function useSharedBinderEditor({
   const afterRenumber = useCallback(() => {
     setLocks(new Map());
     placedHere.current.clear();
-    setToastState((prev) => (prev?.undo ? null : prev));
+    setToastState((prev) => (prev?.undo || prev?.action ? null : prev));
   }, []);
   const loseAccess = useCallback(
     (recheck: boolean) => {
@@ -625,6 +626,18 @@ export function SharedEditorMessages({ editor }: { editor: SharedBinderEditor })
     <EditorMessage tone={toast.tone} role={toast.tone === "error" ? "alert" : "status"}>
       <p>{toast.text}</p>
       <span className={ws.messageActions}>
+        {toast.action ? (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 border-white/20 bg-transparent text-white hover:bg-white/10"
+            onClick={() => toast.action?.run()}
+            disabled={editor.busy}
+          >
+            <RotateCcw className="h-3.5 w-3.5" aria-hidden />
+            {toast.action.label}
+          </Button>
+        ) : null}
         {toast.undo ? (
           <Button
             size="sm"
