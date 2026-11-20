@@ -60,6 +60,8 @@ export type CollectionSummary = {
    * (página só leitura), o selo discreto e a metadata "de Fulano".
    */
   sharedBy?: string | null;
+  /** V1-13 · E3-1: papel do próprio usuário na coleção compartilhada (5311). Só com `sharedBy`. */
+  sharedRole?: "EDITOR" | "VIEWER" | null;
 };
 
 export type CollectionsPage = { items: CollectionSummary[]; total: number };

@@ -42,13 +42,15 @@ export function CollectionKindLine({ collection }: { collection: KindSource }) {
  * selo do tipo (mesma pílula, sem cor de destaque) + o titular. Visual: o
  * nome acessível do card já diz "compartilhada de Fulano".
  */
-export function SharedCollectionBadge({ owner }: { owner: string }) {
+export function SharedCollectionBadge({ owner, role = null }: { owner: string; role?: string | null }) {
   return (
     <span className={styles.sharedLine} aria-hidden="true">
       <span className={styles.kindBadge} data-kind="shared">
         <Users className={styles.kindBadgeIcon} strokeWidth={2} />
         Compartilhada
       </span>
+      {/* V1-13 · E3-1: o papel do próprio usuário, lido da 5311 ("Pode ver" / "Pode organizar"). */}
+      {role ? <span className={styles.sharedOwner}>{role}</span> : null}
       <span className={styles.sharedOwner}>{owner}</span>
     </span>
   );

@@ -1,7 +1,7 @@
 import { resolveFinish } from "./binder-finish.ts";
 import { collectionHref } from "./colecoes.ts";
 import type { CollectionSummary } from "./colecoes-queries.ts";
-import { type SharedWithMe, sharedCollectionHref } from "./sharing.ts";
+import { ROLE_LABEL, type SharedWithMe, sharedCollectionHref } from "./sharing.ts";
 
 /**
  * Coleções compartilhadas dentro da Biblioteca (V1-12 — ajuste final de UX de
@@ -44,6 +44,7 @@ export function sharedLibraryItem(shared: SharedWithMe): CollectionSummary {
     coverImagePath: null,
     createdAt: "",
     sharedBy: shared.ownerDisplayName,
+    sharedRole: shared.role,
   };
 }
 
@@ -93,6 +94,12 @@ export function sharedLibrarySlice(args: {
 /** Destino do card: a coleção própria ou a página da coleção compartilhada (só leitura). */
 export function libraryItemHref(collection: Pick<CollectionSummary, "id" | "sharedBy">): string {
   return collection.sharedBy ? sharedCollectionHref(collection.id) : collectionHref(collection.id);
+}
+
+/** E3-1: papel do próprio usuário para o selo e o nome acessível ("Pode ver" / "Pode organizar"); `null` fora das compartilhadas. */
+export function sharedRoleText(collection: Pick<CollectionSummary, "sharedBy" | "sharedRole">): string | null {
+  if (!collection.sharedBy) return null;
+  return ROLE_LABEL[collection.sharedRole === "EDITOR" ? "EDITOR" : "VIEWER"];
 }
 
 /** Texto discreto de propriedade, para a metadata e o nome acessível do card. */

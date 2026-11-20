@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { InlineFeedback } from "@/components/ui/feedback";
 import { collectionKindLabel } from "@/lib/colecoes/colecoes";
 import { answerInvite, invitesStore, useInvites } from "@/lib/colecoes/invites-client";
-import { type ReceivedInvite, sharedCollectionHref, sharingFailureMessage } from "@/lib/colecoes/sharing";
+import { ROLE_LABEL, type ReceivedInvite, inviteRoleCopy, sharedCollectionHref, sharingFailureMessage } from "@/lib/colecoes/sharing";
 import styles from "./share.module.css";
 
 /**
@@ -71,6 +71,8 @@ export function SharingInbox({ invites }: { invites: ReceivedInvite[] }) {
             {list.map((invite) => {
               const working = busy === invite.membershipId;
               const kind = invite.cardSetName ?? collectionKindLabel(invite.completionPolicy);
+              // V1-13 · E3-1: o papel OFERECIDO vem da leitura do convite (5309), nunca é presumido.
+              const copy = inviteRoleCopy(invite.role);
               return (
                 <li key={invite.membershipId} className={styles.invite}>
                   <div className={styles.inviteHead}>
@@ -80,14 +82,14 @@ export function SharingInbox({ invites }: { invites: ReceivedInvite[] }) {
                     <p className={styles.inviteText}>
                       <strong>{invite.collectionName}</strong>
                       {invite.ownerDisplayName}
-                      {invite.ownerUsername ? ` (@${invite.ownerUsername})` : ""} quer mostrar esta coleção para você · {kind}
+                      {invite.ownerUsername ? ` (@${invite.ownerUsername})` : ""} {copy.offer} · {kind} · <span className={styles.chip}>{ROLE_LABEL[invite.role]}</span>
                     </p>
                   </div>
-                  <p className={styles.help}>Ao aceitar, você vê as cartas e o progresso. Nada do seu acervo é compartilhado.</p>
+                  <p className={styles.help}>{copy.help}</p>
                   <div className={styles.inviteActions}>
                     <Button size="sm" disabled={busy !== null} onClick={() => void respond(invite, true)} aria-busy={working || undefined}>
                       {working ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : null}
-                      Aceitar e ver
+                      {copy.accept}
                     </Button>
                     <Button variant="ghost" size="sm" disabled={busy !== null} onClick={() => void respond(invite, false)}>
                       Recusar

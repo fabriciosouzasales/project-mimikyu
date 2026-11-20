@@ -111,7 +111,7 @@ export function SharedCollectionView({
           )}
           <div className={manageStyles.heroBarActions}>
             {viewer ? (
-              <SharedAccessMenu collectionId={collection.collectionId} collectionName={collection.name} ownerDisplayName={collection.ownerDisplayName} />
+              <SharedAccessMenu collectionId={collection.collectionId} collectionName={collection.name} ownerDisplayName={collection.ownerDisplayName} role={collection.role ?? "VIEWER"} />
             ) : (
               <span className={shareStyles.accessBadge}>
                 <Globe2 aria-hidden="true" />
@@ -205,6 +205,7 @@ export function SharedCollectionView({
                 ownerDisplayName={collection.ownerDisplayName}
                 finish={finish}
                 binder={binder}
+                role={collection.role ?? "VIEWER"}
               />
             ) : null}
 

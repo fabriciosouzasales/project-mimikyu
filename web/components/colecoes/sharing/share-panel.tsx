@@ -19,8 +19,8 @@ import {
   type ShareMember,
   type SharingFailure,
   type SharingState,
+  ROLE_LABEL,
   VIEWER_ROLE_HINT,
-  VIEWER_ROLE_LABEL,
   type Visibility,
   activeOrPending,
   inviteOutcomeMessage,
@@ -194,7 +194,7 @@ type SectionProps = {
   onDone: (notice: Notice) => Promise<void>;
 };
 
-function InviteSection({ collectionId, state, busy, onBusy, onDone }: SectionProps) {
+export function InviteSection({ collectionId, state, busy, onBusy, onDone }: SectionProps) {
   const inputId = useId();
   const helpId = useId();
   const errorId = useId();
@@ -232,8 +232,8 @@ function InviteSection({ collectionId, state, busy, onBusy, onDone }: SectionPro
         Convidar alguém
       </h3>
       <p className={styles.lead}>
-        A pessoa recebe o convite em <strong>Minhas coleções</strong> e, ao aceitar, vê esta coleção como{" "}
-        <strong>{VIEWER_ROLE_LABEL.toLowerCase()}</strong>: {VIEWER_ROLE_HINT.charAt(0).toLowerCase() + VIEWER_ROLE_HINT.slice(1)}
+        A pessoa recebe o convite em <strong>Minhas coleções</strong> e, ao aceitar, <strong>{ROLE_LABEL.VIEWER.toLowerCase()}</strong> esta coleção:{" "}
+        {VIEWER_ROLE_HINT.charAt(0).toLowerCase() + VIEWER_ROLE_HINT.slice(1)}
       </p>
       <form className={styles.inviteForm} onSubmit={submit} noValidate>
         <label htmlFor={inputId} className={styles.label}>
@@ -285,7 +285,7 @@ function InviteSection({ collectionId, state, busy, onBusy, onDone }: SectionPro
   );
 }
 
-function MembersSection({ collectionId, state, busy, onBusy, onDone }: SectionProps) {
+export function MembersSection({ collectionId, state, busy, onBusy, onDone }: SectionProps) {
   const [confirming, setConfirming] = useState<string | null>(null);
 
   const remove = async (member: ShareMember) => {
@@ -321,6 +321,8 @@ function MembersSection({ collectionId, state, busy, onBusy, onDone }: SectionPr
   };
 
   const count = state.members.filter((m) => m.status === "ACTIVE").length;
+  // V1-13 · E3-1: com alguém que pode organizar, o titular deixa de ser "o único que altera" — o texto acompanha a leitura (5308).
+  const hasOrganizer = state.members.some((m) => m.role === "EDITOR" && m.status !== "DECLINED");
 
   return (
     <section className={manageStyles.section} aria-labelledby="share-members">
@@ -334,7 +336,9 @@ function MembersSection({ collectionId, state, busy, onBusy, onDone }: SectionPr
           </span>
           <span className={styles.memberText}>
             <span className={styles.memberName}>Você</span>
-            <span className={styles.memberSub}>Titular — único que altera a coleção</span>
+            <span className={styles.memberSub}>
+              {hasOrganizer ? `${ROLE_LABEL.OWNER} — administra a coleção, as cartas e quem participa` : "Titular — único que altera a coleção"}
+            </span>
           </span>
         </li>
         {state.members.map((member) => {
@@ -348,6 +352,12 @@ function MembersSection({ collectionId, state, busy, onBusy, onDone }: SectionPr
                 <span className={styles.memberName}>{member.displayName}</span>
                 <span className={styles.memberSub}>
                   @{member.username} · <span className={styles.chip} data-status={member.status.toLowerCase()}>{statusLabel(member.status)}</span>
+                  {member.status === "DECLINED" ? null : (
+                    <>
+                      {" "}
+                      · <span className={styles.chip} data-role={member.role.toLowerCase()}>{ROLE_LABEL[member.role]}</span>
+                    </>
+                  )}
                 </span>
               </span>
               <span className={styles.memberActions}>

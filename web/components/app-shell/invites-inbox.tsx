@@ -7,7 +7,7 @@ import { Bell, ChevronRight, Inbox, Library, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { COLECOES_PATH, collectionKindLabel } from "@/lib/colecoes/colecoes";
 import { answerInvite, invitesStore, useInvites } from "@/lib/colecoes/invites-client";
-import { type ReceivedInvite, invitedAgoLabel, sharedCollectionHref, sharingFailureMessage } from "@/lib/colecoes/sharing";
+import { ROLE_LABEL, type ReceivedInvite, inviteRoleCopy, invitedAgoLabel, sharedCollectionHref, sharingFailureMessage } from "@/lib/colecoes/sharing";
 import { usePrefersReducedMotion } from "@/lib/use-prefers-reduced-motion";
 import styles from "./invites-inbox.module.css";
 
@@ -253,10 +253,12 @@ export function InvitesInbox() {
                           {invite.ownerUsername ? ` @${invite.ownerUsername}` : ""} · {kind}
                           {ago ? ` · ${ago}` : ""}
                         </p>
+                        {/* V1-13 · E3-1: papel oferecido, lido do convite (5309). */}
+                        <p className={styles.meta}>{ROLE_LABEL[invite.role]}</p>
                         <div className={styles.actions}>
                           <Button size="sm" disabled={busy !== null} onClick={() => void respond(invite, true)} aria-busy={(working && busy?.accept) || undefined}>
                             {working && busy?.accept ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : null}
-                            Aceitar e ver
+                            {inviteRoleCopy(invite.role).accept}
                           </Button>
                           <Button variant="ghost" size="sm" disabled={busy !== null} onClick={() => void respond(invite, false)} aria-busy={(working && !busy?.accept) || undefined}>
                             {working && !busy?.accept ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : null}

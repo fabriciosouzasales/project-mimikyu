@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { formatCount } from "@/lib/colecoes/acervo";
 import { plateCode, plateLogoKey } from "@/lib/colecoes/free-collection";
 import { collectionProgressView, collectionSpokenSubtitle } from "@/lib/colecoes/colecoes";
-import { libraryItemHref, sharedOwnerText } from "@/lib/colecoes/shared-library";
+import { libraryItemHref, sharedOwnerText, sharedRoleText } from "@/lib/colecoes/shared-library";
 import type { CollectionSummary } from "@/lib/colecoes/colecoes-queries";
 import { BinderCover } from "./binder-cover";
 import { isPokedexCollection } from "@/lib/colecoes/pokedex";
@@ -113,7 +113,8 @@ function poseStyle(pose: Pose): CSSProperties {
 /** ", compartilhada de Fulano" — só para coleção compartilhada com você (V1-12). */
 function sharedSpoken(collection: CollectionSummary): string {
   const owner = sharedOwnerText(collection);
-  return owner ? `, compartilhada ${owner}` : "";
+  const role = sharedRoleText(collection);
+  return owner ? `, compartilhada ${owner}${role ? `, ${role.toLowerCase()}` : ""}` : "";
 }
 
 function spokenProgress(collection: CollectionSummary): string {
@@ -143,7 +144,7 @@ function FocusDetails({
       </p>
       {collection.sharedBy ? (
         <p className={styles.focusKind}>
-          <SharedCollectionBadge owner={sharedOwnerText(collection) ?? ""} />
+          <SharedCollectionBadge owner={sharedOwnerText(collection) ?? ""} role={sharedRoleText(collection)} />
         </p>
       ) : null}
       {identityOnly ? null : progress.kind === "goal" ? (

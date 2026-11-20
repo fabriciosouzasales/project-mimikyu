@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { AlertTriangle, Archive, ArrowLeft, Layers, ShieldCheck, TrendingUp } from "lucide-react";
-import { libraryItemHref, sharedOwnerText } from "@/lib/colecoes/shared-library";
+import { libraryItemHref, sharedOwnerText, sharedRoleText } from "@/lib/colecoes/shared-library";
 import { LibraryReportsAction } from "@/components/reports/library-reports-action";
 import { Button } from "@/components/ui/button";
 import { formatCount } from "@/lib/colecoes/acervo";
@@ -353,12 +353,13 @@ function Shelf({
       : progressLabel(collection.satisfiedPositions, collection.totalPositions);
   const subtitle = collectionSpokenSubtitle(collection);
   const owner = sharedOwnerText(collection);
+  const role = sharedRoleText(collection);
 
   return (
     <Link
       href={libraryItemHref(collection)}
       className={`${styles.shelfItem} ${coverStyles.trigger}`}
-      aria-label={`${collection.name}, ${subtitle}${owner ? `, compartilhada ${owner}` : ""}, ${label}${collection.isComplete ? ", completa" : ""}${collection.lifecycleStatus === "ARCHIVED" ? ", arquivada" : ""}`}
+      aria-label={`${collection.name}, ${subtitle}${owner ? `, compartilhada ${owner}${role ? `, ${role.toLowerCase()}` : ""}` : ""}, ${label}${collection.isComplete ? ", completa" : ""}${collection.lifecycleStatus === "ARCHIVED" ? ", arquivada" : ""}`}
     >
       <BinderCover
         finish={collection.finish}
@@ -375,7 +376,7 @@ function Shelf({
         <span className={styles.shelfKind}>
           <CollectionKindLine collection={collection} />
         </span>
-        {owner ? <SharedCollectionBadge owner={owner} /> : null}
+        {owner ? <SharedCollectionBadge owner={owner} role={role} /> : null}
         {collection.lifecycleStatus === "ARCHIVED" ? (
           <span className={lifecycleStyles.archivedTag}>
             <Archive className="h-3 w-3" aria-hidden="true" />

@@ -21,6 +21,7 @@ function shared(overrides: Partial<SharedWithMe> = {}): SharedWithMe {
     name: "Coleção da Ana",
     completionPolicy: "STANDARD_SET",
     archived: false,
+    role: "VIEWER",
     coverFinish: "vinho",
     cardSetCode: "SV1",
     cardSetName: "Scarlet & Violet",

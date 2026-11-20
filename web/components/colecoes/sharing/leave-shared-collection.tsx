@@ -2,11 +2,11 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
-import { ChevronDown, Eye, Loader2, LogOut } from "lucide-react";
+import { ChevronDown, Eye, Loader2, LogOut, Pencil } from "lucide-react";
 import { leaveSharedCollection } from "@/app/colecoes/compartilhar/actions";
 import { Button } from "@/components/ui/button";
 import { COLECOES_PATH } from "@/lib/colecoes/colecoes";
-import { sharingFailureMessage } from "@/lib/colecoes/sharing";
+import { type MemberRole, ROLE_AVAILABILITY_NOTE, ROLE_LABEL, roleExplanation, sharingFailureMessage } from "@/lib/colecoes/sharing";
 import styles from "./share.module.css";
 
 /**
@@ -28,11 +28,15 @@ export function SharedAccessMenu({
   collectionId,
   collectionName,
   ownerDisplayName,
+  role = "VIEWER",
 }: {
   collectionId: string;
   collectionName: string;
   ownerDisplayName: string;
+  /** V1-13 · E3-1: papel do próprio usuário, lido da 5312. Só explica; não autoriza nada. */
+  role?: MemberRole;
 }) {
+  const explanation = roleExplanation(role);
   const router = useRouter();
   const panelId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -94,9 +98,9 @@ export function SharedAccessMenu({
         aria-haspopup="true"
         onClick={() => (open ? close(false) : setOpen(true))}
       >
-        <Eye aria-hidden="true" />
+        {role === "EDITOR" ? <Pencil aria-hidden="true" /> : <Eye aria-hidden="true" />}
         <span>
-          Compartilhada com você<span className={styles.accessTriggerMode}> · somente visualização</span>
+          Compartilhada com você<span className={styles.accessTriggerMode}> · {ROLE_LABEL[role].toLowerCase()}</span>
         </span>
         <ChevronDown className={styles.accessChevron} aria-hidden="true" />
       </button>
@@ -104,11 +108,23 @@ export function SharedAccessMenu({
       {open ? (
         <div id={panelId} className={styles.accessPanel} role="group" aria-label="Sobre esta coleção compartilhada">
           <p className={styles.accessOwner}>
-            Coleção de <strong>{ownerDisplayName}</strong>
+            Coleção de <strong>{ownerDisplayName}</strong> · {ROLE_LABEL.OWNER.toLowerCase()}
           </p>
           <p className={styles.accessHelp}>
-            Você vê as cartas, o progresso e o fichário como o titular montou. Nada pode ser alterado aqui, e nada do seu acervo é compartilhado.
+            Seu papel: <strong>{explanation.title}</strong>
           </p>
+          <ul className={`${styles.accessHelp} list-disc space-y-0.5 pl-4`} aria-label="O que o seu papel permite">
+            {explanation.can.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+          <ul className={`${styles.accessHelp} list-disc space-y-0.5 pl-4`} aria-label="O que fica com o titular">
+            {explanation.cannot.map((line) => (
+              <li key={line}>Não pode: {line.charAt(0).toLowerCase() + line.slice(1)}</li>
+            ))}
+          </ul>
+          {role === "EDITOR" ? <p className={styles.accessHelp}>{ROLE_AVAILABILITY_NOTE}</p> : null}
+          <p className={styles.accessHelp}>Nada do seu acervo é compartilhado.</p>
 
           {confirming ? (
             <div className={styles.confirm} role="group" aria-label="Confirmar saída">

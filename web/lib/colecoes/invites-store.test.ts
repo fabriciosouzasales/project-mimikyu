@@ -12,6 +12,7 @@ const invite = (id: string): ReceivedInvite => ({
   collectionName: `Coleção ${id}`,
   completionPolicy: "STANDARD_SET",
   cardSetName: null,
+  role: "VIEWER",
   ownerDisplayName: "Ana",
   ownerUsername: "ana",
   invitedAt: null,

@@ -46,7 +46,7 @@ import {
 } from "@/lib/colecoes/binder";
 import { canViewCard } from "@/lib/colecoes/binder-card-view";
 import type { BinderFinish } from "@/lib/colecoes/binder-finish";
-import { type SharedBinderIdentity, type SharedBinderPage } from "@/lib/colecoes/sharing";
+import { ROLE_LABEL, type SharedBinderIdentity, type SharedBinderPage } from "@/lib/colecoes/sharing";
 import { usePrefersReducedMotion } from "@/lib/use-prefers-reduced-motion";
 import { canUseViewTransitions, runWithViewTransition } from "@/lib/view-transitions";
 import { cn } from "@/lib/utils";
@@ -452,12 +452,18 @@ export function SharedBinderWorkspace({
               className={styles.accessBadge}
               title={
                 editing
-                  ? "Você é editor desta coleção: pode colocar, mover e retirar cartas do fichário. As cartas continuam do titular."
-                  : "Você é editor desta coleção. A organização compartilhada ainda não está disponível nesta tela."
+                  ? "Seu papel: pode organizar. Você organiza o fichário dentro dos limites desta coleção; as cartas continuam do titular."
+                  : "Seu papel: pode organizar. As ferramentas de organização ainda não estão disponíveis nesta tela."
               }
             >
               <Pencil aria-hidden="true" />
-              <span className="sr-only sm:not-sr-only">Editor</span>
+              <span className="sr-only sm:not-sr-only">{ROLE_LABEL.EDITOR}</span>
+            </span>
+          ) : memberRole === "VIEWER" ? (
+            // V1-13 · E3-1: o papel vem da leitura autorizada (5312), não dos controles da tela.
+            <span className={styles.accessBadge} title="Seu papel: pode ver. Você vê o fichário como o titular o montou, sem ferramentas de edição.">
+              <Eye aria-hidden="true" />
+              <span className="sr-only sm:not-sr-only">{ROLE_LABEL.VIEWER}</span>
             </span>
           ) : (
             <span className={styles.accessBadge} title="Você vê o fichário como o titular o montou, sem ferramentas de edição">

@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowRight, BookOpen, Eye } from "lucide-react";
+import { ArrowRight, BookOpen, Eye, Pencil } from "lucide-react";
 import { BINDER_OPEN_EVENT, Glyph } from "@/components/colecoes/fichario/binder-entry";
 import entryStyles from "@/components/colecoes/fichario/binder-entry.module.css";
 import { BinderOverlayShell } from "@/components/colecoes/fichario/binder-overlay-shell";
 import { formatCount } from "@/lib/colecoes/acervo";
 import { modelLabel } from "@/lib/colecoes/binder";
 import type { BinderFinish } from "@/lib/colecoes/binder-finish";
-import type { SharedBinderIdentity } from "@/lib/colecoes/sharing";
+import { type MemberRole, ROLE_LABEL, type SharedBinderIdentity } from "@/lib/colecoes/sharing";
 import { SharedBinderWorkspace } from "./shared-binder-workspace";
 
 /**
@@ -30,11 +30,14 @@ export function SharedBinderEntry({
   ownerDisplayName,
   finish,
   binder,
+  role = null,
 }: {
   collectionId: string;
   collectionName: string;
   ownerDisplayName: string;
   finish: BinderFinish;
+  /** V1-13 · E3-1: papel do próprio participante (5312); `null` = sem papel conhecido (texto de sempre). */
+  role?: MemberRole | null;
   binder: { columns: number; rows: number; pageCount: number; ownFilled: number; identity: SharedBinderIdentity | null };
 }) {
   const [open, setOpen] = useState(false);
@@ -69,8 +72,8 @@ export function SharedBinderEntry({
           <span className={entryStyles.title}>
             Fichário digital
             <span className={entryStyles.shared}>
-              <Eye aria-hidden="true" />
-              somente visualização
+              {role === "EDITOR" ? <Pencil aria-hidden="true" /> : <Eye aria-hidden="true" />}
+              {role ? ROLE_LABEL[role].toLowerCase() : "somente visualização"}
             </span>
           </span>
           <span className={entryStyles.meta}>
@@ -99,6 +102,7 @@ export function SharedBinderEntry({
               rows={binder.rows}
               pageCount={binder.pageCount}
               ownFilled={binder.ownFilled}
+              memberRole={role}
               onClose={close}
             />
           )}

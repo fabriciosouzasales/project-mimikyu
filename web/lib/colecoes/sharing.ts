@@ -75,6 +75,83 @@ export const VIEWER_ROLE_LABEL = "Visualizador";
 export const VIEWER_ROLE_HINT = "Vê as cartas e o progresso desta coleção. Não altera nada.";
 
 // ---------------------------------------------------------------------------
+// V1-13 · E3-1 — papéis de colaboração na interface. O papel vem SEMPRE da
+// leitura autorizada (5308 para o titular; 5309/5311/5312 para o próprio
+// participante, 5368), nunca da presença de controles de edição. Mostrar o
+// papel não autoriza nada: cada escrita é decidida no servidor.
+
+export type MemberRole = "EDITOR" | "VIEWER";
+
+/**
+ * Papel lido → papel exibido. Qualquer valor que não seja exatamente
+ * `EDITOR` é mostrado como `VIEWER` — na dúvida, o papel de menor alcance.
+ */
+export function memberRole(value: unknown): MemberRole {
+  return value === "EDITOR" ? "EDITOR" : "VIEWER";
+}
+
+/** Rótulos para o colecionador (nunca os nomes internos). */
+export const ROLE_LABEL: Record<"OWNER" | MemberRole, string> = {
+  OWNER: "Titular",
+  EDITOR: "Pode organizar",
+  VIEWER: "Pode ver",
+};
+
+export type RoleExplanation = { title: string; can: string[]; cannot: string[] };
+
+/**
+ * O que o papel PERMITE (contrato C-234–C-239), não o que já está ligado
+ * nesta tela: a disponibilidade operacional é dita à parte (`ROLE_AVAILABILITY_NOTE`).
+ */
+export function roleExplanation(role: "OWNER" | MemberRole): RoleExplanation {
+  switch (role) {
+    case "OWNER":
+      return {
+        title: ROLE_LABEL.OWNER,
+        can: ["Mantém o controle administrativo e patrimonial da coleção: cartas, locais, condição, visibilidade e participantes."],
+        cannot: [],
+      };
+    case "EDITOR":
+      return {
+        title: ROLE_LABEL.EDITOR,
+        can: [
+          "Ver a coleção compartilhada, o fichário e as informações autorizadas.",
+          "Organizar o fichário dentro dos limites desta coleção.",
+          "Editar o nome, a descrição e a capa da coleção.",
+        ],
+        cannot: [
+          "Mudar quais cartas pertencem à coleção, onde ficam guardadas ou a condição delas.",
+          "Mudar a visibilidade, os participantes ou a administração da coleção — isso fica com o titular.",
+        ],
+      };
+    case "VIEWER":
+      return {
+        title: ROLE_LABEL.VIEWER,
+        can: ["Ver a coleção compartilhada.", "Consultar o fichário e as informações autorizadas."],
+        cannot: ["Alterar a coleção ou o fichário."],
+      };
+  }
+}
+
+/** Papel atribuído ≠ ferramenta disponível: dito sempre que o papel permite mais do que a tela oferece hoje. */
+export const ROLE_AVAILABILITY_NOTE = "Algumas dessas ações ainda não estão disponíveis. Quando estiverem, aparecem nas telas da coleção e do fichário — e cada alteração é conferida antes de ser gravada.";
+
+/** Texto do convite recebido conforme o papel oferecido (5309). */
+export function inviteRoleCopy(role: MemberRole): { offer: string; help: string; accept: string } {
+  return role === "EDITOR"
+    ? {
+        offer: "convida você para organizar esta coleção",
+        help: "Ao aceitar, você vê a coleção e pode ajudar a organizá-la. As cartas continuam do titular, e nada do seu acervo é compartilhado.",
+        accept: "Aceitar",
+      }
+    : {
+        offer: "quer mostrar esta coleção para você",
+        help: "Ao aceitar, você vê as cartas e o progresso. Nada do seu acervo é compartilhado.",
+        accept: "Aceitar e ver",
+      };
+}
+
+// ---------------------------------------------------------------------------
 // Respostas
 // ---------------------------------------------------------------------------
 
@@ -82,6 +159,8 @@ export type ShareMember = {
   membershipId: string;
   username: string;
   displayName: string;
+  /** E3-1 (5308): papel atual do participante, ou o oferecido no convite pendente. Só para o titular. */
+  role: MemberRole;
   status: MembershipStatus;
   invitedAt: string | null;
   respondedAt: string | null;
@@ -111,6 +190,7 @@ export function parseSharing(data: unknown): SharingState | null {
       membershipId: id,
       username,
       displayName: str(m.display_name) ?? username,
+      role: memberRole(m.role),
       status: st,
       invitedAt: str(m.invited_at),
       respondedAt: str(m.responded_at),
@@ -140,6 +220,7 @@ export function parseInvite(data: unknown): { outcome: InviteOutcome; member: Sh
       membershipId: id,
       username,
       displayName: str(r.display_name) ?? username,
+      role: memberRole(r.role),
       status: "PENDING",
       invitedAt: new Date().toISOString(),
       respondedAt: null,
@@ -163,6 +244,8 @@ export type ReceivedInvite = {
   ownerDisplayName: string;
   ownerUsername: string | null;
   invitedAt: string | null;
+  /** E3-1 (5309 + 5368): papel OFERECIDO neste convite ao próprio usuário. */
+  role: MemberRole;
 };
 
 /** 5309 → caixa de convites. Lista vazia em qualquer formato inesperado. */
@@ -185,6 +268,7 @@ export function parseInvites(data: unknown): ReceivedInvite[] {
       ownerDisplayName: str(r.owner_display_name) ?? "Um colecionador",
       ownerUsername: str(r.owner_username),
       invitedAt: str(r.invited_at),
+      role: memberRole(r.role),
     });
   }
   return out;
@@ -210,6 +294,8 @@ export type SharedWithMe = {
   ownerDisplayName: string;
   copies: number;
   progress: SharedProgress;
+  /** E3-1 (5311 + 5368): papel do próprio usuário nesta coleção. */
+  role: MemberRole;
 };
 
 /** 5311 → "Compartilhadas comigo". */
@@ -233,6 +319,7 @@ export function parseSharedWithMe(data: unknown): SharedWithMe[] {
       ownerDisplayName: str(r.owner_display_name) ?? "Um colecionador",
       copies: num(r.copies_count) ?? 0,
       progress: progress(r),
+      role: memberRole(r.role),
     });
   }
   return out;
