@@ -75,6 +75,32 @@ export const VIEWER_ROLE_LABEL = "Visualizador";
 export const VIEWER_ROLE_HINT = "Vê as cartas e o progresso desta coleção. Não altera nada.";
 
 // ---------------------------------------------------------------------------
+// V1-13 · E3-2 — troca de papel de participante ativo (5370), só pelo titular.
+
+export type RoleChange = { outcome: "CHANGED" | "UNCHANGED"; role: MemberRole };
+
+/** Resposta da 5370 → resultado; `null` quando o formato não bate (tratado como resultado incerto). */
+export function parseRoleChange(data: unknown): RoleChange | null {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+  const r = data as Record<string, unknown>;
+  if (r.outcome !== "CHANGED" && r.outcome !== "UNCHANGED") return null;
+  if (r.role !== "EDITOR" && r.role !== "VIEWER") return null;
+  return { outcome: r.outcome, role: r.role };
+}
+
+/** Rebaixar (organizar → ver) pede confirmação (D-E3-5); promover, não. */
+export function roleChangeNeedsConfirmation(from: MemberRole, to: MemberRole): boolean {
+  return from === "EDITOR" && to === "VIEWER";
+}
+
+export function roleChangeMessage(change: RoleChange, displayName: string): string {
+  if (change.outcome === "UNCHANGED") return `${displayName} já estava como “${ROLE_LABEL[change.role]}”.`;
+  return change.role === "EDITOR"
+    ? `${displayName} agora pode organizar esta coleção.`
+    : `${displayName} agora só pode ver esta coleção. A mudança vale na hora.`;
+}
+
+// ---------------------------------------------------------------------------
 // V1-13 · E3-1 — papéis de colaboração na interface. O papel vem SEMPRE da
 // leitura autorizada (5308 para o titular; 5309/5311/5312 para o próprio
 // participante, 5368), nunca da presença de controles de edição. Mostrar o
@@ -228,8 +254,14 @@ export function parseInvite(data: unknown): { outcome: InviteOutcome; member: Sh
   };
 }
 
-export function inviteOutcomeMessage(outcome: InviteOutcome, member: Pick<ShareMember, "displayName" | "username">): string {
+export function inviteOutcomeMessage(outcome: InviteOutcome, member: Pick<ShareMember, "displayName" | "username"> & { role?: MemberRole }): string {
   const who = `${member.displayName} (@${member.username})`;
+  // E3-2: convite para organizar tem texto próprio; o de ver continua igual ao de sempre.
+  if (member.role === "EDITOR") {
+    if (outcome === "ALREADY_PENDING") return `${who} já tem um convite para organizar esperando resposta.`;
+    if (outcome === "REINVITED") return `Convite para organizar enviado de novo para ${who}.`;
+    return `Convite para organizar enviado para ${who}. Assim que aceitar, a pessoa vê a coleção e pode organizá-la.`;
+  }
   if (outcome === "ALREADY_PENDING") return `${who} já tem um convite esperando resposta.`;
   if (outcome === "REINVITED") return `Convite enviado de novo para ${who}.`;
   return `Convite enviado para ${who}. Assim que aceitar, a coleção aparece para essa pessoa.`;
@@ -719,6 +751,14 @@ export type SharingFailure =
   | "invite_not_found"
   | "not_member"
   | "unavailable"
+  // V1-13 · E3-2 (5369/5370)
+  | "capability_closed"
+  | "invalid_role"
+  | "pending_role_immutable"
+  | "member_not_active"
+  | "state_changed"
+  /** Sem resposta (rede, tempo esgotado): a escrita pode ou não ter acontecido. */
+  | "uncertain"
   | "unknown";
 
 /** Mensagens estáveis de 5303–5307 (texto do RAISE) e SQLSTATE; nada de texto cru ao usuário. */
@@ -734,6 +774,12 @@ export function classifySharingFailure(code: string | undefined, message: string
   if (m === "COLLECTION_NOT_FOUND" || m === "MEMBERSHIP_NOT_FOUND") return "not_found";
   if (m === "INVITE_NOT_FOUND") return "invite_not_found";
   if (m === "NOT_A_MEMBER") return "not_member";
+  // V1-13 · E3-2: barreira da V1-13 fechada (convite como EDITOR, troca de papel) — antes do 42501 genérico.
+  if (m === "CAPABILITY_NOT_ENABLED") return "capability_closed";
+  if (m === "INVALID_ROLE") return "invalid_role";
+  if (m === "INVITE_PENDING_ROLE_IMMUTABLE") return "pending_role_immutable";
+  if (m === "MEMBER_NOT_ACTIVE") return "member_not_active";
+  if (m === "INVITE_STATE_CHANGED") return "state_changed";
   // Função ausente (proposta ainda não aplicada) ou sem permissão.
   if (code === "PGRST202" || code === "42883" || code === "42501") return "unavailable";
   return "unknown";
@@ -763,6 +809,18 @@ export function sharingFailureMessage(reason: SharingFailure): string {
       return "Você já não participa desta coleção.";
     case "unavailable":
       return "O compartilhamento ainda não está disponível. Tente mais tarde.";
+    case "capability_closed":
+      return "Convidar e mudar quem pode organizar ainda não está disponível. Quem pode ver continua como antes.";
+    case "invalid_role":
+      return "Escolha “Pode ver” ou “Pode organizar”.";
+    case "pending_role_immutable":
+      return "Esse convite ainda está esperando resposta. Para oferecer outro papel, cancele o convite e convide de novo.";
+    case "member_not_active":
+      return "Essa pessoa não participa mais desta coleção. A lista foi atualizada.";
+    case "state_changed":
+      return "A lista mudou enquanto você alterava. Ela foi atualizada — confira e tente de novo.";
+    case "uncertain":
+      return "Não conseguimos confirmar o resultado. A lista foi atualizada — confira antes de tentar de novo.";
     default:
       return "Não deu certo agora. Nada foi alterado — tente de novo.";
   }

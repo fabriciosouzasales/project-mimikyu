@@ -4,7 +4,9 @@ import { revalidatePath } from "next/cache";
 import { COLECOES_PATH, collectionHref, isCollectionId } from "@/lib/colecoes/colecoes";
 import {
   type InviteOutcome,
+  type MemberRole,
   type ReceivedInvite,
+  type RoleChange,
   type SharedBinderPage,
   type ShareMember,
   type SharingFailure,
@@ -18,9 +20,11 @@ import {
   normalizeUsername,
   parseInvite,
   parseInvites,
+  parseRoleChange,
   parseSharedBinderPages,
   parseSharing,
 } from "@/lib/colecoes/sharing";
+import { editorCurationFlagOn } from "@/lib/colecoes/editor-binder";
 import { readSharedBinderImages } from "@/lib/colecoes/sharing-queries";
 import { createClient } from "@/lib/supabase/server";
 
@@ -48,8 +52,17 @@ function revalidateCollection(collectionId: string) {
   revalidatePath(publicBinderHref(collectionId));
 }
 
-/** Painel "Compartilhar" do titular (5308). */
-export async function readCollectionSharing(input: { collectionId: string }): Promise<{ ok: true; state: SharingState } | Fail> {
+/**
+ * V1-13 · E3-2 (D-E3-1): convidar como EDITOR e trocar papel só aparecem com
+ * `MMKYU_V113_EDITOR_CURATION` ligada. A configuração NÃO autoriza nada: o
+ * banco (5369/5370 sob a barreira 5389) decide cada chamada.
+ */
+function editorRolesOn(): boolean {
+  return editorCurationFlagOn(process.env);
+}
+
+/** Painel "Compartilhar" do titular (5308). `editorRoles` = a tela pode oferecer "Pode organizar" (E3-2). */
+export async function readCollectionSharing(input: { collectionId: string }): Promise<{ ok: true; state: SharingState; editorRoles: boolean } | Fail> {
   if (!isCollectionId(input?.collectionId)) return { ok: false, reason: "not_found" };
   const startedAt = Date.now();
   const supabase = await createClient();
@@ -57,24 +70,67 @@ export async function readCollectionSharing(input: { collectionId: string }): Pr
   if (error) return fail("get_my_collection_sharing", startedAt, error);
   const state = parseSharing(data);
   if (!state) return { ok: false, reason: "not_found" };
-  return { ok: true, state };
+  return { ok: true, state, editorRoles: editorRolesOn() };
 }
 
-/** Convidar pelo nome de usuário exato (5303). */
+/**
+ * Convidar pelo nome de usuário exato (5303 → 5369). Sem papel = "Pode ver",
+ * com a MESMA chamada de sempre (o banco grava VIEWER pelo padrão). "Pode
+ * organizar" (E3-2) só com a configuração ligada, e o banco ainda decide
+ * (barreira fechada → `capability_closed`).
+ */
 export async function inviteCollectionMember(input: {
   collectionId: string;
   username: string;
+  role?: MemberRole;
 }): Promise<{ ok: true; outcome: InviteOutcome; member: ShareMember } | Fail> {
   if (!isCollectionId(input?.collectionId)) return { ok: false, reason: "not_found" };
   const username = typeof input.username === "string" ? normalizeUsername(input.username) : null;
   if (!username) return { ok: false, reason: "invalid_username" };
+  const role = input.role ?? "VIEWER";
+  if (role !== "VIEWER" && role !== "EDITOR") return { ok: false, reason: "invalid_role" };
+  if (role === "EDITOR" && !editorRolesOn()) return { ok: false, reason: "capability_closed" };
   const startedAt = Date.now();
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("invite_collection_member", { p_collection_id: input.collectionId, p_username: username });
+  const { data, error } = await supabase.rpc(
+    "invite_collection_member",
+    role === "EDITOR" ? { p_collection_id: input.collectionId, p_username: username, p_role: "EDITOR" } : { p_collection_id: input.collectionId, p_username: username },
+  );
   if (error) return fail("invite_collection_member", startedAt, error);
   const parsed = parseInvite(data);
   if (!parsed) return fail("invite_collection_member", startedAt, null);
   return { ok: true, ...parsed };
+}
+
+/**
+ * Trocar o papel de um participante ATIVO (5370), só pelo titular. Uma chamada
+ * por pedido, sem repetição; a tela relê a lista depois. Convite pendente →
+ * `pending_role_immutable`; recusado → `member_not_active`; participação de
+ * outra coleção, inexistente ou sem titularidade → `not_found` (indistinguíveis).
+ */
+export async function setCollectionMemberRole(input: {
+  collectionId: string;
+  membershipId: string;
+  role: MemberRole;
+}): Promise<{ ok: true; change: RoleChange } | Fail> {
+  if (!isCollectionId(input?.collectionId) || !isCollectionId(input.membershipId)) return { ok: false, reason: "not_found" };
+  if (input.role !== "VIEWER" && input.role !== "EDITOR") return { ok: false, reason: "invalid_role" };
+  if (!editorRolesOn()) return { ok: false, reason: "capability_closed" };
+  const startedAt = Date.now();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("set_collection_member_role", {
+    p_collection_id: input.collectionId,
+    p_membership_id: input.membershipId,
+    p_role: input.role,
+  });
+  if (error) return fail("set_collection_member_role", startedAt, error);
+  const change = parseRoleChange(data);
+  if (!change) {
+    console.error(JSON.stringify({ scope: "colecoes.sharing", fn: "set_collection_member_role", ms: Date.now() - startedAt, code: "BAD_SHAPE", reason: "uncertain" }));
+    return { ok: false, reason: "uncertain" };
+  }
+  if (change.outcome === "CHANGED") revalidateCollection(input.collectionId);
+  return { ok: true, change };
 }
 
 /** Cancelar convite, remover participante ou limpar recusa (5305). */

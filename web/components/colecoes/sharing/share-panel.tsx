@@ -3,11 +3,12 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useRef, useState, useTransition } from "react";
-import { Check, Copy, Globe2, Loader2, Lock, RotateCcw, Share2, ShieldCheck, UserPlus, X } from "lucide-react";
+import { Check, Copy, Eye, Globe2, Loader2, Lock, Pencil, RotateCcw, Share2, ShieldCheck, UserPlus, X } from "lucide-react";
 import {
   inviteCollectionMember,
   readCollectionSharing,
   removeCollectionMember,
+  setCollectionMemberRole,
   setCollectionVisibility,
 } from "@/app/colecoes/compartilhar/actions";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { useRestoreFocus } from "@/hooks/use-restore-focus";
 import {
   MEMBER_LIMIT,
+  type MemberRole,
   type ShareMember,
   type SharingFailure,
   type SharingState,
@@ -26,6 +28,8 @@ import {
   inviteOutcomeMessage,
   normalizeUsername,
   publicBinderHref,
+  roleChangeMessage,
+  roleChangeNeedsConfirmation,
   sharingFailureMessage,
   statusLabel,
 } from "@/lib/colecoes/sharing";
@@ -74,7 +78,7 @@ export function CollectionShareButton({
   );
 }
 
-type Load = { status: "loading" } | { status: "error"; reason: SharingFailure } | { status: "ready"; state: SharingState };
+type Load = { status: "loading" } | { status: "error"; reason: SharingFailure } | { status: "ready"; state: SharingState; editorRoles: boolean };
 type Notice = { tone: "success" | "error" | "warning"; text: string } | null;
 
 function SharePanel({ collectionId, collectionName, onClose }: { collectionId: string; collectionName: string; onClose: () => void }) {
@@ -92,7 +96,7 @@ function SharePanel({ collectionId, collectionName, onClose }: { collectionId: s
     readCollectionSharing({ collectionId })
       .then((result) => {
         if (!alive) return;
-        setLoad(result.ok ? { status: "ready", state: result.state } : { status: "error", reason: result.reason });
+        setLoad(result.ok ? { status: "ready", state: result.state, editorRoles: result.editorRoles } : { status: "error", reason: result.reason });
       })
       .catch(() => alive && setLoad({ status: "error", reason: "unknown" }));
     return () => {
@@ -107,13 +111,14 @@ function SharePanel({ collectionId, collectionName, onClose }: { collectionId: s
     async (next: Notice) => {
       setNotice(next);
       const result = await readCollectionSharing({ collectionId }).catch(() => null);
-      if (result?.ok) setLoad({ status: "ready", state: result.state });
+      if (result?.ok) setLoad({ status: "ready", state: result.state, editorRoles: result.editorRoles });
       startRefresh(() => router.refresh());
     },
     [collectionId, router],
   );
 
   const state = load.status === "ready" ? load.state : null;
+  const editorRoles = load.status === "ready" && load.editorRoles;
 
   return (
     <DialogPrimitive.Root open onOpenChange={(next) => !next && !busy && onClose()}>
@@ -167,8 +172,9 @@ function SharePanel({ collectionId, collectionName, onClose }: { collectionId: s
                   busy={busy}
                   onBusy={setBusy}
                   onDone={settle}
+                  editorRoles={editorRoles}
                 />
-                <MembersSection collectionId={collectionId} state={state} busy={busy} onBusy={setBusy} onDone={settle} />
+                <MembersSection collectionId={collectionId} state={state} busy={busy} onBusy={setBusy} onDone={settle} editorRoles={editorRoles} />
                 <VisibilitySection collectionId={collectionId} state={state} busy={busy} onBusy={setBusy} onDone={settle} />
                 <p className={styles.privacy}>
                   <ShieldCheck className="h-4 w-4 shrink-0" aria-hidden="true" />
@@ -192,10 +198,25 @@ type SectionProps = {
   busy: boolean;
   onBusy: (busy: boolean) => void;
   onDone: (notice: Notice) => Promise<void>;
+  /**
+   * V1-13 · E3-2 (D-E3-1): a tela pode oferecer "Pode organizar" (configuração
+   * ligada, decidida no servidor). Não é autorização: o banco decide. Desligado
+   * = exatamente o painel de antes (só "Pode ver").
+   */
+  editorRoles?: boolean;
 };
 
-export function InviteSection({ collectionId, state, busy, onBusy, onDone }: SectionProps) {
+const ROLE_CHOICES: { value: MemberRole; icon: typeof Eye; text: string }[] = [
+  { value: "VIEWER", icon: Eye, text: "Vê as cartas, o progresso e o fichário. Não altera nada." },
+  { value: "EDITOR", icon: Pencil, text: "Também organiza o fichário e edita nome, descrição e capa. As cartas continuam suas." },
+];
+
+export function InviteSection({ collectionId, state, busy, onBusy, onDone, editorRoles = false }: SectionProps) {
   const inputId = useId();
+  const roleGroupId = useId();
+  /** Padrão "Pode ver" (C-240); volta a ele depois de cada convite enviado. */
+  const [role, setRole] = useState<MemberRole>("VIEWER");
+  const sentRole: MemberRole = editorRoles ? role : "VIEWER";
   const helpId = useId();
   const errorId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -215,14 +236,20 @@ export function InviteSection({ collectionId, state, busy, onBusy, onDone }: Sec
     }
     setError(null);
     onBusy(true);
-    const result = await inviteCollectionMember({ collectionId, username }).catch(() => ({ ok: false, reason: "unknown" }) as const);
+    // Uma escrita por envio (o botão fica ocupado). "Pode ver" = a chamada de sempre, sem papel.
+    const result = await inviteCollectionMember(sentRole === "EDITOR" ? { collectionId, username, role: "EDITOR" } : { collectionId, username }).catch(
+      () => ({ ok: false, reason: editorRoles ? "uncertain" : "unknown" }) as const,
+    );
     onBusy(false);
     if (!result.ok) {
       setError(sharingFailureMessage(result.reason));
       inputRef.current?.focus();
+      // Resultado incerto ou estado mudado: relê a lista (nunca repete o convite sozinho).
+      if (result.reason === "uncertain" || result.reason === "state_changed") await onDone(null);
       return;
     }
     setValue("");
+    setRole("VIEWER");
     await onDone({ tone: "success", text: inviteOutcomeMessage(result.outcome, result.member) });
   };
 
@@ -231,11 +258,42 @@ export function InviteSection({ collectionId, state, busy, onBusy, onDone }: Sec
       <h3 id="share-invite" className={manageStyles.sectionTitle}>
         Convidar alguém
       </h3>
-      <p className={styles.lead}>
-        A pessoa recebe o convite em <strong>Minhas coleções</strong> e, ao aceitar, <strong>{ROLE_LABEL.VIEWER.toLowerCase()}</strong> esta coleção:{" "}
-        {VIEWER_ROLE_HINT.charAt(0).toLowerCase() + VIEWER_ROLE_HINT.slice(1)}
-      </p>
+      {editorRoles ? (
+        <p className={styles.lead}>
+          A pessoa recebe o convite em <strong>Minhas coleções</strong>. Escolha o que ela pode fazer ao aceitar — dá para mudar depois.
+        </p>
+      ) : (
+        <p className={styles.lead}>
+          A pessoa recebe o convite em <strong>Minhas coleções</strong> e, ao aceitar, <strong>{ROLE_LABEL.VIEWER.toLowerCase()}</strong> esta coleção:{" "}
+          {VIEWER_ROLE_HINT.charAt(0).toLowerCase() + VIEWER_ROLE_HINT.slice(1)}
+        </p>
+      )}
       <form className={styles.inviteForm} onSubmit={submit} noValidate>
+        {editorRoles ? (
+          <div className={styles.options} role="radiogroup" aria-label="Papel do convite" id={roleGroupId}>
+            {ROLE_CHOICES.map((choice) => {
+              const Icon = choice.icon;
+              const selected = role === choice.value;
+              return (
+                <label key={choice.value} className={styles.option} data-selected={selected || undefined} data-disabled={busy || blocked || undefined}>
+                  <input
+                    type="radio"
+                    name={`${roleGroupId}-role`}
+                    value={choice.value}
+                    checked={selected}
+                    disabled={busy || blocked}
+                    onChange={() => setRole(choice.value)}
+                  />
+                  <Icon className={styles.optionIcon} aria-hidden="true" />
+                  <span className={styles.optionText}>
+                    <span className={styles.optionTitle}>{ROLE_LABEL[choice.value]}</span>
+                    <span className={styles.optionSub}>{choice.text}</span>
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        ) : null}
         <label htmlFor={inputId} className={styles.label}>
           Nome de usuário
         </label>
@@ -285,8 +343,24 @@ export function InviteSection({ collectionId, state, busy, onBusy, onDone }: Sec
   );
 }
 
-export function MembersSection({ collectionId, state, busy, onBusy, onDone }: SectionProps) {
+export function MembersSection({ collectionId, state, busy, onBusy, onDone, editorRoles = false }: SectionProps) {
   const [confirming, setConfirming] = useState<string | null>(null);
+  /** E3-2: rebaixamento aguardando confirmação (D-E3-5). */
+  const [demoting, setDemoting] = useState<string | null>(null);
+
+  /** Troca de papel (5370): sem otimismo — a lista só muda depois da resposta, relida do banco. */
+  const changeRole = async (member: ShareMember, to: MemberRole) => {
+    if (busy || member.status !== "ACTIVE" || member.role === to) return;
+    if (roleChangeNeedsConfirmation(member.role, to) && demoting !== member.membershipId) {
+      setDemoting(member.membershipId);
+      return;
+    }
+    setDemoting(null);
+    onBusy(true);
+    const result = await setCollectionMemberRole({ collectionId, membershipId: member.membershipId, role: to }).catch(() => ({ ok: false, reason: "uncertain" }) as const);
+    onBusy(false);
+    await onDone(result.ok ? { tone: "success", text: roleChangeMessage(result.change, member.displayName) } : { tone: "error", text: sharingFailureMessage(result.reason) });
+  };
 
   const remove = async (member: ShareMember) => {
     onBusy(true);
@@ -313,8 +387,12 @@ export function MembersSection({ collectionId, state, busy, onBusy, onDone }: Se
 
   const reinvite = async (member: ShareMember) => {
     onBusy(true);
-    const result = await inviteCollectionMember({ collectionId, username: member.username }).catch(
-      () => ({ ok: false, reason: "unknown" }) as const,
+    // Recusado: convida de novo com o papel que tinha sido oferecido (só com a configuração ligada; senão, "Pode ver" como sempre).
+    const again = editorRoles && member.role === "EDITOR" ? { collectionId, username: member.username, role: "EDITOR" as const } : { collectionId, username: member.username };
+    // Uma escrita por clique. Sem resposta (rede): "não conseguimos confirmar" quando a configuração está ligada;
+    // a lista é relida em seguida (onDone) e nada é repetido. Desligada: o tratamento de sempre.
+    const result = await inviteCollectionMember(again).catch(
+      () => ({ ok: false, reason: editorRoles ? "uncertain" : "unknown" }) as const,
     );
     onBusy(false);
     await onDone(result.ok ? { tone: "success", text: inviteOutcomeMessage(result.outcome, result.member) } : { tone: "error", text: sharingFailureMessage(result.reason) });
@@ -343,6 +421,9 @@ export function MembersSection({ collectionId, state, busy, onBusy, onDone }: Se
         </li>
         {state.members.map((member) => {
           const isConfirming = confirming === member.membershipId;
+          const isDemoting = demoting === member.membershipId;
+          // Coleção arquivada também aceita a troca (5370: gestão de participação, como a remoção).
+          const canChangeRole = editorRoles && member.status === "ACTIVE";
           return (
             <li key={member.membershipId} className={styles.member} data-status={member.status.toLowerCase()}>
               <span className={styles.avatar} aria-hidden="true">
@@ -361,7 +442,19 @@ export function MembersSection({ collectionId, state, busy, onBusy, onDone }: Se
                 </span>
               </span>
               <span className={styles.memberActions}>
-                {isConfirming ? (
+                {isDemoting ? (
+                  <>
+                    <span className={styles.help} role="note">
+                      {member.displayName} deixa de organizar na hora. Continua vendo a coleção.
+                    </span>
+                    <Button variant="destructive" size="sm" disabled={busy} onClick={() => void changeRole(member, "VIEWER")}>
+                      Mudar para {ROLE_LABEL.VIEWER}
+                    </Button>
+                    <Button variant="ghost" size="sm" disabled={busy} onClick={() => setDemoting(null)}>
+                      Voltar
+                    </Button>
+                  </>
+                ) : isConfirming ? (
                   <>
                     <Button variant="destructive" size="sm" disabled={busy} onClick={() => void remove(member)}>
                       {member.status === "PENDING" ? "Cancelar convite" : "Remover acesso"}
@@ -372,6 +465,17 @@ export function MembersSection({ collectionId, state, busy, onBusy, onDone }: Se
                   </>
                 ) : (
                   <>
+                    {canChangeRole ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={busy}
+                        onClick={() => void changeRole(member, member.role === "EDITOR" ? "VIEWER" : "EDITOR")}
+                        aria-label={member.role === "EDITOR" ? `Mudar ${member.displayName} para ${ROLE_LABEL.VIEWER}` : `Mudar ${member.displayName} para ${ROLE_LABEL.EDITOR}`}
+                      >
+                        {member.role === "EDITOR" ? `Mudar para ${ROLE_LABEL.VIEWER}` : `Mudar para ${ROLE_LABEL.EDITOR}`}
+                      </Button>
+                    ) : null}
                     {member.status === "DECLINED" && !state.archived ? (
                       <Button variant="outline" size="sm" disabled={busy} onClick={() => void reinvite(member)}>
                         Convidar de novo
@@ -399,6 +503,9 @@ export function MembersSection({ collectionId, state, busy, onBusy, onDone }: Se
           );
         })}
       </ul>
+      {editorRoles && state.members.some((m) => m.status === "PENDING") ? (
+        <p className={manageStyles.note}>O papel de um convite pendente não muda. Para oferecer outro, cancele o convite e convide de novo.</p>
+      ) : null}
       <p className={manageStyles.note}>
         {count === 0
           ? state.members.length === 0
