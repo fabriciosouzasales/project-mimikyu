@@ -112,6 +112,8 @@ export function useSharedBinderEditor({
    */
   const [locks, setLocks] = useState<Map<string, "LOCKED" | "UNLOCKED">>(() => new Map());
   const [reserveTarget, setReserveTarget] = useState<{ slot: BinderSlot; page: number; mode: "reserve" | "change" } | null>(null);
+  /** E2-3C: escritas desta tela concluídas (versão local que deixa a prévia da organização automática desatualizada). */
+  const [activity, setActivity] = useState(0);
   const learn = useCallback((lessons: LockLesson[]) => {
     if (lessons.length > 0) setLocks((prev) => applyLockLessons(prev, lessons));
   }, []);
@@ -181,6 +183,7 @@ export function useSharedBinderEditor({
   const settle = useCallback(
     (op: EditorOperation, outcome: EditorOutcome, previous: SlotPatch, extra: Partial<Toast> = {}) => {
       const s = settleEditorOutcome(op, outcome, previous);
+      setActivity((value) => value + 1);
       if (s.revert) {
         const revert = s.revert;
         setCache((prev) => applyPatch(prev, revert).cache);
@@ -591,6 +594,8 @@ export function useSharedBinderEditor({
     closeReserve: () => setReserveTarget(null),
     confirmReserve: (candidate: ReserveCandidate) => reserveTarget && void runReserve(reserveTarget.slot.slotId, candidate),
     releaseFromPicker: () => reserveTarget && void runRelease(reserveTarget.slot.slotId),
+    /** E2-3C: contador de escritas de bolso concluídas nesta tela. */
+    activity,
     /** E2-3A: motivo pelo qual as páginas não podem mudar agora (`null` = livre). */
     structuralBlocker: blocker,
     beginStructural,

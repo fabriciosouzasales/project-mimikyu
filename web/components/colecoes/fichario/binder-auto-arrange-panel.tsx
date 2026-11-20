@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { AlertTriangle, CheckCircle2, ChevronRight, Loader2, RotateCcw, ShieldCheck, X } from "lucide-react";
 import {
+  type AutoArrangeFailure,
   type AutoArrangeTarget,
   applyResultMessage,
   confirmationText,
@@ -70,6 +71,10 @@ export function AutoArrangePanel({
   onConfirm,
   onRetry,
   onRefreshScreen,
+  countOnPage = null,
+  describeFailure = null,
+  projection = true,
+  footnote = null,
 }: {
   mode: "side" | "bottom";
   /** Set/Master Set (bolsos reservados) ou Pokédex (bolsos de espécie): muda só os textos. */
@@ -93,6 +98,18 @@ export function AutoArrangePanel({
   onConfirm: () => void;
   onRetry: () => void;
   onRefreshScreen: () => void;
+  /**
+   * V1-13 · E2-3C (EDITOR): cartas por página vindas do servidor, quando a
+   * prévia não traz itens (a 5386 não entrega `slot_id`). Ausente = os itens
+   * da prévia do titular.
+   */
+  countOnPage?: ((page: number) => number) | null;
+  /** E2-3C: texto da falha por quem abre (mensagens neutras do EDITOR). Ausente = textos do titular. */
+  describeFailure?: ((reason: AutoArrangeFailure, phase: "preview" | "apply") => string) | null;
+  /** E2-3C: há destaque dos bolsos na grade? (EDITOR: não — sem `slot_id`, sem projeção). */
+  projection?: boolean;
+  /** E2-3C: nota dos motivos por quem abre (EDITOR: só ações que ele tem). Ausente = `reasonsFootnote` do titular. */
+  footnote?: string | null;
 }) {
   const headingRef = useRef<HTMLHeadingElement>(null);
   // Foco gerenciado: ao abrir, o título do painel recebe o foco (sem rolar a página).
@@ -108,7 +125,9 @@ export function AutoArrangePanel({
   }, [flow.kind, view.status]);
 
   const locked = flow.kind === "applying" || (flow.kind === "revalidating" && flow.cause === "uncertain");
-  const announcement = flowAnnouncement(flow) ?? (stale ? STALE_MESSAGE : previewAnnouncement(view));
+  const announcement =
+    flowAnnouncement(flow, describeFailure) ??
+    (stale ? STALE_MESSAGE : view.status === "error" && describeFailure ? describeFailure(view.reason, "preview") : previewAnnouncement(view));
   const reviewing = flow.kind === "review" && reviewValid;
   const flowBody = flow.kind === "applying" || flow.kind === "done" || flow.kind === "failed" || flow.kind === "revalidating";
 
@@ -146,7 +165,7 @@ export function AutoArrangePanel({
 
       <div className={styles.body}>
         {flowBody ? (
-          <FlowBody flow={flow} totalPages={totalPages} visiblePages={visiblePages} onGoToPage={onGoToPage} onRefresh={onRefresh} onRetry={onRetry} onRefreshScreen={onRefreshScreen} onClose={onClose} />
+          <FlowBody flow={flow} totalPages={totalPages} visiblePages={visiblePages} onGoToPage={onGoToPage} onRefresh={onRefresh} onRetry={onRetry} onRefreshScreen={onRefreshScreen} onClose={onClose} describeFailure={describeFailure} />
         ) : reviewing && view.status === "ready" ? (
           <ReviewBody view={view} target={target} notice={flow.kind === "review" ? flow.notice : null} writeBusy={writeBusy} onCancel={onCancelReview} onConfirm={onConfirm} />
         ) : (
@@ -177,7 +196,7 @@ export function AutoArrangePanel({
             ) : view.status === "error" ? (
               <div className={styles.state}>
                 <span className={styles.stateTitle}>Prévia indisponível</span>
-                {previewFailureMessage(view.reason)}
+                {describeFailure ? describeFailure(view.reason, "preview") : previewFailureMessage(view.reason)}
                 {previewRetryable(view.reason) ? (
                   <div className={styles.actions}>
                     <button type="button" className={styles.action} onClick={onRefresh}>
@@ -188,7 +207,7 @@ export function AutoArrangePanel({
                 ) : null}
               </div>
             ) : (
-              <ReadyBody view={view} target={target} stale={stale} canReview={canReview} writeBusy={writeBusy} totalPages={totalPages} visiblePages={visiblePages} onGoToPage={onGoToPage} onRefresh={onRefresh} onStartReview={onStartReview} />
+              <ReadyBody view={view} target={target} stale={stale} canReview={canReview} writeBusy={writeBusy} totalPages={totalPages} visiblePages={visiblePages} onGoToPage={onGoToPage} onRefresh={onRefresh} onStartReview={onStartReview} countOnPage={countOnPage} projection={projection} footnote={footnote} />
             )}
           </>
         )}
@@ -197,7 +216,7 @@ export function AutoArrangePanel({
   );
 }
 
-function flowAnnouncement(flow: ApplyFlow): string | null {
+function flowAnnouncement(flow: ApplyFlow, describeFailure: ((reason: AutoArrangeFailure, phase: "preview" | "apply") => string) | null): string | null {
   switch (flow.kind) {
     case "review":
       return "Revise e confirme para posicionar as cartas.";
@@ -208,7 +227,7 @@ function flowAnnouncement(flow: ApplyFlow): string | null {
     case "done":
       return applyResultMessage(flow.result);
     case "failed":
-      return applyFailureText(flow);
+      return describeFailure ? describeFailure(flow.reason, "apply") : applyFailureText(flow);
     default:
       return flow.notice;
   }
@@ -225,6 +244,9 @@ function ReadyBody({
   onGoToPage,
   onRefresh,
   onStartReview,
+  countOnPage,
+  projection,
+  footnote,
 }: {
   view: Extract<ArrangeView, { status: "ready" }>;
   target: AutoArrangeTarget;
@@ -236,6 +258,9 @@ function ReadyBody({
   onGoToPage: (page: number) => void;
   onRefresh: () => void;
   onStartReview: () => void;
+  countOnPage: ((page: number) => number) | null;
+  projection: boolean;
+  footnote: string | null;
 }) {
   const preview = view.preview;
   const summary = previewSummary(preview, target);
@@ -293,14 +318,14 @@ function ReadyBody({
               </button>
             ) : null}
           </div>
-          <PageList pages={pages} visiblePages={visiblePages} counts={preview.status === "READY" ? (p) => itemsOnPage(preview, p) : () => 0} onGoToPage={onGoToPage} />
-          {preview.status === "READY" && !stale ? <p className={styles.legend}>Bolsos marcados com contorno dourado tracejado receberiam uma carta. É só uma prévia.</p> : null}
+          <PageList pages={pages} visiblePages={visiblePages} counts={preview.status === "READY" ? (p) => (countOnPage ? countOnPage(p) : itemsOnPage(preview, p)) : () => 0} onGoToPage={onGoToPage} />
+          {preview.status === "READY" && !stale && projection ? <p className={styles.legend}>Bolsos marcados com contorno dourado tracejado receberiam uma carta. É só uma prévia.</p> : null}
         </div>
       ) : null}
 
       {excluded.length > 0 ? <ReasonList title="Cartas que ficam de fora" lines={excluded} /> : null}
       {unfilled.length > 0 ? <ReasonList title="Reservas que continuam vazias" lines={unfilled} /> : null}
-      {excluded.length > 0 || unfilled.length > 0 ? <p className={styles.footnote}>{reasonsFootnote(target)}</p> : null}
+      {excluded.length > 0 || unfilled.length > 0 ? <p className={styles.footnote}>{footnote ?? reasonsFootnote(target)}</p> : null}
 
       <div className={styles.notes}>
         <p>{SERVER_AUTHORITY_NOTE}</p>
@@ -409,6 +434,7 @@ function FlowBody({
   onRetry,
   onRefreshScreen,
   onClose,
+  describeFailure,
 }: {
   flow: ApplyFlow;
   totalPages: number;
@@ -418,6 +444,7 @@ function FlowBody({
   onRetry: () => void;
   onRefreshScreen: () => void;
   onClose: () => void;
+  describeFailure: ((reason: AutoArrangeFailure, phase: "preview" | "apply") => string) | null;
 }) {
   if (flow.kind === "applying" || flow.kind === "revalidating") {
     return (
@@ -476,7 +503,7 @@ function FlowBody({
   return (
     <div className={styles.state}>
       <span className={styles.stateTitle}>{flow.write === "unknown" ? "Resultado ainda não confirmado" : "Nada foi posicionado"}</span>
-      {applyFailureText(flow)}
+      {describeFailure ? describeFailure(flow.reason, "apply") : applyFailureText(flow)}
       <div className={styles.actions}>
         {follow.read === "on_request" ? (
           <button type="button" className={styles.action} onClick={onRetry}>

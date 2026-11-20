@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { DndContext, DragOverlay, pointerWithin } from "@dnd-kit/core";
-import { ArrowLeft, Eye, Layers, LayoutGrid, Maximize2, Minimize2, Pencil, X } from "lucide-react";
+import { ArrowLeft, Eye, Layers, LayoutGrid, Maximize2, Minimize2, Pencil, Wand2, X } from "lucide-react";
 import { readPublicBinderPages, readSharedBinderPages } from "@/app/colecoes/compartilhar/actions";
 import { FOCUS_RING, SideArrowButton, TopNavControls } from "@/components/colecoes/fichario/binder-chrome";
 import { BINDER_SPREAD_MEDIA, BinderObjectFrame } from "@/components/colecoes/fichario/binder-object";
@@ -16,6 +16,10 @@ import { TraySurface, TrayToggleButton } from "@/components/colecoes/fichario/bi
 import { EditorDragPreview, SharedEditorMessages, useSharedBinderEditor } from "@/components/colecoes/sharing/shared-binder-editor";
 import { EditorRemovePageDialog, toBinderCache, useEditorPages } from "@/components/colecoes/sharing/shared-binder-pages";
 import { useEditorGap } from "@/components/colecoes/sharing/shared-binder-gap";
+import { useEditorArrange } from "@/components/colecoes/sharing/shared-binder-arrange";
+import { AutoArrangePanel } from "@/components/colecoes/fichario/binder-auto-arrange-panel";
+import { AUTO_ARRANGE_PANEL_ID } from "@/lib/colecoes/binder-auto-arrange-view";
+import { editorArrangeFootnote, editorArrangeTarget } from "@/lib/colecoes/editor-binder-arrange";
 import { GapDialog } from "@/components/colecoes/fichario/binder-layout-tools";
 import { AddPagesDialog } from "@/components/colecoes/fichario/binder-add-pages";
 import { BinderOverview } from "@/components/colecoes/fichario/binder-overview";
@@ -265,7 +269,10 @@ export function SharedBinderWorkspace({
   const editing = editor.active;
 
   // ---- E2-3A: páginas pelo EDITOR (5382), sem otimismo; releitura antes e depois ----
+  /** E2-3C: releituras completas do fichário (versão local "layout" da prévia da organização automática). */
+  const [layoutEpoch, setLayoutEpoch] = useState(0);
   const replaceCache = useCallback((pages: Map<number, BinderPage>) => {
+    setLayoutEpoch((value) => value + 1);
     generation.current += 1;
     inflight.current.clear();
     setFailed(new Set());
@@ -295,6 +302,15 @@ export function SharedBinderWorkspace({
   // ---- E2-3B: abrir/fechar espaço pelo EDITOR (5385), mesma releitura autorizada da E2-3A ----
   const gap = useEditorGap({ editor, collectionId, available: pages.available, syncAfter: pages.syncAfter });
   const startGap = gap.start;
+  // ---- E2-3C: organização automática pelo EDITOR (5386), mesmo fluxo do titular ----
+  const arrange = useEditorArrange({
+    editor,
+    collectionId,
+    target: editorArrangeTarget(completionPolicy),
+    available: editing && pages.available,
+    layoutEpoch,
+    syncAfter: pages.syncAfter,
+  });
   const gapOn = editing && pages.available;
 
   const editorHandlers = editor.handlers;
@@ -330,6 +346,12 @@ export function SharedBinderWorkspace({
       if (editor.reserveTarget) return;
       // E2-3A: visão geral e diálogos de página cuidam do próprio teclado.
       if (pages.dialogOpen || gap.dialog) return;
+      // E2-3C: Esc fecha o painel de organização (que não fecha enquanto posiciona).
+      if (event.key === "Escape" && arrange.open) {
+        event.preventDefault();
+        arrange.close();
+        return;
+      }
       if (event.key === "Escape" && (editor.confirm || editor.armed || editor.armedCard)) {
         if (editor.confirm) editor.cancelConfirm();
         else editor.setArmed(null);
@@ -345,7 +367,7 @@ export function SharedBinderWorkspace({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [go, view, lastView, onClose, cardViewSlotId, editor, pages.dialogOpen, gap.dialog]);
+  }, [go, view, lastView, onClose, cardViewSlotId, editor, pages.dialogOpen, gap.dialog, arrange]);
 
   // ---- tela cheia (mesmo alvo do titular: a raiz do fichário) ----
   const [fullscreen, setFullscreen] = useState(false);
@@ -384,7 +406,7 @@ export function SharedBinderWorkspace({
       className={cn("binder-nav-01-scope", ws.root)}
       data-variant={variant}
       data-fullscreen={fullscreen || undefined}
-      data-available={editing && editor.availableOpen ? (docked ? "side" : "bottom") : undefined}
+      data-available={editing && (editor.availableOpen || arrange.open) ? (docked ? "side" : "bottom") : undefined}
     >
       <div aria-hidden className={ws.glow} />
 
@@ -445,11 +467,31 @@ export function SharedBinderWorkspace({
               <LayoutGrid className="h-4 w-4" aria-hidden />
             </button>
           ) : null}
+          {editing && arrange.enabled ? (
+            <button
+              type="button"
+              className={cn(ws.iconButton, FOCUS_RING)}
+              onClick={arrange.toggle}
+              aria-pressed={arrange.open}
+              aria-controls={arrange.open ? AUTO_ARRANGE_PANEL_ID : undefined}
+              aria-label={arrange.open ? "Fechar Organizar automaticamente" : "Organizar automaticamente"}
+              title="Organizar automaticamente"
+            >
+              <Wand2 className="h-4 w-4" aria-hidden />
+            </button>
+          ) : null}
           {editing ? (
             <button
               type="button"
               className={cn(ws.iconButton, FOCUS_RING)}
-              onClick={() => (editor.availableOpen ? editor.closeAvailable() : editor.openAvailable())}
+              onClick={() => {
+                if (editor.availableOpen) editor.closeAvailable();
+                else {
+                  // Um painel do palco por vez (como no titular).
+                  if (arrange.open) arrange.close();
+                  if (!arrange.open || !arrange.locked) editor.openAvailable();
+                }
+              }}
               aria-pressed={editor.availableOpen}
               aria-label={editor.availableOpen ? "Fechar Cartas disponíveis" : "Cartas disponíveis"}
               title="Cartas disponíveis"
@@ -561,6 +603,37 @@ export function SharedBinderWorkspace({
             onLoadMore={editor.loadMore}
             onRetry={editor.retryAvailable}
             onClose={editor.closeAvailable}
+          />
+        ) : null}
+
+        {editing && arrange.open && arrange.target && arrange.view.status !== "closed" ? (
+          <AutoArrangePanel
+            mode={docked ? "side" : "bottom"}
+            target={arrange.target}
+            view={arrange.view}
+            stale={arrange.stale}
+            flow={arrange.flow}
+            canReview={arrange.canReview}
+            reviewValid={arrange.reviewValid}
+            writeBusy={editor.structuralBlocker !== null && !arrange.locked}
+            totalPages={totalPages}
+            visiblePages={visiblePages}
+            onRefresh={arrange.refresh}
+            onGoToPage={(page) => {
+              const target = clampPage(page, totalPages);
+              setDirection(target >= anchor ? 1 : -1);
+              setAnchor(target);
+            }}
+            onClose={arrange.close}
+            onStartReview={arrange.beginReview}
+            onCancelReview={arrange.cancelReview}
+            onConfirm={arrange.confirm}
+            onRetry={arrange.retry}
+            onRefreshScreen={arrange.refreshScreen}
+            countOnPage={arrange.countOnPage}
+            describeFailure={arrange.describeFailure}
+            projection={false}
+            footnote={editorArrangeFootnote(arrange.target)}
           />
         ) : null}
 

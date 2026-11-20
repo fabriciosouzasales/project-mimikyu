@@ -28,6 +28,15 @@ import {
   parseEditorGapPreview,
 } from "@/lib/colecoes/editor-binder-gap";
 import type { GapPreview } from "@/lib/colecoes/binder-insert";
+import {
+  type AutoArrangeApplyResult,
+  type AutoArrangeFailure,
+  type AutoArrangePreview,
+  isPlanToken as isAutoArrangePlanToken,
+  parseApply,
+  writeDefinitelyNotApplied,
+} from "@/lib/colecoes/binder-auto-arrange";
+import { classifyEditorAutoArrangeFailure, parseEditorAutoArrangePreview } from "@/lib/colecoes/editor-binder-arrange";
 import type { AvailableCard } from "@/lib/colecoes/binder-share";
 import type { ReserveCandidate, ReserveScope } from "@/lib/colecoes/binder-reserve";
 import { SHARED_COLLECTION_PATH, parseSharedBinder, parseSharedCollection } from "@/lib/colecoes/sharing";
@@ -465,4 +474,61 @@ export async function editorCloseGap(input: { collectionId: string; undo: Editor
   if (!result) return gapEditorFail("editor_close_binder_gap", startedAt, null);
   done("editor_close_binder_gap", startedAt, input.collectionId, "CLOSED");
   return { ok: true, ...result };
+}
+
+// ---------------------------------------------------------------------------
+// V1-13 · E2-3C — organização automática pelo EDITOR (5386). Uma chamada por
+// pedido; sem `hint`/`detail`. A prévia é validada aqui e chega à tela só com
+// agregados (contagens, páginas, cartas por página) — nada de ids de exemplar.
+
+async function callArrange(fn: string, args: Record<string, unknown>): Promise<{ data: unknown; error: { code?: string; message?: string } | null } | null> {
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc(fn, args);
+    return { data, error: error ? { code: error.code, message: error.message } : null };
+  } catch {
+    return null;
+  }
+}
+
+function arrangeFail(fn: string, startedAt: number, code: string, reason: AutoArrangeFailure): { ok: false; reason: AutoArrangeFailure } {
+  console.error(JSON.stringify({ scope: "colecoes.editor_binder", fn, ms: Date.now() - startedAt, code, reason }));
+  return { ok: false, reason };
+}
+
+/** Prévia (não grava). */
+export async function editorPreviewAutoArrange(input: { collectionId: string }): Promise<{ ok: true; preview: AutoArrangePreview; perPage: Record<number, number> } | { ok: false; reason: AutoArrangeFailure }> {
+  if (!enabled()) return { ok: false, reason: "unavailable" };
+  if (!isCollectionId(input?.collectionId)) return { ok: false, reason: "invalid_argument" };
+  const startedAt = Date.now();
+  const fn = "editor_preview_binder_auto_arrange";
+  const response = await callArrange(fn, { p_collection_id: input.collectionId });
+  if (response === null) return arrangeFail(fn, startedAt, "NO_RESPONSE", "uncertain");
+  if (response.error) return arrangeFail(fn, startedAt, response.error.code?.trim() || "NO_CODE", classifyEditorAutoArrangeFailure(response.error));
+  const parsed = parseEditorAutoArrangePreview(response.data);
+  if (!parsed) return arrangeFail(fn, startedAt, "BAD_SHAPE", "invalid_response");
+  return { ok: true, preview: parsed.preview, perPage: parsed.perPage };
+}
+
+/** Aplicação: coleção + token da prévia confirmada; APPLIED, ALREADY_APPLIED e NOTHING_TO_DO são sucessos distintos. */
+export async function editorApplyAutoArrange(input: {
+  collectionId: string;
+  planToken: string;
+}): Promise<{ ok: true; result: AutoArrangeApplyResult; cache: "not_needed" } | { ok: false; reason: AutoArrangeFailure; write: "not_applied" | "unknown"; planToken?: string }> {
+  if (!enabled()) return { ok: false, reason: "unavailable", write: "not_applied" };
+  if (!isCollectionId(input?.collectionId) || !isAutoArrangePlanToken(input?.planToken)) return { ok: false, reason: "invalid_argument", write: "not_applied" };
+  const startedAt = Date.now();
+  const fn = "editor_apply_binder_auto_arrange";
+  const settleFail = (code: string, reason: AutoArrangeFailure) => {
+    arrangeFail(fn, startedAt, code, reason);
+    return writeDefinitelyNotApplied(reason) ? { ok: false as const, reason, write: "not_applied" as const } : { ok: false as const, reason, write: "unknown" as const, planToken: input.planToken };
+  };
+  const response = await callArrange(fn, { p_collection_id: input.collectionId, p_plan_token: input.planToken });
+  if (response === null) return settleFail("NO_RESPONSE", "uncertain");
+  if (response.error) return settleFail(response.error.code?.trim() || "NO_CODE", classifyEditorAutoArrangeFailure(response.error));
+  const result = parseApply(response.data);
+  if (!result) return settleFail("BAD_SHAPE", "invalid_response");
+  done(fn, startedAt, input.collectionId, result.outcome);
+  // A tela relê o fichário (cabeçalho + páginas) depois; nada de cache do servidor a confirmar aqui.
+  return { ok: true, result, cache: "not_needed" };
 }
