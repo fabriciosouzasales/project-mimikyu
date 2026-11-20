@@ -37,6 +37,22 @@ import {
   writeDefinitelyNotApplied,
 } from "@/lib/colecoes/binder-auto-arrange";
 import { classifyEditorAutoArrangeFailure, parseEditorAutoArrangePreview } from "@/lib/colecoes/editor-binder-arrange";
+import {
+  type CatalogApplyResult,
+  type CatalogFailure,
+  type CatalogNoveltyState,
+  type CatalogPreview,
+  isCatalogPlanToken,
+  parseCatalogApply,
+  parseCatalogPreview,
+} from "@/lib/colecoes/binder-catalog";
+import {
+  classifyEditorCatalogFailure,
+  editorCatalogFailureMessage,
+  noveltiesFromEditorPreview,
+  noveltyNamesFrom,
+  validEditorCatalogKeys,
+} from "@/lib/colecoes/editor-binder-catalog";
 import type { AvailableCard } from "@/lib/colecoes/binder-share";
 import type { ReserveCandidate, ReserveScope } from "@/lib/colecoes/binder-reserve";
 import { SHARED_COLLECTION_PATH, parseSharedBinder, parseSharedCollection } from "@/lib/colecoes/sharing";
@@ -531,4 +547,93 @@ export async function editorApplyAutoArrange(input: {
   done(fn, startedAt, input.collectionId, result.outcome);
   // A tela relê o fichário (cabeçalho + páginas) depois; nada de cache do servidor a confirmar aqui.
   return { ok: true, result, cache: "not_needed" };
+}
+
+// ---------------------------------------------------------------------------
+// V1-13 · E2-3D — novidades do Catálogo pelo EDITOR (5387), só Master Set.
+// Uma chamada por pedido; `hint`/`details` nunca são lidos. A prévia sai do
+// servidor como a 5387 a entrega (fichário, capacidade, bolsos livres e
+// barreira de terceiros em branco) e é lida pelo parser do titular, que já
+// aceita esses campos nulos sem preenchê-los.
+
+type CatalogEditorFail = { ok: false; reason: CatalogFailure; message: string; disables: boolean; recheck: boolean };
+
+function catalogEditorFail(fn: string, startedAt: number, error: { code?: string; message?: string } | null): CatalogEditorFail {
+  const failure = error ? classifyEditorCatalogFailure(error.code, error.message) : { reason: "unknown" as const, message: editorCatalogFailureMessage("unknown"), disables: false, recheck: false };
+  console.error(JSON.stringify({ scope: "colecoes.editor_binder", fn, ms: Date.now() - startedAt, code: error?.code ?? "BAD_SHAPE", reason: failure.reason }));
+  return { ok: false, ...failure };
+}
+
+async function editorCatalogPreview(collectionId: string, keys: string[] | null): Promise<{ ok: true; preview: CatalogPreview } | CatalogEditorFail> {
+  const startedAt = Date.now();
+  const fn = "editor_preview_binder_catalog_reconciliation";
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc(fn, { p_collection_id: collectionId, p_keys: keys });
+    if (error) return catalogEditorFail(fn, startedAt, { code: error.code, message: error.message });
+    const preview = parseCatalogPreview(data);
+    if (!preview) return catalogEditorFail(fn, startedAt, null);
+    return { ok: true, preview };
+  } catch {
+    return catalogEditorFail(fn, startedAt, null);
+  }
+}
+
+/**
+ * Lista das novidades pendentes, sob demanda (nunca ao abrir o fichário): a
+ * prévia sem seleção dá as chaves; a leitura de participante do Master Set
+ * (5323) dá os nomes. Nenhum dado do acervo do titular.
+ */
+export async function readEditorCatalogNovelties(input: { collectionId: string }): Promise<{ ok: true; state: CatalogNoveltyState } | CatalogEditorFail> {
+  if (!enabled()) return { ok: false, reason: "unavailable", message: editorCatalogFailureMessage("unavailable"), disables: true, recheck: false };
+  if (!isCollectionId(input?.collectionId)) return { ok: false, reason: "invalid", message: editorCatalogFailureMessage("invalid"), disables: false, recheck: false };
+  const all = await editorCatalogPreview(input.collectionId, null);
+  if (!all.ok) return all;
+  if (all.preview.outcome === "NOTHING_TO_DO" || all.preview.items.length === 0) {
+    return { ok: true, state: all.preview.outcome === "NOT_ELIGIBLE" ? { eligible: false, reason: "OTHER" } : { eligible: true, count: 0, items: [] } };
+  }
+  // Nomes: só a leitura de participante (mesma fonte do seletor de reservas da E2-2). Falha → "Carta", nunca adivinha.
+  const positions = await readEditorReserveCandidates({ collectionId: input.collectionId }).catch(() => null);
+  const names = positions && positions.ok ? noveltyNamesFrom(positions.candidates) : new Map();
+  return { ok: true, state: noveltiesFromEditorPreview(all.preview, names) };
+}
+
+/** Prévia (não grava) da seleção explícita. */
+export async function editorPreviewCatalog(input: { collectionId: string; keys: string[] }): Promise<{ ok: true; preview: CatalogPreview } | CatalogEditorFail> {
+  if (!enabled()) return { ok: false, reason: "unavailable", message: editorCatalogFailureMessage("unavailable"), disables: true, recheck: false };
+  if (!isCollectionId(input?.collectionId) || !validEditorCatalogKeys(input.keys)) return { ok: false, reason: "invalid", message: editorCatalogFailureMessage("invalid"), disables: false, recheck: false };
+  return editorCatalogPreview(input.collectionId, input.keys);
+}
+
+/** Incorporação: mesma seleção e mesmo token da prévia; outra página e página nova só com a confirmação já dada. */
+export async function editorApplyCatalog(input: {
+  collectionId: string;
+  keys: string[];
+  planToken: string;
+  confirmCrossPage: boolean;
+  confirmAddPage: boolean;
+}): Promise<{ ok: true; result: CatalogApplyResult } | CatalogEditorFail> {
+  if (!enabled()) return { ok: false, reason: "unavailable", message: editorCatalogFailureMessage("unavailable"), disables: true, recheck: false };
+  if (!isCollectionId(input?.collectionId) || !validEditorCatalogKeys(input.keys) || !isCatalogPlanToken(input.planToken)) {
+    return { ok: false, reason: "invalid", message: editorCatalogFailureMessage("invalid"), disables: false, recheck: false };
+  }
+  const startedAt = Date.now();
+  const fn = "editor_apply_binder_catalog_reconciliation";
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc(fn, {
+      p_collection_id: input.collectionId,
+      p_keys: input.keys,
+      p_plan_token: input.planToken,
+      p_confirm_cross_page: input.confirmCrossPage === true,
+      p_confirm_add_page: input.confirmAddPage === true,
+    });
+    if (error) return catalogEditorFail(fn, startedAt, { code: error.code, message: error.message });
+    const result = parseCatalogApply(data);
+    if (!result) return catalogEditorFail(fn, startedAt, null);
+    done(fn, startedAt, input.collectionId, result.outcome);
+    return { ok: true, result };
+  } catch {
+    return catalogEditorFail(fn, startedAt, null);
+  }
 }

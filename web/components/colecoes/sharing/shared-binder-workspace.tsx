@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { DndContext, DragOverlay, pointerWithin } from "@dnd-kit/core";
-import { ArrowLeft, Eye, Layers, LayoutGrid, Maximize2, Minimize2, Pencil, Wand2, X } from "lucide-react";
+import { ArrowLeft, Eye, Layers, LayoutGrid, Loader2, Maximize2, Minimize2, Pencil, Sparkles, Wand2, X } from "lucide-react";
 import { readPublicBinderPages, readSharedBinderPages } from "@/app/colecoes/compartilhar/actions";
 import { FOCUS_RING, SideArrowButton, TopNavControls } from "@/components/colecoes/fichario/binder-chrome";
 import { BINDER_SPREAD_MEDIA, BinderObjectFrame } from "@/components/colecoes/fichario/binder-object";
@@ -20,6 +20,9 @@ import { useEditorArrange } from "@/components/colecoes/sharing/shared-binder-ar
 import { AutoArrangePanel } from "@/components/colecoes/fichario/binder-auto-arrange-panel";
 import { AUTO_ARRANGE_PANEL_ID } from "@/lib/colecoes/binder-auto-arrange-view";
 import { editorArrangeFootnote, editorArrangeTarget } from "@/lib/colecoes/editor-binder-arrange";
+import { useEditorCatalog } from "@/components/colecoes/sharing/shared-binder-catalog";
+import { CatalogNoveltiesDialog } from "@/components/colecoes/fichario/binder-catalog-dialog";
+import { editorCatalogAvailable } from "@/lib/colecoes/editor-binder-catalog";
 import { GapDialog } from "@/components/colecoes/fichario/binder-layout-tools";
 import { AddPagesDialog } from "@/components/colecoes/fichario/binder-add-pages";
 import { BinderOverview } from "@/components/colecoes/fichario/binder-overview";
@@ -311,6 +314,13 @@ export function SharedBinderWorkspace({
     layoutEpoch,
     syncAfter: pages.syncAfter,
   });
+  // ---- E2-3D: novidades do Catálogo pelo EDITOR (5387), só Master Set, sob demanda ----
+  const catalog = useEditorCatalog({
+    editor,
+    collectionId,
+    available: editing && pages.available && editorCatalogAvailable(completionPolicy),
+    syncAfter: pages.syncAfter,
+  });
   const gapOn = editing && pages.available;
 
   const editorHandlers = editor.handlers;
@@ -345,7 +355,7 @@ export function SharedBinderWorkspace({
       // E2-2: com o seletor de reserva aberto, o teclado é dele (Esc fecha o diálogo, setas não viram página).
       if (editor.reserveTarget) return;
       // E2-3A: visão geral e diálogos de página cuidam do próprio teclado.
-      if (pages.dialogOpen || gap.dialog) return;
+      if (pages.dialogOpen || gap.dialog || catalog.state) return;
       // E2-3C: Esc fecha o painel de organização (que não fecha enquanto posiciona).
       if (event.key === "Escape" && arrange.open) {
         event.preventDefault();
@@ -367,7 +377,7 @@ export function SharedBinderWorkspace({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [go, view, lastView, onClose, cardViewSlotId, editor, pages.dialogOpen, gap.dialog, arrange]);
+  }, [go, view, lastView, onClose, cardViewSlotId, editor, pages.dialogOpen, gap.dialog, arrange, catalog.state]);
 
   // ---- tela cheia (mesmo alvo do titular: a raiz do fichário) ----
   const [fullscreen, setFullscreen] = useState(false);
@@ -465,6 +475,19 @@ export function SharedBinderWorkspace({
               title="Páginas: visão geral, adicionar, remover e reordenar"
             >
               <LayoutGrid className="h-4 w-4" aria-hidden />
+            </button>
+          ) : null}
+          {editing && catalog.available ? (
+            <button
+              type="button"
+              className={cn(ws.iconButton, FOCUS_RING)}
+              onClick={catalog.open}
+              aria-haspopup="dialog"
+              aria-busy={catalog.loading || undefined}
+              aria-label="Novidades do Catálogo"
+              title="Novidades do Catálogo"
+            >
+              {catalog.loading ? <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden /> : <Sparkles className="h-4 w-4" aria-hidden />}
             </button>
           ) : null}
           {editing && arrange.enabled ? (
@@ -728,6 +751,18 @@ export function SharedBinderWorkspace({
           busy={pages.adding}
           onConfirm={(count) => void pages.runAdd(count)}
           onClose={pages.closeAdd}
+        />
+      ) : null}
+
+      {editing && catalog.state ? (
+        <CatalogNoveltiesDialog
+          host={rootRef.current}
+          collectionId={collectionId}
+          state={catalog.state}
+          onStateChange={catalog.onStateChange}
+          onApplied={catalog.onApplied}
+          onClose={catalog.close}
+          source={catalog.source}
         />
       ) : null}
 

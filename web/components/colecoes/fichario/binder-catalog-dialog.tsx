@@ -7,6 +7,7 @@ import { applyCatalogReconciliation, previewCatalogReconciliation, readCatalogNo
 import { formatCount } from "@/lib/colecoes/acervo";
 import {
   type CatalogApplyResult,
+  type CatalogFailure,
   type CatalogNovelty,
   type CatalogNoveltyState,
   type CatalogPlanItem,
@@ -25,6 +26,20 @@ import base from "./binder-add-pages.module.css";
 import styles from "./binder-catalog.module.css";
 
 const FOCUSABLE = 'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+type SourceFail = { ok: false; reason: CatalogFailure; message?: string };
+
+/**
+ * V1-13 · E2-3D: de onde vêm a lista, a prévia e a incorporação quando o
+ * diálogo é aberto pelo EDITOR (5387, fichário compartilhado). Ausente = o
+ * fluxo do titular (5265/5266), inalterado. Cada função devolve, na falha, a
+ * mensagem neutra já escolhida por quem abre.
+ */
+export type CatalogDialogSource = {
+  readList: () => Promise<{ ok: true; state: CatalogNoveltyState } | SourceFail>;
+  preview: (keys: string[]) => Promise<{ ok: true; preview: CatalogPreview } | SourceFail>;
+  apply: (input: { keys: string[]; planToken: string; confirmCrossPage: boolean; confirmAddPage: boolean }) => Promise<{ ok: true; result: CatalogApplyResult } | SourceFail>;
+};
 
 type Stage = { step: "select" } | { step: "preview"; keys: string[]; status: "loading" } | { step: "preview"; keys: string[]; status: "ready"; preview: CatalogPreview } | { step: "preview"; keys: string[]; status: "error"; message: string };
 
@@ -60,6 +75,7 @@ export function CatalogNoveltiesDialog({
   onStateChange,
   onApplied,
   onClose,
+  source = null,
 }: {
   host: HTMLElement | null;
   collectionId: string;
@@ -69,6 +85,8 @@ export function CatalogNoveltiesDialog({
   /** Incorporação confirmada pelo banco: o fichário relê as páginas afetadas. */
   onApplied: (result: CatalogApplyResult, pages: number[]) => void;
   onClose: () => void;
+  /** E2-3D: lista, prévia e incorporação do EDITOR. Ausente = titular. */
+  source?: CatalogDialogSource | null;
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
@@ -134,9 +152,9 @@ export function CatalogNoveltiesDialog({
   }, []);
 
   const reloadList = useCallback(async () => {
-    const result = await readCatalogNovelties({ collectionId }).catch(() => null);
+    const result = await (source ? source.readList() : readCatalogNovelties({ collectionId })).catch(() => null);
     if (result && result.ok) onStateChange(result.state);
-  }, [collectionId, onStateChange]);
+  }, [collectionId, onStateChange, source]);
 
   const loadPreview = useCallback(
     async (keys: string[]) => {
@@ -148,18 +166,20 @@ export function CatalogNoveltiesDialog({
         return;
       }
       setStage({ step: "preview", keys, status: "loading" });
-      const result = await previewCatalogReconciliation({ collectionId, keys }).catch(() => ({ ok: false as const, reason: "unknown" as const }));
+      const result: { ok: true; preview: CatalogPreview } | SourceFail = await (source ? source.preview(keys) : previewCatalogReconciliation({ collectionId, keys })).catch(
+        () => ({ ok: false as const, reason: "unknown" as const }),
+      );
       if (result.ok) {
         setStage({ step: "preview", keys, status: "ready", preview: result.preview });
         setAnnounce(previewSummaryMessage(result.preview));
         return;
       }
-      const message = catalogFailureMessage(result.reason);
+      const message = result.message ?? catalogFailureMessage(result.reason);
       setStage({ step: "preview", keys, status: "error", message });
       setAnnounce(message);
       if (result.reason === "selection_invalid") void reloadList();
     },
-    [collectionId, reloadList],
+    [collectionId, reloadList, source],
   );
 
   const toggle = (key: string) =>
@@ -183,16 +203,13 @@ export function CatalogNoveltiesDialog({
     if (!canApplyPreview(preview, { crossPage: confirmCross, addPage: confirmAdd }) || !preview.planToken) return;
     setBusy(true);
     setError(null);
-    const result = await applyCatalogReconciliation({
-      collectionId,
-      keys: stage.keys,
-      planToken: preview.planToken,
-      confirmCrossPage: confirmCross,
-      confirmAddPage: confirmAdd,
-    }).catch(() => ({ ok: false as const, reason: "unknown" as const }));
+    const request = { keys: stage.keys, planToken: preview.planToken, confirmCrossPage: confirmCross, confirmAddPage: confirmAdd };
+    const result: { ok: true; result: CatalogApplyResult } | SourceFail = await (source ? source.apply(request) : applyCatalogReconciliation({ collectionId, ...request })).catch(
+      () => ({ ok: false as const, reason: "unknown" as const }),
+    );
     setBusy(false);
     if (!result.ok) {
-      const message = catalogFailureMessage(result.reason);
+      const message = result.message ?? catalogFailureMessage(result.reason);
       setError(message);
       setAnnounce(message);
       if (failureNeedsFreshPreview(result.reason) || result.reason === "unknown") {
@@ -223,9 +240,13 @@ export function CatalogNoveltiesDialog({
               Novidades do Catálogo
             </h2>
             <p id={descId} className={base.lead}>
-              {state.count === 1
-                ? "1 posição do seu objetivo chegou ao Catálogo depois que este fichário foi montado."
-                : `${formatCount(state.count)} posições do seu objetivo chegaram ao Catálogo depois que este fichário foi montado.`}{" "}
+              {source
+                ? state.count === 1
+                  ? "1 posição do objetivo desta coleção chegou ao Catálogo depois que este fichário foi montado."
+                  : `${formatCount(state.count)} posições do objetivo desta coleção chegaram ao Catálogo depois que este fichário foi montado.`
+                : state.count === 1
+                  ? "1 posição do seu objetivo chegou ao Catálogo depois que este fichário foi montado."
+                  : `${formatCount(state.count)} posições do seu objetivo chegaram ao Catálogo depois que este fichário foi montado.`}{" "}
               Incorporar reserva um bolso na ordem do Set para cada uma — nenhuma carta sai do lugar sem aparecer na prévia.
             </p>
           </div>
@@ -256,7 +277,9 @@ export function CatalogNoveltiesDialog({
               ))}
             </ul>
             <p className={base.note}>
-              Uma novidade incorporada e depois liberada não volta para esta lista. Reservas que você liberou de posições antigas também não são novidades — continuam como “Falta” na coleção e podem ser reservadas à mão.
+              {source
+                ? "Uma novidade incorporada e depois liberada não volta para esta lista. Reservas liberadas de posições antigas também não são novidades e podem ser reservadas à mão."
+                : "Uma novidade incorporada e depois liberada não volta para esta lista. Reservas que você liberou de posições antigas também não são novidades — continuam como “Falta” na coleção e podem ser reservadas à mão."}
             </p>
             <div className={base.actions}>
               <button type="button" className={base.secondary} onClick={onClose}>
@@ -295,6 +318,9 @@ export function CatalogNoveltiesDialog({
 
             {ready.outcome === "READY" || ready.items.length > 0 ? (
               <dl className={base.facts}>
+                {/* E2-3D: o EDITOR não recebe capacidade nem bolsos livres (a 5387 os devolve em branco) — as linhas não aparecem. */}
+                {source ? null : (
+                <>
                 <div>
                   <dt>Capacidade</dt>
                   <dd>
@@ -308,6 +334,8 @@ export function CatalogNoveltiesDialog({
                     <strong>{ready.freePocketsAfter !== null ? formatCount(ready.freePocketsAfter) : "—"}</strong>
                   </dd>
                 </div>
+                </>
+                )}
                 <div>
                   <dt>Itens que mudam de bolso</dt>
                   <dd>
@@ -405,12 +433,13 @@ function NoveltyRow({ item, checked, onToggle }: { item: CatalogNovelty; checked
       <input id={id} type="checkbox" className={styles.check} checked={checked} onChange={onToggle} />
       <label htmlFor={id} style={{ cursor: "pointer" }}>
         <span className={styles.name}>{noveltyLabel(item)}</span>
-        {item.placedInBinder ? (
+        {item.placedInBinder === true ? (
           <span className={styles.detail} style={{ display: "block" }}>
             Você já tem esta carta em algum bolso: se for o bolso certo, ele passa a ficar reservado; se estiver fora da ordem, a prévia avisa e ela fica onde está.
           </span>
         ) : null}
-        {item.placedInBinder ? <span className={styles.flag}>Já no fichário</span> : null}
+        {/* Só com a constatação (`true`); desconhecido (`null`, EDITOR) e `false` não mostram nada. */}
+        {item.placedInBinder === true ? <span className={styles.flag}>Já no fichário</span> : null}
       </label>
     </li>
   );

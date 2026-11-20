@@ -86,8 +86,12 @@ export type CatalogNovelty = {
   variantTypeCode: string | null;
   variantTypeName: string | null;
   bornAt: string | null;
-  /** Já há exemplar desta coleção dessa posição em algum bolso (W6). */
-  placedInBinder: boolean;
+  /**
+   * Já há exemplar desta coleção dessa posição em algum bolso (W6).
+   * `null` = desconhecido (V1-13 · E2-3D: o EDITOR não tem leitura que informe
+   * isso) — o indicador não aparece; nunca vale como "não está no fichário".
+   */
+  placedInBinder: boolean | null;
 };
 
 export type CatalogNoveltyState =

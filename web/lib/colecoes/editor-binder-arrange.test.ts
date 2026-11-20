@@ -144,7 +144,8 @@ test("uma escrita por confirmação; nenhuma repetição automática; hint/detai
   assert.equal(code.match(/editorApplyAutoArrange\(/g)?.length, 1, "uma chamada de aplicação");
   assert.ok(!/setTimeout\(|setInterval\(/.test(code), "sem repetição temporizada");
   const actions = readFileSync(new URL("../../app/colecoes/compartilhada/[id]/fichario/actions.ts", import.meta.url), "utf8");
-  const block = actions.slice(actions.indexOf("E2-3C"));
+  const end = actions.indexOf("V1-13 · E2-3D");
+  const block = actions.slice(actions.indexOf("E2-3C"), end > 0 ? end : undefined);
   assert.ok(block.length > 0 && !/\.hint|\.details?\b/.test(block), "as ações de organização não leem hint nem detail");
   assert.equal(block.match(/rpc\(/g)?.length, 1, "um único ponto de chamada ao banco");
 });
