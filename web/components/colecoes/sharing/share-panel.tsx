@@ -208,7 +208,7 @@ type SectionProps = {
 
 const ROLE_CHOICES: { value: MemberRole; icon: typeof Eye; text: string }[] = [
   { value: "VIEWER", icon: Eye, text: "Vê as cartas, o progresso e o fichário. Não altera nada." },
-  { value: "EDITOR", icon: Pencil, text: "Também organiza o fichário e edita nome, descrição e capa. As cartas continuam suas." },
+  { value: "EDITOR", icon: Pencil, text: "Também organiza o fichário e edita nome, descrição e a cor da capa. A imagem da capa e as cartas continuam suas." },
 ];
 
 export function InviteSection({ collectionId, state, busy, onBusy, onDone, editorRoles = false }: SectionProps) {

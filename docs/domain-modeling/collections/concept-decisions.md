@@ -2125,7 +2125,8 @@ Refina C-146 e C-165 com as regras C-235 a C-244.
 | Ver a coleção, as cartas alocadas, o progresso e o fichário mascarado | ✔ | ✔ | ✔ |
 | Ver a condição dos exemplares (C-233) | ✔ | ✘ | ✘ |
 | Ver o acervo, os locais, a proveniência, os valores, os Favoritos e a Lista de desejos do titular | ✔ | ✘ | ✘ |
-| Nome, descrição (objetivo narrativo, D10) e capa (C-239) | ✔ | ✔ | ✘ |
+| Nome, descrição (objetivo narrativo, D10), cor e código da capa (C-239) | ✔ | ✔ | ✘ |
+| Imagem da capa: enviar, trocar, remover e gerenciar arquivos (C-239, D-E3-6) | ✔ | ✘ no produto (ver C-239) | ✘ |
 | Referência do Set, escopo do Master Set e política de completude | ✔ | ✘ | ✘ |
 | Colocar no bolso um exemplar **alocado à coleção e guardado no fichário** (C-235) | ✔ | ✔ | ✘ |
 | Colocar no bolso um exemplar não alocado ou guardado em outro local | ✔ | ✘ | ✘ |
@@ -2223,6 +2224,11 @@ O EDITOR edita nome, descrição e capa da coleção. A **descrição** é o obj
 - arquivamento e exclusão.
 
 Se a capa usar um arquivo enviado, ele é gravado no armazenamento do titular, com autorização própria do EDITOR para essa coleção. O EDITOR nunca recebe acesso geral à pasta do titular.
+
+**D-E3-6 — imagem da capa: gerenciamento exclusivo do titular (2026-11-24, decisão de produto do proprietário).**
+
+- No produto, só o titular envia, troca, remove ou gerencia arquivos da **imagem** da capa. O EDITOR continua editando nome, descrição, cor (acabamento) da capa e, quando houver, o código da capa; a interface do EDITOR não oferece nenhum controle de imagem.
+- **Permissão de produto × capacidade técnica:** a 5376 (`editor_set_collection_cover_logo`) e as políticas de armazenamento da 5377 continuam aplicadas e **autorizam tecnicamente** o EDITOR a gravar e trocar a imagem da capa por chamada direta, fora da interface. A decisão não revogou essas autorizações (nenhum SQL nem política mudou). **Bloqueador da liberação pública das capacidades do EDITOR:** a D-E3-6 está aplicada só à experiência do produto (interface); a 5376 e a 5377 ainda permitem operações de imagem da capa pelo EDITOR, e a restrição **não é garantida pelo servidor**. É obrigatória uma correção contratual posterior (revogar ou restringir essas autorizações) antes de qualquer abertura funcional da barreira.
 
 **D10 — objetivo narrativo (2026-11-15, decisão do proprietário).**
 
@@ -2747,3 +2753,4 @@ Antes do handoff final para implementação, o modelo deverá ser reconciliado c
 | 1.38 | **C-244 — redação inequívoca sobre aceitação de risco (2026-11-15, `V1-13 / E1-A \| P1 ARTIFACT PREPARATION-03`, decisão do proprietário).** A formulação "nenhuma aceitação de risco substitui automaticamente S1–S10" (1.37) é substituída por duas regras: cada cenário S1–S10 exige comprovação dinâmica suficiente; nenhuma prova obrigatória pode ser substituída, dispensada ou encerrada por aceitação de risco nem por análise estática. Publicação explicitamente bloqueada enquanto a escrita entre contas não estiver comprovada; PR-04B mantida; nenhuma autorização implícita de execução no LIVE. C-234–C-243 inalteradas. |
 | 1.39 | **D9–D13 — decisões do proprietário formalizadas (2026-11-15, `V1-13 \| FORMALIZAÇÃO CANÔNICA D9–D13-01`).** Sem cláusula nova; refinamentos marcados no texto. D9 em C-237 (e na matriz de C-234): mesclagem pelo EDITOR não aplicável na V1.0, porque toda mesclagem vigente é com imagem do titular (C-238). D10 em C-239 (e na matriz): a descrição é o objetivo narrativo; nenhum campo novo; objetivo estrutural (Set, escopo Master Set, política) continua do titular. D11 em C-239: limpeza administrativa futura de arquivos de capa não usados no Backlog, sem versão, sem limpeza automática e sem ampliar a exclusão do EDITOR. D12 em C-241: eventos sem atribuição confiável à coleção não aparecem a membros; titular íntegro; L01 só com origem comprovada; sem inferência retroativa; aviso discreto na interface. D13 em C-241: `CARDS_AUTO_ARRANGED` (E21) entra na lista de permissão, filtrado pela coleção e oculto quando a filtragem segura não for possível. Nenhuma alteração física. |
 | 1.40 | **D14 — eventos do titular sem coleção registrada (2026-11-15, `V1-13 / E1-D \| D14 CONTRACT REFINEMENT AND MINIMAL CORRECTION-03`, decisão do proprietário: opção B).** Refinamento de C-241, sem cláusula nova: eventos do titular sem coleção no cabeçalho aparecem aos membros de X quando do tipo e origem da lista de permissão, de autoria comprovada do titular, com atribuição por item e ao menos um item de conteúdo de X; só os itens de X; evento só estrutural ou de outra coleção oculto; D12/D13 e histórico do titular inalterados. Matriz de C-234: só a referência da linha de histórico. Nenhuma alteração física. |
+| 1.41 | **D-E3-6 — imagem da capa só do titular (2026-11-24, `E3-4 — COVER IMAGE MANAGEMENT \| PRODUCT SCOPE DECISION & CLOSEOUT-01`, decisão de produto do proprietário).** Refinamento de C-239 e da matriz de C-234, sem cláusula nova: o EDITOR mantém nome, descrição, cor e código da capa; enviar, trocar, remover e gerenciar a imagem fica com o titular. As autorizações técnicas da 5376/5377 não foram revogadas: restrição não garantida pelo servidor; bloqueador da liberação pública do EDITOR, com correção contratual obrigatória antes de qualquer abertura funcional da barreira. |

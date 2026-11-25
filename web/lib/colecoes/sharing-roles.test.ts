@@ -45,7 +45,9 @@ test("explicações: o que cada papel permite e o que fica com o titular", () =>
   assert.ok(viewer.can.some((l) => /Ver a coleção/.test(l)) && viewer.can.some((l) => /fichário/.test(l)));
   assert.ok(viewer.cannot.some((l) => /Alterar/.test(l)));
   const editor = roleExplanation("EDITOR");
-  assert.ok(editor.can.some((l) => /Organizar o fichário/.test(l)) && editor.can.some((l) => /nome, a descrição e a capa/.test(l)));
+  assert.ok(editor.can.some((l) => /Organizar o fichário/.test(l)) && editor.can.some((l) => /nome, a descrição, a cor da capa/.test(l)));
+  // D-E3-6: a imagem da capa é só do titular — o EDITOR nunca é descrito como quem a gerencia.
+  assert.ok(!editor.can.some((l) => /imagem/i.test(l)) && editor.cannot.some((l) => /imagem da capa/.test(l)));
   const cannot = editor.cannot.join(" ");
   for (const word of ["pertencem", "guardadas", "condição", "visibilidade", "participantes", "administração"]) assert.ok(cannot.includes(word), word);
   assert.ok(/administrativo e patrimonial/.test(roleExplanation("OWNER").can.join(" ")));

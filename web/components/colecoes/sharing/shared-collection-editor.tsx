@@ -110,8 +110,8 @@ export function SharedCollectionEditButton({
               </div>
               <div className={manageStyles.body}>
                 <p className={styles.lead}>
-                  Como quem pode organizar, você edita o nome, a descrição{codeApplies ? ", o código da capa" : ""} e a cor da capa. O Set, o objetivo, a
-                  visibilidade e quem participa continuam com o titular.
+                  Como quem pode organizar, você edita o nome, a descrição{codeApplies ? ", o código da capa" : ""} e a cor da capa. A imagem da capa, o Set, o
+                  objetivo, a visibilidade e quem participa continuam com o titular.
                 </p>
                 <section className={manageStyles.section} aria-label="Nome e descrição">
                   <IdentityNameForm

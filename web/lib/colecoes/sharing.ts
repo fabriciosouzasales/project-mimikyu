@@ -143,10 +143,12 @@ export function roleExplanation(role: "OWNER" | MemberRole): RoleExplanation {
         can: [
           "Ver a coleção compartilhada, o fichário e as informações autorizadas.",
           "Organizar o fichário dentro dos limites desta coleção.",
-          "Editar o nome, a descrição e a capa da coleção.",
+          // D-E3-6: cor/acabamento e código da capa, sim; a IMAGEM da capa é só do titular.
+          "Editar o nome, a descrição, a cor da capa e, quando houver, o código da capa.",
         ],
         cannot: [
           "Mudar quais cartas pertencem à coleção, onde ficam guardadas ou a condição delas.",
+          "Enviar, trocar ou remover a imagem da capa.",
           "Mudar a visibilidade, os participantes ou a administração da coleção — isso fica com o titular.",
         ],
       };
