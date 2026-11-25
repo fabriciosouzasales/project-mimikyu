@@ -35,6 +35,8 @@ import styles from "../colecoes/colecoes.module.css";
 import shareStyles from "./share.module.css";
 import { SharedAccessMenu } from "./leave-shared-collection";
 import { SharedBinderEntry } from "./shared-binder-entry";
+import { SharedCollectionEditButton } from "./shared-collection-editor";
+import { editorCoverCodeApplies } from "@/lib/colecoes/editor-collection-metadata";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const GRID_SIZES = "(max-width: 767px) 50vw, 11rem";
@@ -65,6 +67,7 @@ export function SharedCollectionView({
   signedIn,
   binder = null,
   positions = null,
+  editMetadata = false,
 }: {
   collection: SharedCollection;
   cards: { items: SharedCard[]; total: number } | null;
@@ -84,6 +87,12 @@ export function SharedCollectionView({
     page: { items: SharedPosition[]; total: number } | null;
     hero: readonly SharedPosition[];
   } | null;
+  /**
+   * V1-13 · E3-3: "Editar informações" do EDITOR — configuração ligada + papel
+   * EDITOR + coleção ativa, decidido no servidor da página. Não autoriza nada:
+   * cada gravação é decidida no banco. Desligado = página de sempre.
+   */
+  editMetadata?: boolean;
 }) {
   const progress = collection.progress && collection.progress.total > 0 ? collection.progress : null;
   const pages = cards ? Math.max(1, Math.ceil(cards.total / SHARED_PAGE_SIZE)) : 1;
@@ -111,7 +120,20 @@ export function SharedCollectionView({
           )}
           <div className={manageStyles.heroBarActions}>
             {viewer ? (
-              <SharedAccessMenu collectionId={collection.collectionId} collectionName={collection.name} ownerDisplayName={collection.ownerDisplayName} role={collection.role ?? "VIEWER"} />
+              <>
+                {editMetadata && collection.role === "EDITOR" ? (
+                  <SharedCollectionEditButton
+                    collectionId={collection.collectionId}
+                    name={collection.name}
+                    description={collection.description}
+                    coverFinish={collection.coverFinish}
+                    finish={finish}
+                    coverCode={coverCode}
+                    codeApplies={editorCoverCodeApplies(collection)}
+                  />
+                ) : null}
+                <SharedAccessMenu collectionId={collection.collectionId} collectionName={collection.name} ownerDisplayName={collection.ownerDisplayName} role={collection.role ?? "VIEWER"} />
+              </>
             ) : (
               <span className={shareStyles.accessBadge}>
                 <Globe2 aria-hidden="true" />

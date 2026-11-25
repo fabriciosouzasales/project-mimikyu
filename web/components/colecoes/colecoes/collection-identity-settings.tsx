@@ -8,12 +8,14 @@ import { Button } from "@/components/ui/button";
 import { InlineFeedback } from "@/components/ui/feedback";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   COLLECTION_NAME_MAX,
   type CollectionFailure,
   collectionFailureMessage,
   normalizeCollectionName,
 } from "@/lib/colecoes/colecoes";
+import { COLLECTION_DESCRIPTION_MAX, normalizeCollectionDescription } from "@/lib/colecoes/editor-collection-metadata";
 import { COVER_CODE_MAX, normalizeCoverCode, sanitizeCoverCodeInput } from "@/lib/colecoes/free-collection";
 import { useCoverLogo } from "./cover-logo-uploader";
 import styles from "./collection-manage.module.css";
@@ -38,19 +40,50 @@ import styles from "./collection-manage.module.css";
 const ARIA_DISABLED_BUTTON = "aria-disabled:pointer-events-none aria-disabled:opacity-50";
 const ARIA_DISABLED_FIELD = "aria-disabled:cursor-not-allowed aria-disabled:opacity-50";
 
+/** Falha de gravação vinda de quem abre o formulário (EDITOR): mensagem neutra pronta e se a página deve ser relida. */
+export type IdentitySaveFail = { ok: false; message: string; reload: boolean };
+
+/**
+ * V1-13 · E3-3: gravação fornecida por quem abre (EDITOR na coleção
+ * compartilhada, 5376). Ausente = o fluxo do titular (5035/5180), inalterado.
+ */
+export type IdentitySave = {
+  text: (name: string, description: string) => Promise<{ ok: true } | IdentitySaveFail>;
+  code?: (code: string) => Promise<{ ok: true } | IdentitySaveFail>;
+};
+
 /** Nome e (quando a coleção tem) código da capa. Salvar só com mudança válida. */
 export function IdentityNameForm({
   collectionId,
   name,
   coverCode,
   onBusyChange,
+  description,
+  save = null,
 }: {
   collectionId: string;
   name: string;
   /** `undefined` = a coleção não tem código; `null` = sem código. */
   coverCode?: string | null;
   onBusyChange: (busy: boolean) => void;
+  /** E3-3: `undefined` = sem campo de descrição (titular, como sempre); `null` = sem descrição. */
+  description?: string | null;
+  /** E3-3: gravação do EDITOR. Ausente = titular. */
+  save?: IdentitySave | null;
 }) {
+  const descId = useId();
+  const withDescription = description !== undefined;
+  const [descDraft, setDescDraft] = useState(description ?? "");
+  const lastDesc = useRef(description ?? "");
+  useEffect(() => {
+    if (lastDesc.current !== (description ?? "")) {
+      lastDesc.current = description ?? "";
+      setDescDraft(description ?? "");
+    }
+  }, [description]);
+  const normalizedDesc = withDescription ? normalizeCollectionDescription(descDraft) : null;
+  const descInvalid = withDescription && normalizedDesc === undefined;
+  const descChanged = withDescription && !descInvalid && normalizedDesc !== (description === null || description === undefined ? null : (normalizeCollectionDescription(description) ?? description));
   const router = useRouter();
   const nameId = useId();
   const codeId = useId();
@@ -58,7 +91,7 @@ export function IdentityNameForm({
   const [draft, setDraft] = useState(name);
   const [codeDraft, setCodeDraft] = useState(coverCode ?? "");
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState<{ reason: CollectionFailure; source: "name" | "code" } | null>(null);
+  const [error, setError] = useState<{ reason: CollectionFailure; source: "name" | "code"; message?: string } | null>(null);
   const [saved, setSaved] = useState(false);
 
   // Depois de salvar, a página recarrega com os valores gravados.
@@ -86,7 +119,7 @@ export function IdentityNameForm({
   const codeInvalid = normalizedCode === "invalid";
   const nameChanged = normalized !== null && normalized !== name;
   const codeChanged = withCode && !codeInvalid && normalizedCode !== (coverCode ?? null);
-  const canSave = !pending && normalized !== null && !codeInvalid && (nameChanged || codeChanged);
+  const canSave = !pending && normalized !== null && !codeInvalid && !descInvalid && (nameChanged || codeChanged || descChanged);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -97,6 +130,30 @@ export function IdentityNameForm({
     setSaved(false);
     const fallback = { ok: false as const, reason: "unavailable" as const };
     try {
+      if (save) {
+        // E3-3 (EDITOR): uma escrita por parte alterada, na ordem nome+descrição → código; sem repetição.
+        if (nameChanged || descChanged) {
+          const result = await save.text(normalized, descDraft);
+          if (!result.ok) {
+            setError({ reason: "unavailable", source: "name", message: result.message });
+            if (result.reload) router.refresh();
+            return;
+          }
+        }
+        if (codeChanged && save.code) {
+          const result = await save.code(codeDraft);
+          if (!result.ok) {
+            // Resultado parcial: cada parte diz o seu — nome/descrição (se mudaram) já foram gravados; o código não.
+            const textSaved = nameChanged || descChanged;
+            setError({ reason: "unavailable", source: "code", message: textSaved ? `Nome e descrição salvos. O código não foi salvo: ${result.message}` : result.message });
+            router.refresh();
+            return;
+          }
+        }
+        setSaved(true);
+        router.refresh();
+        return;
+      }
       if (nameChanged) {
         const result = await renameCollection({ collectionId, name: normalized }).catch(() => fallback);
         if (!result.ok) {
@@ -151,6 +208,32 @@ export function IdentityNameForm({
         ) : null}
       </div>
 
+      {withDescription ? (
+        <div className={styles.identityField}>
+          <Label htmlFor={descId}>
+            Descrição <span className={styles.identityOptional}>(opcional)</span>
+          </Label>
+          <Textarea
+            id={descId}
+            value={descDraft}
+            maxLength={COLLECTION_DESCRIPTION_MAX + 50}
+            rows={3}
+            onChange={(event) => {
+              setDescDraft(event.target.value);
+              setSaved(false);
+            }}
+            readOnly={pending}
+            aria-disabled={pending || undefined}
+            className={ARIA_DISABLED_FIELD}
+            invalid={descInvalid || (error?.source === "name" && error.message !== undefined)}
+            aria-describedby={`${descId}-dica`}
+          />
+          <span id={`${descId}-dica`} className={styles.identityHint}>
+            {descInvalid ? `Use até ${COLLECTION_DESCRIPTION_MAX} caracteres.` : "Conte o que esta coleção quer reunir. Aparece na página da coleção."}
+          </span>
+        </div>
+      ) : null}
+
       {withCode ? (
         <div className={styles.identityField}>
           <Label htmlFor={codeId}>
@@ -187,10 +270,12 @@ export function IdentityNameForm({
       </div>
 
       <div aria-live="polite">
-        {saved ? <InlineFeedback tone="success">{withCode ? "Nome e código salvos." : "Nome atualizado."}</InlineFeedback> : null}
+        {saved ? <InlineFeedback tone="success">{save ? "Informações salvas." : withCode ? "Nome e código salvos." : "Nome atualizado."}</InlineFeedback> : null}
         {error ? (
           <InlineFeedback tone="error">
-            {error.reason === "not_found"
+            {error.message !== undefined
+              ? error.message
+              : error.reason === "not_found"
               ? error.source === "code"
                 ? "Não foi possível salvar o código desta coleção agora. Nada foi alterado no código."
                 : "Esta coleção não pode ser renomeada agora (ela pode ter sido arquivada)."

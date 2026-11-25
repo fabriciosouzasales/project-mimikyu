@@ -25,19 +25,47 @@ export function CoverFinishPicker({
   collectionId,
   value,
   onBusyChange,
+  save = null,
 }: {
   collectionId: string;
   value: BinderFinish;
   onBusyChange?: (busy: boolean) => void;
+  /**
+   * V1-13 · E3-3: gravação do EDITOR (5376). Com ela, a amostra só muda depois
+   * da confirmação do servidor (nada otimista) e a mensagem de falha já vem
+   * pronta. Ausente = titular, como sempre.
+   */
+  save?: ((finish: BinderFinish) => Promise<{ ok: true } | { ok: false; message: string; reload: boolean }>) | null;
 }) {
   const router = useRouter();
   const name = useId();
   const [current, setCurrent] = useState<BinderFinish>(value);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<CollectionFailure | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
 
   const choose = async (finish: BinderFinish) => {
     if (pending || finish === current) return;
+    if (save) {
+      setPending(true);
+      onBusyChange?.(true);
+      setMessage(null);
+      let outcome: { ok: true } | { ok: false; message: string; reload: boolean };
+      try {
+        outcome = await save(finish);
+      } finally {
+        setPending(false);
+        onBusyChange?.(false);
+      }
+      if (!outcome.ok) {
+        setMessage(outcome.message);
+        if (outcome.reload) router.refresh();
+        return;
+      }
+      setCurrent(finish);
+      router.refresh();
+      return;
+    }
     const previous = current;
     setCurrent(finish);
     setPending(true);
@@ -82,7 +110,7 @@ export function CoverFinishPicker({
         ))}
       </div>
       <span className={styles.finishName} aria-live="polite">
-        {error ? collectionFailureMessage(error) : finishLabel(current)}
+        {message ?? (error ? collectionFailureMessage(error) : finishLabel(current))}
       </span>
     </fieldset>
   );

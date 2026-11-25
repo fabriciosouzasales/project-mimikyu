@@ -16,6 +16,7 @@ import {
 } from "@/lib/colecoes/sharing-queries";
 import { createClient } from "@/lib/supabase/server";
 import { getCachedUser } from "@/lib/supabase/request-auth-cache";
+import { canShowEditorCuration, editorCurationFlagOn } from "@/lib/colecoes/editor-binder";
 
 export const metadata: Metadata = { title: "Coleção compartilhada", robots: { index: false, follow: false } };
 
@@ -108,6 +109,7 @@ export default async function ColecaoCompartilhadaPage({
       logoUrl={logoUrl}
       coverCode={cover.code}
       signedIn={Boolean(user)}
+      editMetadata={canShowEditorCuration({ flagOn: editorCurationFlagOn(process.env), role: collection.role, archived: collection.archived })}
       binder={
         collection.access === "VIEWER" && binder?.hasBinder
           ? { columns: binder.columns, rows: binder.rows, pageCount: binder.pageCount, ownFilled: binder.ownFilled, identity: binder.identity }
