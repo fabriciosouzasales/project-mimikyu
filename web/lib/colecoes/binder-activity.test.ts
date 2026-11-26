@@ -302,7 +302,8 @@ test("detalhes: campos completos, sem inventar dados", () => {
   assert.equal(f["Para"], "Página 5 (linha 1, coluna 1)");
   assert.equal(f["Coleção"], "Caos Ascendente");
   assert.equal(f["Fichário"], "Fichário Azul");
-  assert.equal(f["Por"], "Você");
+  // E3-5 V1: a 5269 não devolve o autor (um EDITOR também grava aqui) — nenhuma autoria atribuída.
+  assert.equal(f["Por"], undefined);
   assert.match(f["Quando"] ?? "", /^28 out 2026 · 19:07$/);
   assert.deepEqual(detailItems(moved), []);
 

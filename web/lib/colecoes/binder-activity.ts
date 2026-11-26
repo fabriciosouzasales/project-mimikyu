@@ -128,7 +128,16 @@ export type ActivityEvent = {
   itemCount: number;
   items: ActivityItem[];
   truncated: boolean;
+  /**
+   * V1-13 · E3-5: autoria devolvida pela leitura de participante (5388).
+   * Ausente (`undefined`) no histórico do titular (5269), que não devolve o
+   * autor — nesse caso a tela não atribui a ação a ninguém (E3-5 V1).
+   */
+  attribution?: ActivityAttribution;
 };
+
+/** Papel do autor na 5388 (`OWNER` titular, `PARTICIPANT` membro, `null` sem autor: legado) e nome de exibição público. */
+export type ActivityAttribution = { role: "OWNER" | "PARTICIPANT" | null; displayName: string | null };
 
 export type ActivityCursor = { occurredAt: string; id: number };
 
@@ -637,8 +646,9 @@ export function describeEvent(event: ActivityEvent): EventView {
 // Lista recolhida: UMA manchete curta "objeto + ação" por evento
 // ("Exeggutor de Alola movida", "7 cartas retiradas", "Página 41 removida").
 // Detalhes: campos completos (`detailFields`) + itens + truncamento. Nada é
-// inventado: só campos devolvidos pela 5269 (e a regra do V1 de que quem
-// executou é o titular — §3.2 / B.2; o legado não tem ator).
+// inventado: só campos devolvidos pela 5269. Autoria: a 5269 não devolve o
+// autor e, com EDITOR (V1-13), a ação pode não ter sido do titular — por isso
+// o titular não vê "Por" (só o legado diz que não houve registro de autor).
 // ---------------------------------------------------------------------------
 
 function nameOf(item: ActivityItem | undefined): string {
@@ -739,9 +749,31 @@ export function detailFields(event: ActivityEvent): DetailField[] {
   if (view.context && !(place && view.context.includes(place)) && !(event.collectionName && view.context === `Coleção ${event.collectionName}`)) {
     fields.push({ label: "Observação", value: view.context });
   }
-  fields.push({ label: "Por", value: event.legacy ? "Não registrado (anterior ao histórico)" : "Você" });
+  if (event.attribution !== undefined && event.category) {
+    const category = ACTIVITY_FILTERS.find((f) => f.key === event.category)?.label;
+    if (category) fields.push({ label: "Tipo", value: category });
+  }
+  // V1-13 · E3-5 (V1): a 5269 não diz quem executou — um EDITOR também grava no histórico do titular (C-204).
+  // Sem autor comprovado, o titular não vê "Por"; o participante vê o autor devolvido pela 5388.
+  if (event.attribution !== undefined) fields.push({ label: "Por", value: attributionLabel(event.attribution, event.legacy) });
+  else if (event.legacy) fields.push({ label: "Por", value: "Não registrado (anterior ao histórico)" });
   fields.push({ label: "Quando", value: compactDateTime(event.occurredAt) });
   return fields;
+}
+
+/**
+ * Quem executou, pela leitura de participante (C-241): o nome de exibição
+ * público; sem ele, só o papel; sem autor, nada é inferido.
+ */
+export function attributionLabel(attribution: ActivityAttribution, legacy: boolean): string {
+  if (attribution.role === null) return legacy ? "Não registrado (anterior ao histórico)" : "Não identificado";
+  return attribution.displayName ?? (attribution.role === "OWNER" ? "Titular" : "Participante");
+}
+
+/** Linha recolhida: "por Ana" / "por Titular". Sem autor (legado): nada. */
+export function attributionByline(event: ActivityEvent): string | null {
+  if (event.attribution === undefined || event.attribution.role === null) return null;
+  return `por ${attributionLabel(event.attribution, event.legacy)}`;
 }
 
 function capitalize(text: string): string {

@@ -35,6 +35,7 @@ import styles from "../colecoes/colecoes.module.css";
 import shareStyles from "./share.module.css";
 import { SharedAccessMenu } from "./leave-shared-collection";
 import { SharedBinderEntry } from "./shared-binder-entry";
+import { SharedCollectionActivityButton } from "./shared-collection-activity";
 import { SharedCollectionEditButton } from "./shared-collection-editor";
 import { editorCoverCodeApplies } from "@/lib/colecoes/editor-collection-metadata";
 
@@ -68,6 +69,7 @@ export function SharedCollectionView({
   binder = null,
   positions = null,
   editMetadata = false,
+  activity = false,
 }: {
   collection: SharedCollection;
   cards: { items: SharedCard[]; total: number } | null;
@@ -93,6 +95,13 @@ export function SharedCollectionView({
    * cada gravação é decidida no banco. Desligado = página de sempre.
    */
   editMetadata?: boolean;
+  /**
+   * V1-13 · E3-5: "Atividade" (histórico compartilhado, 5388) para EDITOR e
+   * VIEWER — configuração ligada e fichário visível, decidido no servidor da
+   * página. Não autoriza nada: a leitura é decidida no banco. Desligado =
+   * página de sempre.
+   */
+  activity?: boolean;
 }) {
   const progress = collection.progress && collection.progress.total > 0 ? collection.progress : null;
   const pages = cards ? Math.max(1, Math.ceil(cards.total / SHARED_PAGE_SIZE)) : 1;
@@ -132,6 +141,7 @@ export function SharedCollectionView({
                     codeApplies={editorCoverCodeApplies(collection)}
                   />
                 ) : null}
+                {activity && binder ? <SharedCollectionActivityButton collectionId={collection.collectionId} collectionName={collection.name} /> : null}
                 <SharedAccessMenu collectionId={collection.collectionId} collectionName={collection.name} ownerDisplayName={collection.ownerDisplayName} role={collection.role ?? "VIEWER"} />
               </>
             ) : (

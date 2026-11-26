@@ -110,6 +110,7 @@ export default async function ColecaoCompartilhadaPage({
       coverCode={cover.code}
       signedIn={Boolean(user)}
       editMetadata={canShowEditorCuration({ flagOn: editorCurationFlagOn(process.env), role: collection.role, archived: collection.archived })}
+      activity={editorCurationFlagOn(process.env)}
       binder={
         collection.access === "VIEWER" && binder?.hasBinder
           ? { columns: binder.columns, rows: binder.rows, pageCount: binder.pageCount, ownFilled: binder.ownFilled, identity: binder.identity }
