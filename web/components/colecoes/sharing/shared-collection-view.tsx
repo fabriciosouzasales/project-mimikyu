@@ -36,6 +36,7 @@ import shareStyles from "./share.module.css";
 import { SharedAccessMenu } from "./leave-shared-collection";
 import { SharedBinderEntry } from "./shared-binder-entry";
 import { SharedCollectionActivityButton } from "./shared-collection-activity";
+import { type SharedModality, SharedModalityGallery, sharedModalityHero } from "./shared-modality-gallery";
 import { SharedCollectionEditButton } from "./shared-collection-editor";
 import { editorCoverCodeApplies } from "@/lib/colecoes/editor-collection-metadata";
 
@@ -70,6 +71,7 @@ export function SharedCollectionView({
   positions = null,
   editMetadata = false,
   activity = false,
+  modality = null,
 }: {
   collection: SharedCollection;
   cards: { items: SharedCard[]; total: number } | null;
@@ -102,15 +104,23 @@ export function SharedCollectionView({
    * página de sempre.
    */
   activity?: boolean;
+  /**
+   * V1-13 · E3-6: grade do Master Set (5323) ou da Pokédex (5324) do
+   * participante — configuração ligada e leitura que respondeu, decidido no
+   * servidor da página. `null` = galeria de cartas de sempre (5313).
+   */
+  modality?: SharedModality | null;
 }) {
   const progress = collection.progress && collection.progress.total > 0 ? collection.progress : null;
   const pages = cards ? Math.max(1, Math.ceil(cards.total / SHARED_PAGE_SIZE)) : 1;
   const viewer = collection.access === "VIEWER";
   const finish = resolveFinish(collection.collectionId, collection.coverFinish);
   const complete = Boolean(progress?.complete);
-  const hero = positions
-    ? pickHeroCards(positions.hero.map(positionHeroSource), 5, collection.cardSetCode)
-    : pickHeroCards((cards?.items ?? []).map(heroSource), 5, collection.cardSetCode);
+  const hero = modality
+    ? pickHeroCards(sharedModalityHero(modality), 5, collection.cardSetCode)
+    : positions
+      ? pickHeroCards(positions.hero.map(positionHeroSource), 5, collection.cardSetCode)
+      : pickHeroCards((cards?.items ?? []).map(heroSource), 5, collection.cardSetCode);
   const setCode = collection.cardSetCode;
 
   return (
@@ -247,7 +257,9 @@ export function SharedCollectionView({
         </div>
       </header>
 
-      {positions ? (
+      {modality ? (
+        <SharedModalityGallery collection={collection} modality={modality} />
+      ) : positions ? (
         <PositionsGallery collection={collection} positions={positions} />
       ) : (
       <section className={heroStyles.gallery} aria-labelledby="compartilhada-cartas">

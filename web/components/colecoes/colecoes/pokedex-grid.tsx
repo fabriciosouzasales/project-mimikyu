@@ -66,6 +66,8 @@ export function PokedexGrid({
   prices = null,
   priceStatus = null,
   priceNow = 0,
+  loadMoreAction = loadMorePokedexPositions,
+  showQuantities = true,
 }: {
   collectionId: string;
   filter: PokedexFilter;
@@ -82,6 +84,12 @@ export function PokedexGrid({
   /** Estado da leitura de preços da página do servidor (CORRECTION-01). */
   priceStatus?: VariantPricesStatus | null;
   priceNow?: number;
+  /** V1-13 · E3-6: "Mostrar mais" de outra leitura (participante, 5324). Padrão: a do titular (5204). */
+  loadMoreAction?: (input: { collectionId: string; filter: PokedexFilter; generation: string | null; offset: number }) => Promise<
+    { ok: true; page: { items: PokedexPosition[]; total: number }; prices?: PositionPrices | null; priceStatus?: VariantPricesStatus | null } | { ok: false; reason: string }
+  >;
+  /** V1-13 · E3-6: `false` = sem "×N" e sem quantidade no rótulo (participante). */
+  showQuantities?: boolean;
 }) {
   const [items, setItems] = useState(initial);
   const [priceMap, setPriceMap] = useState<PositionPrices>(prices ?? {});
@@ -213,7 +221,7 @@ export function PokedexGrid({
     if (offset === null || pending) return;
     setError(false);
     startTransition(async () => {
-      const result = await loadMorePokedexPositions({ collectionId, filter, generation, offset }).catch(
+      const result = await loadMoreAction({ collectionId, filter, generation, offset }).catch(
         () => ({ ok: false, reason: "unavailable" }) as const,
       );
       if (!result.ok) {
@@ -226,7 +234,7 @@ export function PokedexGrid({
       setItems(merged);
       if (result.prices) setPriceMap((current) => ({ ...current, ...result.prices }));
       // Falha nas páginas novas não apaga as etiquetas já lidas: o aviso passa a valer para o conjunto.
-      setPriceIssue((current) => combinePriceIssue(current, result.priceStatus));
+      setPriceIssue((current) => (result.priceStatus ? combinePriceIssue(current, result.priceStatus) : current));
       // O total pode ter mudado entre as leituras (outra aba): vale o mais recente.
       setCount(result.page.total || merged.length);
       setAnnounce(added > 0 ? `${formatCount(added)} Pokémon a mais carregados.` : "Não há mais Pokémon para mostrar.");
@@ -252,6 +260,7 @@ export function PokedexGrid({
               celebrating={celebrating.has(position.positionId)}
               price={priceMap[position.positionId.toLowerCase()] ?? null}
               priceNow={priceNow}
+              showQuantities={showQuantities}
             />
           </li>
         ))}
@@ -299,6 +308,7 @@ function PokedexTile({
   celebrating = false,
   price = null,
   priceNow = 0,
+  showQuantities = true,
 }: {
   position: PokedexPosition;
   priority: boolean;
@@ -309,9 +319,10 @@ function PokedexTile({
   /** Preço da variante do exemplar representante (a carta exibida). */
   price?: PositionPrice | null;
   priceNow?: number;
+  showQuantities?: boolean;
 }) {
   const dex = `#${formatDex(position.number)}`;
-  const description = stateDescription(position);
+  const description = showQuantities ? stateDescription(position) : position.isSatisfied ? "capturado" : "falta na coleção";
   const representative = position.representative;
   const cardUrl = representative ? cardFrontUrl(SUPABASE_URL, representative.imagePath) : null;
   const artUrl = speciesArtworkUrl(position.artworkPath);
@@ -380,7 +391,7 @@ function PokedexTile({
         ) : null}
         {/* Momento de captura: esfera MMKYU (substitui o selo com troféu). */}
         {celebrating ? <CaptureBurst /> : null}
-        {position.copiesInCollection > 1 ? (
+        {showQuantities && position.copiesInCollection > 1 ? (
           <span className={`${acervoStyles.qty} ${styles.qtyFooter}`} aria-hidden="true">
             ×{formatCount(position.copiesInCollection)}
           </span>

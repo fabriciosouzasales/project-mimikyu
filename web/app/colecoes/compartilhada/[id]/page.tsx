@@ -17,6 +17,9 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { getCachedUser } from "@/lib/supabase/request-auth-cache";
 import { canShowEditorCuration, editorCurationFlagOn } from "@/lib/colecoes/editor-binder";
+import type { SharedModality } from "@/components/colecoes/sharing/shared-modality-gallery";
+import { SHARED_MASTER_SET_PAGE_SIZE, sharedModalityRead } from "@/lib/colecoes/shared-modalities";
+import { getSharedMasterSetPositions, getSharedPokedexPositions } from "@/lib/colecoes/shared-modalities-queries";
 
 export const metadata: Metadata = { title: "Coleção compartilhada", robots: { index: false, follow: false } };
 
@@ -90,7 +93,19 @@ export default async function ColecaoCompartilhadaPage({
               : [],
       }
     : null;
-  const cards = setGrid ? null : await getSharedCollectionCards(supabase, collectionId, page);
+  // V1-13 · E3-6: Master Set (5323) e Pokédex (5324) do participante, só com a configuração D-E3-1.
+  // Zero linhas sem prova de vazio (progresso da 5312) = leitura indisponível (barreira, papel) → galeria de sempre.
+  const flagOn = editorCurationFlagOn(process.env);
+  let modality: SharedModality | null = null;
+  if (flagOn && !setGrid && collection.completionPolicy === "MASTER_SET") {
+    const data = await getSharedMasterSetPositions(supabase, collectionId, filter, page);
+    const offset = (page - 1) * SHARED_MASTER_SET_PAGE_SIZE;
+    if (data === null || sharedModalityRead(data.items.length, filter, offset, collection.progress) === "ok") modality = { kind: "MASTER_SET", filter, page, data };
+  } else if (flagOn && !setGrid && collection.completionPolicy === "REFERENCE_POSITION") {
+    const data = await getSharedPokedexPositions(supabase, collectionId, filter, 0);
+    if (data === null || sharedModalityRead(data.items.length, filter, 0, collection.progress) === "ok") modality = { kind: "POKEDEX", filter, data };
+  }
+  const cards = setGrid || modality ? null : await getSharedCollectionCards(supabase, collectionId, page);
 
   const logoPath = collection.cardSetLogoPath;
   // Capa enviada pela titular (5328/5329) prevalece sobre o logo do Set, como na página dela.
@@ -110,7 +125,8 @@ export default async function ColecaoCompartilhadaPage({
       coverCode={cover.code}
       signedIn={Boolean(user)}
       editMetadata={canShowEditorCuration({ flagOn: editorCurationFlagOn(process.env), role: collection.role, archived: collection.archived })}
-      activity={editorCurationFlagOn(process.env)}
+      activity={flagOn}
+      modality={modality}
       binder={
         collection.access === "VIEWER" && binder?.hasBinder
           ? { columns: binder.columns, rows: binder.rows, pageCount: binder.pageCount, ownFilled: binder.ownFilled, identity: binder.identity }

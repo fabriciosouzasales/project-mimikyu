@@ -58,6 +58,8 @@ export function MasterSetGallery({
   priceNow = 0,
   wishedPositions = null,
   favoriteCards = null,
+  hrefFor = null,
+  showQuantities = true,
 }: {
   collectionId: string;
   collectionName: string;
@@ -75,16 +77,24 @@ export function MasterSetGallery({
   wishedPositions?: ReadonlySet<string> | null;
   /** V1-10 (extensão): cartas favoritas entre as exibidas — o Favorito é da CARTA, igual em qualquer acabamento (C-82). */
   favoriteCards?: ReadonlySet<string> | null;
+  /**
+   * V1-13 · E3-6: links da grade (abas, páginas, "tentar de novo") de outra
+   * rota — a coleção compartilhada. `null` = rota do titular, como sempre.
+   */
+  hrefFor?: ((filter: PositionFilter, page: number) => string) | null;
+  /** V1-13 · E3-6: `false` = sem "×N" (participante não vê quantidades de exemplares). */
+  showQuantities?: boolean;
 }) {
   const pages = positions ? masterSetTotalPages(positions.total) : 1;
-  const retryHref = pageHref(collectionId, filter, page);
+  const href = hrefFor ?? ((f: PositionFilter, p: number) => pageHref(collectionId, f, p));
+  const retryHref = href(filter, page);
 
   return (
     <>
       {positions === null ? (
         <ReadError retryHref={retryHref} />
       ) : positions.items.length === 0 ? (
-        <MasterEmpty filter={filter} collectionName={collectionName} collectionId={collectionId} />
+        <MasterEmpty filter={filter} collectionName={collectionName} href={href} />
       ) : (
         <>
           <CardZoomProvider>
@@ -103,6 +113,7 @@ export function MasterSetGallery({
                       priceNow={priceNow}
                       wished={positionWished(position, wishedPositions)}
                       favorite={favoriteCards ? favoriteCards.has(position.cardId.toLowerCase()) : undefined}
+                      showQuantities={showQuantities}
                     />
                   </li>
                 ))}
@@ -110,7 +121,7 @@ export function MasterSetGallery({
             </WishGrid>
             </FavoriteGrid>
           </CardZoomProvider>
-          {pages > 1 ? <Pager collectionId={collectionId} filter={filter} page={page} pages={pages} /> : null}
+          {pages > 1 ? <Pager href={href} filter={filter} page={page} pages={pages} /> : null}
         </>
       )}
       {outOfScopeCount !== null && outOfScopeCount > 0 ? (
@@ -146,6 +157,7 @@ function MasterTile({
   priceNow,
   wished,
   favorite,
+  showQuantities,
 }: {
   collectionId: string;
   position: MasterSetPosition;
@@ -159,6 +171,7 @@ function MasterTile({
   wished?: boolean;
   /** V1-10 (extensão): estado do Favorito da carta; `undefined` = sem coração. */
   favorite?: boolean;
+  showQuantities: boolean;
 }) {
   const number = formatCollectorNumber(position.collectorNumber, position.collectorTotal);
   const caption = setCode ? `${setCode.toUpperCase()} · ${number}` : number;
@@ -223,7 +236,7 @@ function MasterTile({
             glyphClassName={acervoStyles.priceTagGlyph}
           />
         ) : null}
-        {position.copiesInCollection > 1 ? (
+        {showQuantities && position.copiesInCollection > 1 ? (
           <span className={favorite === undefined ? acervoStyles.qty : `${acervoStyles.qty} ${styles.qtyBelowFavorite}`} aria-hidden="true">
             ×{formatCount(position.copiesInCollection)}
           </span>
@@ -281,13 +294,13 @@ function pageHref(collectionId: string, filter: PositionFilter, page: number): s
   return `${base}${base.includes("?") ? "&" : "?"}pagina=${page}`;
 }
 
-function Pager({ collectionId, filter, page, pages }: { collectionId: string; filter: PositionFilter; page: number; pages: number }) {
+function Pager({ href, filter, page, pages }: { href: (filter: PositionFilter, page: number) => string; filter: PositionFilter; page: number; pages: number }) {
   const current = Math.min(page, pages);
   return (
     <nav className={acervoStyles.pagination} aria-label="Páginas do Master Set">
       {current > 1 ? (
         <Button asChild variant="outline" className="h-11 min-w-11">
-          <Link href={pageHref(collectionId, filter, current - 1)} scroll={false}>
+          <Link href={href(filter, current - 1)} scroll={false}>
             Anterior
           </Link>
         </Button>
@@ -297,7 +310,7 @@ function Pager({ collectionId, filter, page, pages }: { collectionId: string; fi
       </span>
       {current < pages ? (
         <Button asChild variant="outline" className="h-11 min-w-11">
-          <Link href={pageHref(collectionId, filter, current + 1)} scroll={false}>
+          <Link href={href(filter, current + 1)} scroll={false}>
             Próxima
           </Link>
         </Button>
@@ -306,7 +319,7 @@ function Pager({ collectionId, filter, page, pages }: { collectionId: string; fi
   );
 }
 
-function MasterEmpty({ filter, collectionName, collectionId }: { filter: PositionFilter; collectionName: string; collectionId: string }) {
+function MasterEmpty({ filter, collectionName, href }: { filter: PositionFilter; collectionName: string; href: (filter: PositionFilter, page: number) => string }) {
   if (filter === "faltam") {
     return (
       <section className={acervoStyles.state} aria-labelledby="master-completo">
@@ -332,7 +345,7 @@ function MasterEmpty({ filter, collectionName, collectionId }: { filter: Positio
           As cartas que entrarem nesta coleção no acabamento certo aparecem aqui. Veja em “Faltam” o que ainda precisa.
         </p>
         <Button asChild variant="outline" className={acervoStyles.stateAction}>
-          <Link href={collectionHref(collectionId, "faltam")}>Ver o que falta</Link>
+          <Link href={href("faltam", 1)}>Ver o que falta</Link>
         </Button>
       </section>
     );
@@ -344,7 +357,7 @@ function MasterEmpty({ filter, collectionName, collectionId }: { filter: Positio
       </h2>
       <p className={acervoStyles.stateText}>O objetivo pode ter mudado. Volte ao início da coleção.</p>
       <Button asChild variant="outline" className={acervoStyles.stateAction}>
-        <Link href={collectionHref(collectionId)}>Ver a coleção</Link>
+        <Link href={href("todas", 1)}>Ver a coleção</Link>
       </Button>
     </section>
   );
