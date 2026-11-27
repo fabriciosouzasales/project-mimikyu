@@ -1,0 +1,4 @@
+# V1-13 · S4-b / 5395 — manifesto do executor por arquivo (STD-005 §3, v1.4). passo|arquivo|sha256|modo
+1|database\proposals\2026-11-27-v1-13-e3-6-s4-collaborative-audit\S4B_5395_PRE_readonly.sql|77a3c81422f95ee996eaad399f4f848e10c31c3ae9376135138b1dcece1563c9|gate
+2|database\proposals\2026-11-27-v1-13-e3-6-s4-collaborative-audit\5395_instrument_owner_pokedex_audit_and_activity_read.sql|20f26b5af828710bed0fa69b3e36dcfd16281aedf904c06cd17faee5bc9771ef|write
+3|database\proposals\2026-11-27-v1-13-e3-6-s4-collaborative-audit\S4B_5395_POST_readonly.sql|4c78ba22c74846c8ffdfc02b4dd22b0e3f5e87351f39257da38cd4817b987a35|gate

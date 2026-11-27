@@ -303,3 +303,111 @@ PRE, migration e POST com PASS. Os `escritores_md5` são iguais no PRE e no POST
 - captura em TEST/OPEN, duplicidade e desempenho não medidos (§9.7);
 - operações do titular registradas só como evento agregado até a 5395;
 - primitivas prontas para a 5392 (§9.4).
+
+## 10. S4-b / 5395 — EXECUTADA NO LIVE / CANÔNICA (v1.1, 2026-11-27 14:32:43Z; preparada em `S2/5392 PASS-LIVE CLOSEOUT + S4-b/5395 PREPARATION-01`)
+
+### 10.1 Escopo e desvios da especificação (para a auditoria)
+
+- **Dentro:** eventos explícitos das 4 operações do titular na Pokédex (6123 atribuir/mover, 6124 retirar, 6126 escolher/substituir representante, 6125 voltar à automática) e a leitura `get_collection_activity` (O2 para a Pokédex).
+- **Fora — decisão pedida (D-5395-1):** as referências de espécie (§2.2: 5258/5383, `binder_activity_event`, `chk_bae_event_type`, categoria `SPECIES`, gatilho 5384, leituras 5269/5388) passam para a **5396**. É outro fluxo (o do fichário), com outro conjunto de funções e de leituras. Juntá-lo à 5395 dobraria a superfície de um pacote que já reescreve 4 funções do titular. Até a 5396, essas operações seguem sem evento (como hoje) e não passam pela barreira. A S4 só fecha com a 5396.
+- **Desvio de §5 (D-5395-2):** a instrumentação do titular só age quando `v1_13_capability_open()` é verdadeiro, a mesma condição da captura derivada da 5394.
+  - Com a barreira CLOSED, o caminho é exatamente o de hoje: nenhuma marcação, nenhum evento.
+  - Em TEST, um titular sem identidade registrada não gera evento, nem explícito nem derivado.
+  - Sem sessão (`auth.uid()` nulo), as funções do titular já recusam a chamada.
+- **6122:** a versão vigente de `set_pokedex_position_assignment` é a 6123. Só ela é reescrita.
+
+### 10.2 Contrato
+
+| Função (md5 canônico → instrumentado) | Marcação | Evento (um por operação efetiva) | Sem evento |
+|---|---|---|---|
+| `set_pokedex_position_assignment` 8c572182… → ce63a458… | antes do DELETE/INSERT; lê se havia representante | `POKEDEX_POSITION_ASSIGNED` ou `_MOVED` (`representative_cleared`) | no-op (mesma posição) e recusas: retornam ou abortam antes de qualquer bloco |
+| `remove_pokedex_position_assignment` 26ef2d5d… → 2502eb25… | antes do DELETE; lê origem e representante | `POKEDEX_POSITION_REMOVED` | inexistente (aborta) |
+| `set_pokedex_position_primary_representative` 6353dffe… → 1bbf1a6a… | antes do upsert, só com mudança; anterior `FOR UPDATE` | `POKEDEX_REPRESENTATIVE_SET` ou `_REPLACED` | mesma carta: sai antes de marcar e de escrever (v1.1, §10.5) |
+| `clear_pokedex_position_primary_representative` eeede3a5… → 2bf25d3d… | antes do DELETE; anterior `FOR UPDATE` | `POKEDEX_REPRESENTATIVE_RESTORED` | inexistente (aborta) |
+
+- **Sem duplicidade:** a marcação suprime a captura derivada da mesma coleção, inclusive a retirada da representante em cascata no mover. `record` consome a marcação.
+- **Autor e papel:** derivados no servidor por `record` (5394): `auth.uid()`, OWNER/EDITOR.
+- **Ordem:** a mesma trava de coleção (`FOR UPDATE`) que já serializa o titular. O instante vem do servidor (`occurred_at`).
+- **Garantias de texto:**
+  - assinatura, retorno, `SECURITY DEFINER`, `search_path=''`, ACL e corpo são idênticos aos implantados fora dos blocos `[5395+]…[5395-]` (prova textual C2);
+  - a migration é gerada por `build_5395.py` a partir de `database/schema`.
+- **`get_collection_activity(p_collection_id, p_before_id, p_limit)`:**
+  - corpo: barreira (`v1_13_assert_capability`) → página 1–100 (`INVALID_PAGE`) → `collection_share_role` (titular, ou participante **ACTIVE**, com EDITOR lido como VIEWER). Removido, pendente ou recusado → zero linhas;
+  - paginação: keyset `(occurred_at, id)` restrito à mesma coleção;
+  - colunas: `event_id, occurred_at, event_type, origin, actor_role, actor_display_name, summary`. O nome vem de `user_profile` na leitura (C-241);
+  - sem exemplar, alocação, local, condição, valores ou ids de usuário;
+  - privilégios: `STABLE`, definer, só `authenticated` (revogada de PUBLIC, anon e service_role).
+- **Compatível com a 5392:** não altera nenhum objeto dela. O inventário de escritores fica igual (7 + 6 assinaturas, confirmado no POST da 5392).
+
+### 10.3 Artefatos (sha256)
+
+| Arquivo | sha256 |
+|---|---|
+| `5395_instrument_owner_pokedex_audit_and_activity_read.sql` | `20f26b5af828710bed0fa69b3e36dcfd16281aedf904c06cd17faee5bc9771ef` |
+| `ROLLBACK_5395.sql` | `742de4cda3eb324aa5404610c51c48e6e26f6a2b846c0f9981965adc443bdf91` |
+| `S4B_5395_PRE_readonly.sql` (gate) | `77a3c81422f95ee996eaad399f4f848e10c31c3ae9376135138b1dcece1563c9` |
+| `S4B_5395_POST_readonly.sql` (gate) | `4c78ba22c74846c8ffdfc02b4dd22b0e3f5e87351f39257da38cd4817b987a35` |
+| `S4B_5395_EXPECTATIVAS.json` | `bb3a9fff596fa01b22cb03e71957e6883c27b60c8dc021ea938de6bed0391f21` |
+| `S4B_5395_MANIFEST.txt` | `53ef47bedb9f498e4319ef6b6d5b390d31658824087e1d7adb55a94a18fe7b00` |
+| `EMERGENCY_STOP_V1_13_ADD_S4.sql` (E2c) | `7d94715f9767c5c6882feb2529156a4b05e8adbfc43d61ffca23e39cb19ee862` |
+| `build_5395.py` · `static_check_5395.py` | gerador · verificação estática (26/26, 37/37 mutações) |
+
+- **Rollback:** exige o texto da 5395, restaura o canônico exato das 4 funções e remove a leitura. Não toca a ACL e não apaga eventos.
+- **Emergência E2c:** revoga só a leitura. As funções do titular ficam inertes com o E1 (CLOSED), sem revogação.
+
+### 10.4 Riscos residuais
+
+- Comportamento não provado. Nada foi executado: compilação no LIVE, eventos em TEST/OPEN e desempenho ficam para o TEST autorizado e para a E4.
+- ~~Marcação não consumida (representante sem mudança)~~: defeito confirmado e corrigido na v1.1 (§10.5).
+- Em TEST, as operações de um titular sem identidade registrada não são auditadas (D-5395-2).
+- Referências de espécie sem evento até a 5396 (D-5395-1).
+- O md5 de `collection_share_role` vem do repositório e de gates anteriores executados. O PRE o confere antes da escrita.
+
+### 10.5 Revisão da marcação transacional (2026-11-27, `S4-b/5395 TRANSACTIONAL AUDIT MARKER REVIEW-01`) — 5395 v1.1
+
+**Ciclo de vida da marcação (5394).**
+- **Criação:** `open(C)` grava `mmkyu.collection_activity_explicit = C` com `set_config(…, true)`, local à **transação**.
+  - A cláusula `SET search_path` das funções restringe à função só a própria variável; a marcação sobrevive ao retorno de `open`.
+- **Consumo:** só `record`, que grava `''` depois do INSERT do evento. Não há primitiva de fechamento.
+- **Desfazimento:** erro na transação, ou na subtransação de um tratador EXCEPTION do chamador. As mudanças de GUC voltam junto (comportamento do PostgreSQL, não provado aqui por execução).
+- **Efeitos de uma marcação residual C:**
+  - os gatilhos derivados ignoram as escritas de C até o fim da transação;
+  - `open(C')` para outra coleção recusa com `COLLECTION_ACTIVITY_NESTED`;
+  - `open(C)` é aceito.
+
+**Cenário.** A RPC não garante transação exclusiva: o pg_graphql presente no LIVE executa várias mutações de uma requisição numa mesma transação.
+
+**Achado (defeito demonstrado no texto, v1.0).** No 6126 com a mesma carta, a v1.0 marcava sem registrar. Numa transação com mais operações, a marcação residual causava:
+- **supressão** dos eventos derivados legítimos da mesma coleção (desalocação, atribuição automática);
+- **recusa indevida** de uma operação auditada em outra coleção.
+
+Não havia duplicidade, autoria errada nem alteração de ordem.
+
+**Funções revisadas:**
+- **6125** sem alteração: sem representante → `NOT_FOUND` aborta.
+- **6124** sempre efetiva, ou `NOT_FOUND` aborta.
+- **6123:** no-op e recusas saem antes do bloco; o INSERT sem `ON CONFLICT` é sempre efetivo.
+- **5392:** `UNCHANGED` sai antes de `open` (static check 5392).
+
+**Correção mínima (só 6126, sem tocar a 5394).** Sob auditoria, com a anterior já travada, a mesma carta faz a função **sair antes de marcar e de escrever**. Ela devolve a mesma linha do upsert canônico, como o `UNCHANGED` da 5392.
+
+**Desvio do canônico (para a auditoria).** Só nesse caso, e só com a capacidade aberta, não há o UPDATE idempotente. Por isso não roda o gatilho `trg_020` (`updated_at` não muda) nem a revalidação `trg_010` de um estado já válido e travado.
+- Nenhuma leitura do repositório usa o `updated_at` da representante.
+- Com a barreira CLOSED, o caminho continua idêntico ao canônico.
+
+**Provas estáticas novas:**
+- **T1:** entre `open` e `record` não há RETURN, EXIT nem tratador EXCEPTION.
+- **T2:** toda marcação precede uma escrita efetiva ou um erro.
+- **T3:** a saída no-op devolve a linha canônica.
+- **Mutações:** 8 novas, incluindo a reintrodução do defeito.
+- **Pendente de execução (TEST/E4):** persistência e desfazimento da GUC, e o comportamento real em transações com várias chamadas.
+
+**Arquivos regenerados:** migration, rollback (precheck com o md5 novo), POST (md5 do 6126), manifesto, static check. PRE e expectativas inalterados.
+
+### 10.6 Implantação confirmada (2026-11-27 14:32:43Z)
+
+- **Execução:** executor v1.4 com o manifesto `53ef47be…7b00` e as expectativas `bb3a9fff…1f21`. PRE, migration (exit 0) e POST com PASS.
+- **Evidências:** `S4B_5395_DEPLOY_EVIDENCE_2026-11-27.md`.
+- **Cópia canônica:** `database/schema/5395_instrument_owner_pokedex_audit_and_activity_read.sql`. O corpo é idêntico; só o bloco Status difere.
+- **Não executados:** rollback e emergência E2c.
+- **Provas funcionais pendentes:** TEST/E4.
