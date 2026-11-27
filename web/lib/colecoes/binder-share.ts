@@ -117,6 +117,10 @@ export type AvailableOriginKind = "THIS" | "OTHER_COLLECTION" | "NO_COLLECTION";
 export type AvailableCard = {
   /** Alocação vigente; `null` = exemplar sem coleção (elegível pelo local físico). */
   allocationId: string | null;
+  /**
+   * Identidade do exemplar NA LISTA (chave de seleção, arrastar e desfazer). Titular: UUID físico
+   * (próprio acervo). EDITOR (V1-13 · 5397): token opaco `pc1.…` da participação e época — nunca o UUID.
+   */
   physicalCardId: string;
   cardId: string;
   variantTypeId: string | null;

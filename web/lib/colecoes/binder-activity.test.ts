@@ -119,7 +119,7 @@ test("vocabulário: 29 tipos, todos com categoria e frase própria (sem genéric
 test("categorias espelham a 5269 e os filtros seguem a §3.3", () => {
   assert.deepEqual(
     ACTIVITY_FILTERS.map((f) => f.label),
-    ["Todas", "Cartas", "Reservas", "Fixação", "Páginas", "Catálogo", "Fichário"],
+    ["Todas", "Cartas", "Reservas", "Fixação", "Páginas", "Catálogo", "Fichário", "Pokémon nos bolsos"],
   );
   assert.equal(filterCategories("ALL"), null);
   assert.deepEqual(filterCategories("LOCKS"), ["LOCKS"]);
@@ -377,7 +377,8 @@ test("regressão: eventos anteriores mantêm frases e categorias depois do tipo 
 test("referências de espécie (5396): categoria SPECIES, rótulos e só números gravados", () => {
   assert.ok((ACTIVITY_CATEGORIES as readonly string[]).includes("SPECIES"));
   assert.deepEqual(filterCategories("SPECIES"), ["SPECIES"]);
-  assert.equal(ACTIVITY_FILTERS.some((f) => (f.key as string) === "SPECIES"), false); // botão: F3/E3-7
+  assert.equal(ACTIVITY_FILTERS.find((f) => f.key === "SPECIES")?.label, "Pokémon nos bolsos"); // D-5396-2 (F3-4)
+  assert.equal(emptyMessage("SPECIES"), "Nenhuma atividade em Pokémon nos bolsos. Escolha “Todas” para ver o histórico completo.");
   for (const type of ["SPECIES_REFERENCES_APPLIED", "SPECIES_REFERENCES_CLEARED", "SPECIES_REFERENCES_SHOWN", "SPECIES_REFERENCES_HIDDEN"]) {
     assert.equal(categoryOf(type), "SPECIES");
   }

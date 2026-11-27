@@ -829,8 +829,9 @@
   margin-top: 0.25rem;
 }
 
+/* E3-7a: alvo de toque de 44 px (antes 36 px), igual ao painel colaborativo do EDITOR. */
 .copyAction {
-  min-height: 2.25rem;
+  min-height: 2.75rem;
   padding: 0;
   border: 0;
   background: none;
@@ -899,6 +900,11 @@
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 0.5rem;
+}
+
+/* E3-7a: botões das confirmações com 44 px (o tamanho "sm" fixa 36 px de altura). */
+.confirmActions > button {
+  min-height: 2.75rem;
 }
 
 /* UX-01: confirmação da exceção — contornada no tom de atenção do próprio

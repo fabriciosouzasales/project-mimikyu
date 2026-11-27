@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { Check, Loader2, Plus } from "lucide-react";
 import { CaptureBurst } from "./capture-burst";
 import { loadMorePokedexPositions } from "@/app/colecoes/colecoes/actions";
@@ -68,6 +68,7 @@ export function PokedexGrid({
   priceNow = 0,
   loadMoreAction = loadMorePokedexPositions,
   showQuantities = true,
+  renderPanel = null,
 }: {
   collectionId: string;
   filter: PokedexFilter;
@@ -90,6 +91,11 @@ export function PokedexGrid({
   >;
   /** V1-13 · E3-6: `false` = sem "×N" e sem quantidade no rótulo (participante). */
   showQuantities?: boolean;
+  /**
+   * V1-13 · E3 / F3-2: painel alternativo da posição (EDITOR na Pokédex compartilhada). Com ele,
+   * tocar um Pokémon abre ESTE painel, nunca o do titular (`linkable` continua desligado).
+   */
+  renderPanel?: ((position: PokedexPosition, onClose: () => void) => ReactNode) | null;
 }) {
   const [items, setItems] = useState(initial);
   const [priceMap, setPriceMap] = useState<PositionPrices>(prices ?? {});
@@ -256,7 +262,7 @@ export function PokedexGrid({
             <PokedexTile
               position={position}
               priority={index < PRIORITY_COUNT}
-              onOpen={linkable ? () => setOpenPosition(position) : null}
+              onOpen={linkable || renderPanel ? () => setOpenPosition(position) : null}
               celebrating={celebrating.has(position.positionId)}
               price={priceMap[position.positionId.toLowerCase()] ?? null}
               priceNow={priceNow}
@@ -282,7 +288,12 @@ export function PokedexGrid({
           </Button>
         </div>
       ) : null}
-      {openPosition ? (
+      {openPosition && renderPanel ? (
+        renderPanel(openPosition, () => {
+          setOpenPosition(null);
+          window.requestAnimationFrame(() => window.requestAnimationFrame(() => flushCelebration()));
+        })
+      ) : openPosition && linkable ? (
         <PokedexPositionPanel
           collectionId={collectionId}
           position={openPosition}

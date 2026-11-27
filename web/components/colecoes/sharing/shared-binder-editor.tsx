@@ -216,7 +216,7 @@ export function useSharedBinderEditor({
       setTarget(null);
       const previous = patch(patchPlace(slot, card));
       setAvailable((prev) => ({ ...prev, items: prev.items.filter((c) => c.physicalCardId !== card.physicalCardId), total: Math.max(0, prev.total - 1) }));
-      const outcome: EditorOutcome = await editorPlaceCard({ collectionId, position, physicalCardId: card.physicalCardId }).catch(() => ({ ok: false, reason: "unknown" }) as const);
+      const outcome: EditorOutcome = await editorPlaceCard({ collectionId, position, copyToken: card.physicalCardId }).catch(() => ({ ok: false, reason: "unknown" }) as const);
       learn(lockLessons({ kind: "place", position }, outcome));
       if (settle({ kind: "place", cardName: card.cardName, page: position.page }, outcome, previous)) placedHere.current.set(key(position), card.physicalCardId);
       void loadAvailable(0);
@@ -287,7 +287,7 @@ export function useSharedBinderEditor({
         const known = placedHere.current.get(key(position)) ?? null;
         placedHere.current.delete(key(position));
         const candidate = known && items?.some((c) => c.physicalCardId === known) ? known : (findUndoCandidate(items ?? [], removedSlot)?.physicalCardId ?? null);
-        if (candidate) undo = { position, physicalCardId: candidate, cardName: removedSlot.present?.cardName ?? "A carta" };
+        if (candidate) undo = { position, copyToken: candidate, cardName: removedSlot.present?.cardName ?? "A carta" };
       }
       learn(lockLessons({ kind: "remove", position }, outcome));
       settle({ kind: "remove" }, outcome, previous, undo ? { undo } : {});
@@ -303,12 +303,12 @@ export function useSharedBinderEditor({
       if (!active || busy) return;
       setBusy(true);
       setToast(null);
-      const outcome: EditorOutcome = await editorPlaceCard({ collectionId, position: undo.position, physicalCardId: undo.physicalCardId }).catch(
+      const outcome: EditorOutcome = await editorPlaceCard({ collectionId, position: undo.position, copyToken: undo.copyToken }).catch(
         () => ({ ok: false, reason: "unknown" }) as const,
       );
       // Falha no desfazer: a carta continua na coleção, fora do bolso; nada mais é tentado.
       learn(lockLessons({ kind: "undo", position: undo.position }, outcome));
-      if (settle({ kind: "undo", cardName: undo.cardName }, outcome, new Map())) placedHere.current.set(key(undo.position), undo.physicalCardId);
+      if (settle({ kind: "undo", cardName: undo.cardName }, outcome, new Map())) placedHere.current.set(key(undo.position), undo.copyToken);
       void loadAvailable(0);
       refresh([undo.position.page]);
       setBusy(false);

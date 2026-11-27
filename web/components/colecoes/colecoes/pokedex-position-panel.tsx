@@ -449,11 +449,11 @@ export function PokedexPositionPanel({
           </div>
 
           <div className={addStyles.footer}>
-            <Link href={`/pokedex/${position.number}`} className="text-sm font-semibold text-muted-foreground underline-offset-4 hover:underline" prefetch={false}>
+            <Link href={`/pokedex/${position.number}`} className="inline-flex min-h-11 items-center text-sm font-semibold text-muted-foreground underline-offset-4 hover:underline" prefetch={false}>
               Ver {position.speciesName} na Pokédex
             </Link>
             <div className={addStyles.footerActions}>
-              <Button variant="outline" onClick={onClose} disabled={busy}>
+              <Button variant="outline" className="min-h-11" onClick={onClose} disabled={busy}>
                 Fechar
               </Button>
             </div>
@@ -633,7 +633,7 @@ function CandidateList({
                     <Button
                       size="sm"
                       variant={candidate.speciesMatch ? "default" : "outline"}
-                      className="h-9 gap-1.5"
+                      className="h-11 gap-1.5"
                       onClick={() => onChoose(candidate)}
                       disabled={anyBusy}
                       aria-busy={busyHere}
@@ -652,7 +652,7 @@ function CandidateList({
       </ul>
       {state.items.length < state.total ? (
         <div className={styles.listMore}>
-          <Button variant="ghost" size="sm" onClick={onLoadMore} disabled={state.loadingMore || anyBusy} aria-busy={state.loadingMore}>
+          <Button variant="ghost" size="sm" className="min-h-11" onClick={onLoadMore} disabled={state.loadingMore || anyBusy} aria-busy={state.loadingMore}>
             {state.loadingMore ? "Carregando…" : `Mostrar mais (${formatCount(state.total - state.items.length)})`}
           </Button>
         </div>

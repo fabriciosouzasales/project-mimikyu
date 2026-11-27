@@ -1,0 +1,13 @@
+{
+  "escritores_bolso": [
+    "public.editor_apply_binder_auto_arrange(uuid,text)",
+    "public.editor_move_binder_card(uuid,integer,integer,integer,integer,integer,integer)",
+    "public.editor_place_card_in_binder(uuid,integer,integer,integer,uuid)",
+    "public.editor_remove_binder_card(uuid,integer,integer,integer)"
+  ],
+  "escritores_exposicao_fisica": [
+    "public.editor_place_card_in_binder(uuid,integer,integer,integer,uuid)",
+    "public.editor_preview_binder_auto_arrange(uuid)",
+    "public.get_shared_binder_placeable_cards(uuid,integer,integer)"
+  ]
+}

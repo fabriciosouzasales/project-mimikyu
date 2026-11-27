@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Índice |
 | **Arquivo** | `docs/INDEX.md` |
-| **Versão** | 3.59 |
+| **Versão** | 3.60 |
 | **Status** | Aprovado |
 | **Objetivo** | Catálogo único de tudo que existe na documentação do projeto — um resumo de uma linha por documento, para orientar uma sessão nova sem precisar ler cada arquivo. |
 | **Manutenção** | Atualizar sempre que um documento for criado, removido ou tiver título/resumo alterado de forma relevante (mesma disciplina de `adr/ADR-INDEX.md`/`standards/STD-INDEX.md`). |
@@ -145,6 +145,7 @@ Catálogo completo com status em [`standards/STD-INDEX.md`](standards/STD-INDEX.
 | Documento | Resumo |
 |---|---|
 | [`operations/import-card-assets.md`](operations/import-card-assets.md) | Guia operacional passo a passo da importação manual de imagens de carta. |
+| [`operations/v1-13-e4-homologation.md`](operations/v1-13-e4-homologation.md) | Matriz da E4 da V1-13: titular, EDITOR e VIEWER, convites, fichário, Pokédex, tokens, privacidade, concorrência, histórico, mobile e regressões (obrigatório × não bloqueante). Preparada, não executada. |
 | [`operations/master-set-homologation.md`](operations/master-set-homologation.md) | Roteiro de homologação do Master Set (ligar só na máquina local, coleção de homologação, H1–H14, foto antes/depois, restauração). |
 
 ## History
@@ -192,6 +193,7 @@ Catálogo completo com status em [`standards/STD-INDEX.md`](standards/STD-INDEX.
 | [`../database/proposals/2026-11-27-v1-13-e3-6-s1-cover-image-permissions/README.md`](../database/proposals/2026-11-27-v1-13-e3-6-s1-cover-image-permissions/README.md) | V1-13 · E3-6 / S1 — correção das permissões de imagem da capa (5390, D-E3-6): capacidades indevidas do EDITOR (5376/5377), dependências (script de emergência), alternativa recomendada, matriz e validação; migration 5390, ROLLBACK_S1, checks PRE/POST e static check; **5390 EXECUTADA NO LIVE / CANÔNICA (2026-11-27)**, com evidências da implantação. |
 | [`../database/proposals/2026-11-27-v1-13-e3-6-s2-pokedex-collaborative-editing/README.md`](../database/proposals/2026-11-27-v1-13-e3-6-s2-pokedex-collaborative-editing/README.md) | V1-13 · E3-6 / S2 — edição colaborativa da Pokédex: decisões D1–D4 aprovadas; 5391 (época do papel, segredo, identificador opaco, leitura do EDITOR) PREPARADA, não executada, com rollback, PRE/POST, manifesto e static check; contrato da 5392; diagnóstico 5373/5374. |
 | [`../database/proposals/2026-11-27-v1-13-e3-6-s4-collaborative-audit/README.md`](../database/proposals/2026-11-27-v1-13-e3-6-s4-collaborative-audit/README.md) | V1-13 · E3-6 / S4 — auditoria colaborativa (D-E3-8): dois fluxos (coleção para a Pokédex; fichário para as referências de espécie), catálogo de eventos, primitiva de registro, efeitos indiretos de alocação, integrações e ordem 5391 → 5394 → 5392 → 5395. ESPECIFICAÇÃO, sem SQL. |
+| [`../database/proposals/2026-11-27-v1-13-e3-7b-binder-opaque-identity/README.md`](../database/proposals/2026-11-27-v1-13-e3-7b-binder-opaque-identity/README.md) | V1-13 · E3-7b — `5397`: identidade opaca no fichário compartilhado do EDITOR (P0), RPCs novas por token, prévia 5386 sem id físico, 5373/5374 revogadas; PRE/POST, rollback seguro, exceção, emergência, verificação estática e evidências. EXECUTADA NO LIVE / CANÔNICA (2026-11-27). |
 | [`../database/proposals/2026-11-15-v1-13-e1e-security-evidence/README.md`](../database/proposals/2026-11-15-v1-13-e1e-security-evidence/README.md) | V1-13 · E1-E1 — plano de evidências de segurança: inventário de migrations/harnesses/dependências, matriz S1–S10, concorrência e PR-04B, Storage pela API, prontidão do P1, riscos operacionais do LIVE, rollback, critérios PASS/FAIL/STOP/NO-GO e sequência dos ensaios; P4-A/P4-B, isolamento da 5377 e D-E1 aprovada. DOCUMENTAL, nada executado. |
 | [`../database/proposals/2026-11-15-v1-13-e1e-security-evidence/BARRIER-FEASIBILITY-D-E1.md`](../database/proposals/2026-11-15-v1-13-e1e-security-evidence/BARRIER-FEASIBILITY-D-E1.md) | V1-13 · D-E1 — formalização (estratégia aprovada, mecanismo não aprovado, execução não autorizada) e viabilidade estática da barreira de acesso no servidor: superfície de exposição, alternativas, recomendação, primeira aplicação, compatibilidade com as provas, reversão e gates G0–G5. DOCUMENTAL. |
 | [`../database/proposals/2026-11-15-v1-13-e1e-security-evidence/g1/README.md`](../database/proposals/2026-11-15-v1-13-e1e-security-evidence/g1/README.md) | V1-13 · E1-E · G1 — barreira de acesso no servidor preparada: porta 5389, inventário fechado das 37 capacidades, versões protegidas geradas das propostas E1-A…E1-D, STOP emergencial, ROLLBACK_G1, harness 5895 e verificação estática. PROPOSTO, não executado. |
@@ -496,3 +498,4 @@ Catálogo completo com status em [`standards/STD-INDEX.md`](standards/STD-INDEX.
 | 3.57 | **`E3-6 / S1-5390 \| AUTHORIZED LIVE DEPLOYMENT RETRY-01` (2026-11-27).** Linha da S1 atualizada: 5390 executada no LIVE e canônica. |
 | 3.58 | **`E3-6 / S2 \| DESIGN REVIEW-01` (2026-11-27).** Linha nova para `database/proposals/2026-11-27-v1-13-e3-6-s2-pokedex-collaborative-editing/` (contrato). |
 | 3.59 | **`E3-6 / S2 + S4 … GOVERNANCE OPTIMIZATION-01` (2026-11-27).** Linhas novas: S4 e STD-005; linha da S2 atualizada (5391 preparada). |
+| 3.60 | **`E3-7b / 5397 — PASS-LIVE CLOSEOUT & E4 HANDOFF-01` (2026-11-27).** Linhas novas para o pacote E3-7b e para `operations/v1-13-e4-homologation.md`. |

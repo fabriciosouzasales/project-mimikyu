@@ -17,6 +17,7 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { getCachedUser } from "@/lib/supabase/request-auth-cache";
 import { canShowEditorCuration, editorCurationFlagOn } from "@/lib/colecoes/editor-binder";
+import { editorPokedexPanelOpenable } from "@/lib/colecoes/editor-pokedex-panel";
 import type { SharedModality } from "@/components/colecoes/sharing/shared-modality-gallery";
 import { SHARED_MASTER_SET_PAGE_SIZE, sharedModalityRead } from "@/lib/colecoes/shared-modalities";
 import { getSharedMasterSetPositions, getSharedPokedexPositions } from "@/lib/colecoes/shared-modalities-queries";
@@ -126,6 +127,7 @@ export default async function ColecaoCompartilhadaPage({
       signedIn={Boolean(user)}
       editMetadata={canShowEditorCuration({ flagOn: editorCurationFlagOn(process.env), role: collection.role, archived: collection.archived })}
       activity={flagOn}
+      editPokedex={modality?.kind === "POKEDEX" && editorPokedexPanelOpenable({ flagOn, role: collection.role, archived: collection.archived })}
       modality={modality}
       binder={
         collection.access === "VIEWER" && binder?.hasBinder

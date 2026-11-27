@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   Activity,
@@ -29,6 +30,7 @@ import { readBinderActivity, readBinderActivityCoverage } from "@/app/colecoes/c
 import {
   ACTIVITY_FILTERS,
   LEGACY_BADGE,
+  SIGN_IN_PATH,
   type ActivityCursor,
   type ActivityEvent,
   type ActivityFilterKey,
@@ -45,6 +47,7 @@ import {
   headlineEvent,
   emptyMessage,
   groupByDay,
+  historyFilters,
   mergeActivity,
   timeLabel,
   truncationNote,
@@ -78,10 +81,11 @@ const ICONS: Record<ActivityIcon, typeof Activity> = {
 
 type ListState =
   | { status: "loading" }
-  | { status: "error"; message: string; retry: boolean }
+  | { status: "error"; message: string; retry: boolean; signIn?: boolean }
   | { status: "ready"; events: ActivityEvent[]; hasMore: boolean; more: "idle" | "loading" | "error" };
 
-export type HistoryPage = { ok: true; events: ActivityEvent[]; hasMore: boolean; note?: string | null } | { ok: false; message: string; retry: boolean };
+/** `signIn`: sessão expirada — a tela oferece o caminho para entrar de novo (E3-7a). */
+export type HistoryPage = { ok: true; events: ActivityEvent[]; hasMore: boolean; note?: string | null } | { ok: false; message: string; retry: boolean; signIn?: boolean };
 
 /**
  * De onde vem o histórico. Ausente = histórico do titular (5269), como sempre.
@@ -98,12 +102,14 @@ export type BinderHistorySource = {
   noteOnEveryFilter?: boolean;
 };
 
-function ownerSource(layoutId: string): BinderHistorySource {
+function ownerSource(layoutId: string, speciesEnabled: boolean): BinderHistorySource {
   return {
-    filters: ACTIVITY_FILTERS,
+    filters: historyFilters(ACTIVITY_FILTERS, speciesEnabled),
     readPage: async (filter, cursor) => {
       const result = await readBinderActivity({ layoutId, filter, cursor }).catch(() => ({ ok: false as const, reason: "unknown" as const }));
-      return result.ok ? result : { ok: false, message: activityFailureMessage(result.reason), retry: result.reason !== "not_authenticated" };
+      return result.ok
+        ? result
+        : { ok: false, message: activityFailureMessage(result.reason), retry: result.reason !== "not_authenticated", signIn: result.reason === "not_authenticated" };
     },
     readNote: async () => {
       const result = await readBinderActivityCoverage({ layoutId }).catch(() => null);
@@ -123,8 +129,19 @@ function ownerSource(layoutId: string): BinderHistorySource {
  * silêncio e juntam o que for novo, sem perder o que já foi carregado.
  * Só leitura: a 5269 devolve apenas eventos do titular da sessão.
  */
-export function BinderHistory({ layoutId = "", refreshKey = "", source: customSource }: { layoutId?: string; refreshKey?: string; source?: BinderHistorySource }) {
-  const source = useMemo(() => customSource ?? ownerSource(layoutId), [customSource, layoutId]);
+export function BinderHistory({
+  layoutId = "",
+  refreshKey = "",
+  source: customSource,
+  speciesEnabled = false,
+}: {
+  layoutId?: string;
+  refreshKey?: string;
+  source?: BinderHistorySource;
+  /** E3-7a: fichário com referências de espécie (Pokédex) — só então o filtro "Pokémon nos bolsos" aparece. */
+  speciesEnabled?: boolean;
+}) {
+  const source = useMemo(() => customSource ?? ownerSource(layoutId, speciesEnabled), [customSource, layoutId, speciesEnabled]);
   const [filter, setFilter] = useState<ActivityFilterKey>("ALL");
   const [list, setList] = useState<ListState>({ status: "loading" });
   const [note, setNote] = useState<string | null>(null);
@@ -149,7 +166,7 @@ export function BinderHistory({ layoutId = "", refreshKey = "", source: customSo
       const current = listRef.current;
       if (!result.ok) {
         // Releitura silenciosa que falha mantém a lista atual à vista.
-        if (!(silent && current.status === "ready")) setList({ status: "error", message: result.message, retry: result.retry });
+        if (!(silent && current.status === "ready")) setList({ status: "error", message: result.message, retry: result.retry, signIn: result.signIn });
         return;
       }
       if (result.note !== undefined) setNote(result.note);
@@ -250,6 +267,11 @@ export function BinderHistory({ layoutId = "", refreshKey = "", source: customSo
             <button type="button" className={styles.historyRetry} onClick={() => void loadFirst(false)}>
               Tentar de novo
             </button>
+          ) : null}
+          {list.signIn ? (
+            <Link href={SIGN_IN_PATH} className={styles.historyRetry}>
+              Entrar de novo
+            </Link>
           ) : null}
         </div>
       ) : list.events.length === 0 ? (

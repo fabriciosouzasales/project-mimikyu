@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { isUuid } from "@/lib/colecoes/acervo-add";
+import { isCopyToken } from "@/lib/colecoes/copy-token";
 import { isCollectionId } from "@/lib/colecoes/colecoes";
 import {
   type EditorFailure,
@@ -115,38 +116,42 @@ export async function readEditorPlaceableCards(input: { collectionId: string; of
   if (!isCollectionId(input?.collectionId) || !Number.isInteger(input.offset) || input.offset < 0 || input.offset > 100000) return { ok: false, reason: "invalid" };
   const startedAt = Date.now();
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("get_shared_binder_placeable_cards", {
+  const { data, error } = await supabase.rpc("get_shared_binder_placeable_copies", {
     p_collection_id: input.collectionId,
     p_limit: PLACEABLE_PAGE_SIZE,
     p_offset: input.offset,
   });
-  if (error) return fail("get_shared_binder_placeable_cards", startedAt, error);
+  if (error) return fail("get_shared_binder_placeable_copies", startedAt, error);
   const parsed = parsePlaceableCards(data);
-  if (!parsed) return fail("get_shared_binder_placeable_cards", startedAt, null);
+  if (!parsed) return fail("get_shared_binder_placeable_copies", startedAt, null);
   return { ok: true, items: parsed.items, total: parsed.total };
 }
 
-/** Colocar (C-235): ADD, REPLACE (só carta desta coleção) ou UNCHANGED. Também é o "Desfazer" da retirada (D2). */
+/**
+ * Colocar (C-235): ADD, REPLACE (só carta desta coleção) ou UNCHANGED. Também é o "Desfazer" da retirada (D2).
+ * 5397: o exemplar vai como token opaco (`pc1.…`, 5391) — token inválido, obsoleto (época) ou de outra
+ * coleção/participação é recusado pelo banco com a mesma recusa de exemplar não elegível.
+ */
 export async function editorPlaceCard(input: {
   collectionId: string;
   position: PocketPosition;
-  physicalCardId: string;
+  copyToken: string;
 }): Promise<{ ok: true; operation: "ADD" | "REPLACE" | "UNCHANGED" } | Fail> {
   if (!enabled()) return { ok: false, reason: "disabled" };
-  if (!isCollectionId(input?.collectionId) || !isPocketPosition(input.position) || !isUuid(input.physicalCardId)) return { ok: false, reason: "invalid" };
+  if (!isCollectionId(input?.collectionId) || !isPocketPosition(input.position) || !isCopyToken(input.copyToken)) return { ok: false, reason: "invalid" };
   const startedAt = Date.now();
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("editor_place_card_in_binder", {
+  const { data, error } = await supabase.rpc("editor_place_copy_in_binder", {
     p_collection_id: input.collectionId,
     p_page: input.position.page,
     p_row: input.position.row,
     p_column: input.position.column,
-    p_physical_card_id: input.physicalCardId,
+    p_copy_token: input.copyToken,
   });
-  if (error) return fail("editor_place_card_in_binder", startedAt, error);
+  if (error) return fail("editor_place_copy_in_binder", startedAt, error);
   const operation = operationOf(data);
-  if (operation !== "ADD" && operation !== "REPLACE" && operation !== "UNCHANGED") return fail("editor_place_card_in_binder", startedAt, null);
-  done("editor_place_card_in_binder", startedAt, input.collectionId, operation);
+  if (operation !== "ADD" && operation !== "REPLACE" && operation !== "UNCHANGED") return fail("editor_place_copy_in_binder", startedAt, null);
+  done("editor_place_copy_in_binder", startedAt, input.collectionId, operation);
   return { ok: true, operation };
 }
 

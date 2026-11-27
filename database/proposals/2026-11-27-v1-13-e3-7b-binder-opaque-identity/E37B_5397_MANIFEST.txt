@@ -1,0 +1,4 @@
+# V1-13 · E3-7b / 5397 — manifesto do executor por arquivo (STD-005 §3, v1.4). passo|arquivo|sha256|modo
+1|database\proposals\2026-11-27-v1-13-e3-7b-binder-opaque-identity\E37B_5397_PRE_readonly.sql|2626209535fa631fe997abe993e1b8c0a479f43032772d154953f150161e58b3|gate
+2|database\proposals\2026-11-27-v1-13-e3-7b-binder-opaque-identity\5397_binder_opaque_copy_identity.sql|3aa4afc77c5fd7fb00fd325cb7c397918ab71f8da2a84bcaa3e2d65858a9ff9c|write
+3|database\proposals\2026-11-27-v1-13-e3-7b-binder-opaque-identity\E37B_5397_POST_readonly.sql|0dac345595cf5997cf42420ecf1aebd475b25566983ff1fb61bb353a6c9c7afe|gate

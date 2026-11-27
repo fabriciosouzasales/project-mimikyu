@@ -9,6 +9,8 @@
 // (`items_truncated`, até 50 por evento), contagens por efeito NÃO são inferidas
 // dos itens parciais — usa-se o total do evento (`item_count`) ou uma frase sem número.
 
+import { type PokedexActorRole, describePokedexEvent, isPokedexActivityType, pokedexDetailFields } from "./collection-activity.ts";
+
 // ---------------------------------------------------------------------------
 // Tipos e vocabulário (espelham os CHECKs de binder_activity_event/_item)
 // ---------------------------------------------------------------------------
@@ -47,12 +49,13 @@ export const ACTIVITY_EVENT_TYPES = [
 ] as const;
 export type ActivityEventType = (typeof ACTIVITY_EVENT_TYPES)[number];
 
-// SPECIES (5396, D-5396-2): reconhecida na leitura; o botão de filtro entra com a interface (F3/E3-7).
+// SPECIES (5396, D-5396-2): referências de Pokémon nos bolsos (filtro desde a F3-4).
 export const ACTIVITY_CATEGORIES = ["CARDS", "RESERVATIONS", "LOCKS", "PAGES", "CATALOG", "BINDER", "SPECIES"] as const;
 export type ActivityCategory = (typeof ACTIVITY_CATEGORIES)[number];
 
 /** Filtros da §3.3, na ordem da especificação. `null` = Todas. */
 export type ActivityFilterKey = "ALL" | ActivityCategory;
+// SPECIES (5396, D-5396-2): aceita pela 5269 (titular) e pela 5388 (participante).
 export const ACTIVITY_FILTERS: readonly { key: ActivityFilterKey; label: string }[] = [
   { key: "ALL", label: "Todas" },
   { key: "CARDS", label: "Cartas" },
@@ -61,7 +64,19 @@ export const ACTIVITY_FILTERS: readonly { key: ActivityFilterKey; label: string 
   { key: "PAGES", label: "Páginas" },
   { key: "CATALOG", label: "Catálogo" },
   { key: "BINDER", label: "Fichário" },
+  { key: "SPECIES", label: "Pokémon nos bolsos" },
 ];
+
+/**
+ * E3-7a: "Pokémon nos bolsos" só onde há referências de espécie (fichário de coleção Pokédex);
+ * decidido pelo que a tela já sabe, sem consulta nova. Os demais filtros e "Todas" ficam iguais.
+ */
+export function historyFilters<T extends { key: ActivityFilterKey }>(filters: readonly T[], speciesEnabled: boolean): T[] {
+  return speciesEnabled ? [...filters] : filters.filter((f) => f.key !== "SPECIES");
+}
+
+/** E3-7a: caminho de entrada para sessão expirada — fixo, sem parâmetro (nenhum token, id ou retorno na URL). */
+export const SIGN_IN_PATH = "/login";
 
 export function filterCategories(key: ActivityFilterKey): ActivityCategory[] | null {
   return key === "ALL" ? null : [key];
@@ -145,6 +160,8 @@ export type ActivityEvent = {
    * autor — nesse caso a tela não atribui a ação a ninguém (E3-5 V1).
    */
   attribution?: ActivityAttribution;
+  /** V1-13 · F3-4: papel gravado no histórico da Pokédex (5395); ausente nos históricos do fichário. */
+  pokedexActor?: PokedexActorRole;
 };
 
 /** Papel do autor na 5388 (`OWNER` titular, `PARTICIPANT` membro, `null` sem autor: legado) e nome de exibição público. */
@@ -485,6 +502,10 @@ export type EventView = {
 export const LEGACY_BADGE = "Registro anterior ao histórico completo";
 
 export function describeEvent(event: ActivityEvent): EventView {
+  if (isPokedexActivityType(event.type)) {
+    const v = describePokedexEvent(event);
+    return { title: v.title, context: v.context, icon: v.icon, legacy: false, expandable: false };
+  }
   const items = event.items;
   const first = items[0];
   const n = event.itemCount;
@@ -712,6 +733,7 @@ function nameOf(item: ActivityItem | undefined): string {
 }
 
 export function headlineEvent(event: ActivityEvent): string {
+  if (isPokedexActivityType(event.type)) return describePokedexEvent(event).headline;
   const items = event.items;
   const first = items[0];
   const n = event.itemCount;
@@ -797,6 +819,7 @@ export function fullCardLabel(item: ActivityItem): string {
 
 /** Campos dos detalhes, na ordem de leitura; só os que existem neste evento. */
 export function detailFields(event: ActivityEvent): DetailField[] {
+  if (isPokedexActivityType(event.type)) return [...pokedexDetailFields(event), { label: "Quando", value: compactDateTime(event.occurredAt) }];
   const view = describeEvent(event);
   const fields: DetailField[] = [{ label: "Ação", value: view.title }];
   const single = event.itemCount === 1 ? event.items[0] : undefined;

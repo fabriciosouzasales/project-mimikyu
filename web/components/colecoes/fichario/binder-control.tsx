@@ -250,7 +250,7 @@ export function BinderControlPanel({
 
           {layoutId ? (
             <Section id="history" title="Histórico" icon={History} collapsed={collapsed} onToggle={onToggleSection}>
-              {historyOpen ? <BinderHistory layoutId={layoutId} refreshKey={`${totalPages}:${contentVersion}:${activityVersion}`} /> : null}
+              {historyOpen ? <BinderHistory layoutId={layoutId} refreshKey={`${totalPages}:${contentVersion}:${activityVersion}`} speciesEnabled={species !== null} /> : null}
             </Section>
           ) : null}
 

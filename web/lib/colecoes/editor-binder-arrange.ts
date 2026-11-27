@@ -23,7 +23,8 @@ import { previewFailureMessage } from "./binder-auto-arrange-view.ts";
  * nada (C-221–C-225). O servidor exige o fichário EXCLUSIVO de X (C-237).
  *
  * Diferença de contrato: a prévia do EDITOR NÃO traz `slot_id` (só posição,
- * `physical_card_id`, `card_id` e `card_variant_id`). O parser do titular exige
+ * `card_id` e `card_variant_id` — catálogo público). Desde a 5397 também NÃO traz `physical_card_id`;
+ * item que ainda o trouxer é recusado (falha fechada). O parser do titular exige
  * `slot_id`; por isso este parser é próprio: valida tudo o que a 5386 entrega,
  * mas devolve à tela só o que ela usa — contagens, páginas e o número de
  * cartas por página. Nenhum `slot_id` é fabricado e nenhum identificador de
@@ -94,7 +95,6 @@ export function parseEditorAutoArrangePreview(value: unknown): EditorArrangePrev
 
   if (!Array.isArray(r.items)) return null;
   const positions = new Set<string>();
-  const cards = new Set<string>();
   const perPage: Record<number, number> = {};
   let n = 0;
   for (const raw of r.items) {
@@ -105,14 +105,12 @@ export function parseEditorAutoArrangePreview(value: unknown): EditorArrangePrev
     const row = int(item.row_index);
     const col = int(item.column_index);
     if (ord === null || ord !== n + 1 || page === null || page < 1 || row === null || row < 1 || col === null || col < 1) return null;
-    const physical = item.physical_card_id;
-    if (typeof physical !== "string" || !UUID_RE.test(physical)) return null;
+    if ("physical_card_id" in item) return null; // 5397: identidade do exemplar nunca chega ao EDITOR
     if (typeof item.card_id !== "string" || !UUID_RE.test(item.card_id) || typeof item.card_variant_id !== "string" || !UUID_RE.test(item.card_variant_id)) return null;
     const key = `${page}:${row}:${col}`;
-    // 1:1 estrito (C-222): posição e exemplar únicos — validado aqui, nunca exposto.
-    if (positions.has(key) || cards.has(physical.toLowerCase()) || !pages.includes(page)) return null;
+    // 1:1 estrito (C-222): posição única por item (a unicidade do exemplar é garantida pelo plano no servidor).
+    if (positions.has(key) || !pages.includes(page)) return null;
     positions.add(key);
-    cards.add(physical.toLowerCase());
     perPage[page] = (perPage[page] ?? 0) + 1;
     n += 1;
   }

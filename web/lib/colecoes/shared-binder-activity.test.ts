@@ -122,7 +122,8 @@ test("estado: zero linhas ≠ vazio; booleanos obrigatórios", () => {
 });
 
 test("filtros: só categorias com eventos permitidos (sem Fichário)", () => {
-  assert.deepEqual(SHARED_ACTIVITY_FILTERS.map((f) => f.key), ["ALL", "CARDS", "RESERVATIONS", "LOCKS", "PAGES", "CATALOG"]);
+  // SPECIES: a 5388 aceita desde a 5396 (D-5396-1); BINDER continua fora.
+  assert.deepEqual(SHARED_ACTIVITY_FILTERS.map((f) => f.key), ["ALL", "CARDS", "RESERVATIONS", "LOCKS", "PAGES", "CATALOG", "SPECIES"]);
   assert.ok(isSharedActivityFilter("PAGES") && !isSharedActivityFilter("BINDER") && !isSharedActivityFilter("x"));
 });
 

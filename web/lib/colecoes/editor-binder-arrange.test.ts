@@ -21,7 +21,8 @@ import {
 
 const TOKEN = `aa1:${"c".repeat(64)}`;
 const u = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
-const item = (ord: number, page: number, row = 1, col = ord) => ({ ord, physical_card_id: u(2000 + ord), page_number: page, row_index: row, column_index: col, card_id: u(3000 + ord), card_variant_id: u(4000 + ord) });
+// 5397: a prévia do EDITOR não traz mais physical_card_id (só posição e catálogo público).
+const item = (ord: number, page: number, row = 1, col = ord) => ({ ord, page_number: page, row_index: row, column_index: col, card_id: u(3000 + ord), card_variant_id: u(4000 + ord) });
 const ready = (over: Record<string, unknown> = {}) => ({
   status: "READY",
   insert_count: 3,
@@ -58,7 +59,7 @@ test("slot_id: a prévia da 5386 (sem slot_id) é recusada pelo parser do titula
   // Nenhum slot_id fabricado e nenhum identificador de exemplar/carta sai do parser.
   assert.deepEqual(parsed.preview.items, []);
   const text = JSON.stringify(parsed);
-  for (const n of [2001, 2002, 2003, 3001, 4001]) assert.ok(!text.includes(u(n)), `id ${n} não chega à tela`);
+  for (const n of [3001, 4001]) assert.ok(!text.includes(u(n)), `id ${n} não chega à tela`);
   assert.ok(!/slot_id|slotId/.test(text), "nenhum slot_id/slotId");
   assert.equal(canConfirm(parsed.preview), true, "READY válido segue para a confirmação");
 });
@@ -67,13 +68,13 @@ test("adaptação valida tudo o que a 5386 entrega (coerência do titular)", () 
   assert.equal(parseEditorAutoArrangePreview(ready({ plan_token: "aa1:xyz" })), null, "token");
   assert.equal(parseEditorAutoArrangePreview(ready({ items: [item(1, 2), item(1, 2, 1, 2), item(3, 5)] })), null, "ord fora de sequência");
   assert.equal(parseEditorAutoArrangePreview(ready({ items: [item(1, 2), { ...item(2, 2), column_index: 1 }, item(3, 5)] })), null, "posição repetida");
-  assert.equal(parseEditorAutoArrangePreview(ready({ items: [item(1, 2), { ...item(2, 2), physical_card_id: u(2001) }, item(3, 5)] })), null, "exemplar repetido (1:1)");
+  assert.equal(parseEditorAutoArrangePreview(ready({ items: [item(1, 2), { ...item(2, 2), physical_card_id: u(2002) }, item(3, 5)] })), null, "5397: item com id físico é recusado");
   assert.equal(parseEditorAutoArrangePreview(ready({ items: [item(1, 2), item(2, 2), item(3, 7)] })), null, "página fora da lista");
   assert.equal(parseEditorAutoArrangePreview(ready({ insert_count: 4 })), null, "contagem × itens");
   assert.equal(parseEditorAutoArrangePreview(ready({ pages: [5, 2] })), null, "páginas fora de ordem");
   assert.equal(parseEditorAutoArrangePreview(ready({ excluded_cards: { MOTIVO_NOVO: 1 } })), null, "motivo desconhecido");
   assert.equal(parseEditorAutoArrangePreview(ready({ unfilled_count: 3 })), null, "soma dos motivos");
-  assert.equal(parseEditorAutoArrangePreview(ready({ items: [{ ...item(1, 2), physical_card_id: "x" }, item(2, 2), item(3, 5)] })), null, "id malformado");
+  assert.equal(parseEditorAutoArrangePreview(ready({ items: [{ ...item(1, 2), card_id: "x" }, item(2, 2), item(3, 5)] })), null, "id de catálogo malformado");
   assert.equal(parseEditorAutoArrangePreview(null), null);
 });
 

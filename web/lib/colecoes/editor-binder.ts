@@ -1,4 +1,5 @@
 import type { BinderPage, BinderSlot } from "./binder.ts";
+import { hasForbiddenKey, isCopyToken } from "./copy-token.ts";
 import { applyClearReservation, applyMove, applyRemove, isOccupied } from "./binder.ts";
 import type { AvailableCard } from "./binder-share.ts";
 import { applyPlaceAvailable } from "./binder-share.ts";
@@ -78,22 +79,26 @@ export function placeableEmptyState(curationConfirmed: boolean): { title: string
     : { title: "Nenhuma carta para mostrar agora", text: "Aqui aparecem as cartas desta coleção guardadas neste fichário e ainda sem bolso, quando estiverem disponíveis para organizar." };
 }
 
+/**
+ * 5397 (`get_shared_binder_placeable_copies`): o exemplar chega como token opaco (5391), nunca como
+ * UUID físico. Linha com qualquer chave de identidade física/pessoal → resposta recusada (falha fechada).
+ */
 export function parsePlaceableCards(data: unknown): { items: AvailableCard[]; total: number } | null {
   if (!Array.isArray(data)) return null;
   const items: AvailableCard[] = [];
   let total = 0;
   for (const row of data) {
-    if (!row || typeof row !== "object") return null;
+    if (!row || typeof row !== "object" || hasForbiddenKey(row)) return null;
     const r = row as Record<string, unknown>;
-    const id = typeof r.physical_card_id === "string" && /^[0-9a-f-]{36}$/i.test(r.physical_card_id) ? r.physical_card_id.toLowerCase() : null;
+    const id = isCopyToken(r.copy_token) ? r.copy_token : null;
     const name = typeof r.card_name === "string" && r.card_name.trim() !== "" ? r.card_name : null;
     if (!id || !name) return null;
     const totalCount = Number(r.total_count);
     if (Number.isInteger(totalCount) && totalCount > total) total = totalCount;
     items.push({
       allocationId: null,
+      // Token opaco (5397) no campo-chave da lista; a lista é só apresentação e o servidor revalida tudo.
       physicalCardId: id,
-      // A 5373 não expõe ids de carta/acabamento: a lista é só apresentação; o servidor revalida tudo.
       cardId: "",
       variantTypeId: null,
       cardName: name,
@@ -240,7 +245,8 @@ export function applyPatch(cache: Map<number, BinderPage>, patch: SlotPatch): { 
 }
 
 /** Carta que o desfazer da retirada recoloca (D2): o mesmo exemplar, no mesmo bolso, por NOVA colocação. */
-export type UndoRemoval = { position: PocketPosition; physicalCardId: string; cardName: string };
+/** Desfazer a retirada: recoloca pelo token opaco (5397) do exemplar que voltou à lista. */
+export type UndoRemoval = { position: PocketPosition; copyToken: string; cardName: string };
 
 /** Busca o exemplar recém-retirado na lista elegível (5373) pelo nome e número — a retirada não devolve o id. */
 export function findUndoCandidate(items: AvailableCard[], removed: Pick<BinderSlot, "present">): AvailableCard | null {

@@ -70,6 +70,7 @@ export function SharedCollectionView({
   binder = null,
   positions = null,
   editMetadata = false,
+  editPokedex = false,
   activity = false,
   modality = null,
 }: {
@@ -97,6 +98,8 @@ export function SharedCollectionView({
    * cada gravação é decidida no banco. Desligado = página de sempre.
    */
   editMetadata?: boolean;
+  /** V1-13 · F3-2: painel colaborativo da Pokédex (D1 + EDITOR + coleção ativa). Não autoriza nada. */
+  editPokedex?: boolean;
   /**
    * V1-13 · E3-5: "Atividade" (histórico compartilhado, 5388) para EDITOR e
    * VIEWER — configuração ligada e fichário visível, decidido no servidor da
@@ -151,7 +154,9 @@ export function SharedCollectionView({
                     codeApplies={editorCoverCodeApplies(collection)}
                   />
                 ) : null}
-                {activity && binder ? <SharedCollectionActivityButton collectionId={collection.collectionId} collectionName={collection.name} /> : null}
+                {activity && (binder || collection.completionPolicy === "REFERENCE_POSITION") ? (
+                  <SharedCollectionActivityButton collectionId={collection.collectionId} collectionName={collection.name} binder={Boolean(binder)} pokedex={collection.completionPolicy === "REFERENCE_POSITION"} />
+                ) : null}
                 <SharedAccessMenu collectionId={collection.collectionId} collectionName={collection.name} ownerDisplayName={collection.ownerDisplayName} role={collection.role ?? "VIEWER"} />
               </>
             ) : (
@@ -259,7 +264,7 @@ export function SharedCollectionView({
       </header>
 
       {modality ? (
-        <SharedModalityGallery collection={collection} modality={modality} />
+        <SharedModalityGallery collection={collection} modality={modality} editPokedex={editPokedex} />
       ) : positions ? (
         <PositionsGallery collection={collection} positions={positions} />
       ) : (

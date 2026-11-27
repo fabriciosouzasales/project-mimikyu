@@ -102,13 +102,18 @@ test("posição do bolso a partir do id mascarado", () => {
   assert.equal(isPocketPosition({ page: 1, row: 0, column: 1 }), false);
 });
 
-test("5373: lista elegível sem campos patrimoniais; formato inválido → null", () => {
-  const parsed = parsePlaceableCards([
-    { physical_card_id: PC.toUpperCase(), card_name: "Pikachu", collector_number: "25", collector_total: 102, card_set_code: "base1", variant_label: "Normal", language_code: "en", image_path: null, total_count: 3 },
-  ]);
+test("5397: lista elegível por token opaco, sem id físico nem campos patrimoniais; formato inválido → null", () => {
+  const TK = `pc1.${"a".repeat(64)}`;
+  const row = { copy_token: TK, card_name: "Pikachu", collector_number: "25", collector_total: 102, card_set_code: "base1", variant_label: "Normal", language_code: "en", image_path: null, total_count: 3 };
+  const parsed = parsePlaceableCards([row]);
   assert.ok(parsed);
   assert.equal(parsed.total, 3);
-  assert.equal(at(parsed.items, 0).physicalCardId, PC);
+  assert.equal(at(parsed.items, 0).physicalCardId, TK, "chave da lista = token opaco");
+  // Contrato antigo (id físico) ou qualquer chave patrimonial → resposta recusada (falha fechada).
+  assert.equal(parsePlaceableCards([{ ...row, copy_token: undefined, physical_card_id: PC }]), null);
+  assert.equal(parsePlaceableCards([{ ...row, physical_card_id: PC }]), null);
+  assert.equal(parsePlaceableCards([{ ...row, copy_token: PC }]), null, "UUID no lugar do token");
+  assert.equal(parsePlaceableCards([{ ...row, copy_token: `pc1.${"A".repeat(64)}` }]), null);
   assert.equal(at(parsed.items, 0).originKind, "THIS");
   assert.equal(at(parsed.items, 0).allocationId, null);
   assert.deepEqual(parsePlaceableCards([]), { items: [], total: 0 });

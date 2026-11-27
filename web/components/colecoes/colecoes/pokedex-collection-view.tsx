@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { CollectionShareButton } from "@/components/colecoes/sharing/share-panel";
+import { SharedCollectionActivityButton } from "@/components/colecoes/sharing/shared-collection-activity";
+import { editorCurationFlagOn } from "@/lib/colecoes/editor-binder";
 import { CollectionReportsAction } from "@/components/reports/collection-reports-action";
 import { ActionCapsule } from "@/components/ui/action-capsule";
 import { pokedexReportItems } from "@/lib/reports/collection-checklist";
@@ -164,6 +166,19 @@ export function PokedexCollectionView({
               <ReactivatedStatus collectionId={collection.id} />
               <ActionCapsule label="Ações da coleção">
                 {reportsAction}
+                {/* E3-7a: histórico da Pokédex (5395) para o titular — mesma leitura, rótulos e autoria da
+                    coleção compartilhada; só com a configuração D-E3-1 (barreira CLOSED → "ainda não está disponível"). */}
+                {editorCurationFlagOn(process.env) ? (
+                  <SharedCollectionActivityButton
+                    collectionId={collection.id}
+                    collectionName={collection.name}
+                    binder={false}
+                    pokedex
+                    label="Atividade da Pokédex"
+                    className={capsuleStyles.item}
+                    labelClassName={capsuleStyles.label}
+                  />
+                ) : null}
                 <CollectionShareButton
                   collectionId={collection.id}
                   collectionName={collection.name}

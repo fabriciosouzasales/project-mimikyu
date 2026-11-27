@@ -22,7 +22,8 @@ export type SharedModality =
  * `PokedexGrid`) sem gerenciar exemplares, sem preços, Favoritos, Lista de
  * desejos, "No seu acervo" ou quantidade de exemplares.
  */
-export function SharedModalityGallery({ collection, modality }: { collection: SharedCollection; modality: SharedModality }) {
+/** `editPokedex` (F3-2): configuração D1 + EDITOR + coleção ativa, decidido no servidor; só mostra o painel — não autoriza. */
+export function SharedModalityGallery({ collection, modality, editPokedex = false }: { collection: SharedCollection; modality: SharedModality; editPokedex?: boolean }) {
   const base = sharedCollectionHref(collection.collectionId);
   const total = collection.progress?.total ?? 0;
   const owned = collection.progress?.satisfied ?? 0;
@@ -99,6 +100,7 @@ export function SharedModalityGallery({ collection, modality }: { collection: Sh
           initial={modality.data.items}
           total={modality.data.total}
           label={`Pokédex — ${current?.label ?? "Todas"}`}
+          editable={editPokedex}
         />
       )}
     </section>
