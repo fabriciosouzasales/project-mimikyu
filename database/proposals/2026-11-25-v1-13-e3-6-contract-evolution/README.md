@@ -20,7 +20,7 @@ Aprovadas pelo proprietário **para detalhamento** (nenhuma execução):
   3. **Não é autorização:** toda escrita reconfere `assert_collection_editor` (EDITOR ACTIVE de X, coleção ativa, barreira); o token só **identifica** o exemplar.
   4. **Invalidação:** desalocar/realocar (nova alocação), remover ou sair (a linha de participação é apagada — 5305/5306 — e o reconvite cria outra), troca de papel e reconvite.
   5. **Reconvite/reutilização da participação (resolvido no desenho):** conferido no código implantado que a mesma linha de participação é reutilizada em dois casos — reconvite com o mesmo papel após recusa (5369: DECLINED → PENDING, mesmo `membership_id`) e troca de papel de membro ativo (5370: `SET role`, sem carimbo de tempo). Nenhuma coluna atual distingue esses ciclos; por isso o token inclui uma **época do papel** (`role_epoch`, inteiro incrementado por gatilho sempre que `role` ou `status` da participação mudam), a criar no pacote S2 sem alterar as funções 5369/5370. Rebaixar e promover de novo, ou recusar e aceitar de novo, invalida todos os tokens anteriores.
-- **P0-B — D-E3-8: auditoria obrigatória** das mudanças de posição e de representante da Pokédex. A edição colaborativa da Pokédex não é liberada sem ela. A definir no S2: eventos (posição atribuída, movida, retirada; representante escolhida, substituída, restaurada para a automática); autor (titular ou participante, com o nome de exibição público, como C-241); estado anterior e posterior só com dados autorizados (número da posição e espécie; carta por nome, número e Set — nunca exemplar, alocação, local, condição, valores); operações sem mudança (`UNCHANGED`) não geram evento; visibilidade: titular vê tudo da coleção; participantes de X veem os eventos de X, nas regras de C-241. Aplicável também às ações do titular (fecha, para a Pokédex, a lacuna de autor da 5269).
+- **P0-B — D-E3-8: auditoria obrigatória** das mudanças de posição e de representante da Pokédex. A edição colaborativa da Pokédex não é liberada sem ela. A definir no S2: eventos (posição atribuída, movida, retirada; representante escolhida, substituída, restaurada para a automática); autor (titular ou participante, com o nome de exibição público, como C-241); estado anterior e posterior só com dados autorizados (número da posição e espécie; carta por nome, número e Set — nunca exemplar, alocação, local, condição, valores); operações sem mudança (`UNCHANGED`) não geram evento; visibilidade: titular vê tudo da coleção; participantes de X veem os eventos de X, nas regras de C-241. Aplicável também às ações do titular (fecha, para a Pokédex, a lacuna de autor da 5269). **Ampliação (2026-11-26, `S3-5393 — CONTRACT SPECIFICATION CORRECTION-01`):** a D-E3-8 abrange também as alterações colaborativas de referências de espécie da 5383 (associar, remover, mostrar, ocultar; um evento por operação efetiva, nenhum para `ALREADY_APPLIED`, remoção de 0 ou `UNCHANGED`; autor pelo nome público; resumo sem bolsos ocupados nem dados patrimoniais). Especificação e dependências na seção 11 do pacote S3; a 5393 não carrega essa obrigação. **Aprovada (2026-11-26) incluindo as operações equivalentes do titular (5258)**; implementação no pacote independente S4 (provisório).
 - **P0-C — D-E3-6: remoção controlada** das capacidades de imagem do EDITOR (preferência por remover, não só esconder). Antes de escolher `DROP` ou `REVOKE` (S1/5390): comprovar dependências (nenhuma função, visão ou política usa `editor_set_collection_cover_logo`; políticas da 5377 isoladas das do titular), privilégios efetivos (`has_function_privilege`, `pg_policies` do bucket) e ausência de regressão do titular (md5 das funções e políticas do titular, envio/troca/remoção pelo titular). Nada executado nesta rodada.
 
 ### Observações obrigatórias para o S2 (2026-11-26, `E3-6 — P0/F1 | FINAL REVIEW & LOCAL CLOSEOUT-01`)
@@ -175,3 +175,75 @@ Sem datas: em rodadas. Antes: E3-6 (leitura) → E3-7 → E4. Agora: F1 e F2 (in
 ## 10. Implementação parcial existente
 
 As galerias da E3-6 (local, não versionadas) continuam como estão e são compatíveis: a grade da Pokédex já aceita fonte de "Mostrar mais" injetada e pode receber o painel do EDITOR do mesmo modo (F3); o Master Set não muda (sem lacuna de organização).
+
+---
+
+## 11. Adendo F2 — visibilidade das referências de espécie para participantes (2026-11-26, `E3-6 / F2 — SPECIES REFERENCE VISIBILITY | CONTRACT GAP ASSESSMENT-01`)
+
+**Status:** PROPOSTO, nenhum SQL escrito. Diretriz de produto: EDITOR e VIEWER veem as referências autorizadas nos bolsos; EDITOR continua gerenciando pela 5383; VIEWER só lê.
+
+### 11.1 Causa raiz (confirmada no código implantado)
+
+- `collection_binder_masked_pages` (5315, núcleo único de 5316 participante e 5318 vitrine) devolve por bolso só `page_number`, `row_index`, `column_index`, `pocket_state` (CARD | RESERVED | EMPTY) e a face pública da carta/reserva **desta** coleção. O cabeçalho da 5315 lista explicitamente "NUNCA devolve … referências de espécie". Não é defeito: a V1-12 decidiu assim.
+- As referências moram em `collection_layout_slot_species_reference` (bolso ↔ posição da Pokédex, com `collection_id`) e a exibição em `collection_layout_species_reference_setting` (preferência única do fichário). As leituras do titular (5259 `get_my_binder_species_reference_state` e a lista por `slot_id`) conferem o dono e usam `slot_id`, que o participante nunca recebe.
+- A 5383 (EDITOR) só tem prévia e escritas; a prévia não diz quais bolsos têm referência nem se a exibição está ligada.
+
+### 11.2 Dados necessários × autorizados
+
+| Dado para desenhar a referência no bolso | Necessário | Já autorizado ao participante? | Observação |
+|---|---|---|---|
+| Página, linha, coluna do bolso | sim | sim (5316) | chave de junção com a página mascarada; nunca `slot_id` |
+| Número nacional e nome da espécie | sim | sim, como catálogo público (5324 devolve espécie, número e arte para X) | |
+| Caminho da arte oficial da espécie | sim | sim (5324 `species_artwork_path`) | mesma fonte |
+| Exibição ligada/desligada | sim | não | preferência do fichário; não patrimonial |
+| Quantidade de referências | opcional | o EDITOR já recebe `existing_count` (5383) | derivável de páginas × escopo |
+| `slot_id`, `layout_key`, ids de posição/coleção | não | — | não sair |
+| Ocupação real do bolso (carta de outra coleção, imagem, mesclagem) | **não** | **não** e não pode vazar | ver 11.3 |
+
+### 11.3 Risco de inferência patrimonial
+
+- **A camada não codifica ocupação.** O plano (5258 R2) pareia **todos** os bolsos em ordem página → linha → coluna com as posições do escopo, inclusive bolsos com carta, reserva, imagem ou mesclagem. Onde existe referência depende só da grade e do escopo, que o participante já conhece.
+- **O risco real está na regra de exibição.** No titular, a referência só aparece com o bolso visualmente vazio (D3: carta, reserva, imagem e mesclagem a escondem). Se a leitura do participante aplicasse essa mesma regra, a presença ou ausência da referência num bolso mascarado como EMPTY revelaria se ali existe carta de outra coleção, imagem do titular ou mesclagem — exatamente o que a 5315 esconde. **Regra obrigatória:** a decisão de exibir usa **somente o estado mascarado** (`pocket_state` da 5315): referência presente em todo bolso EMPTY mascarado; nunca em CARD ou RESERVED desta coleção (o participante já vê esse conteúdo, então nada novo é revelado). Nenhum outro critério.
+- **Linhas.** A resposta tem exatamente as mesmas linhas da página mascarada (uma por bolso da janela), com as colunas da espécie nulas quando não exibidas. Não pode existir leitura que devolva linhas só onde há referência visível pela regra do titular.
+- **Referências de terceiros.** Só as da própria coleção X, e só quando X é a proprietária do fichário (fichário com convidadas: a camada é da proprietária; se X for convidada, a camada é de outra coleção) e ainda é Pokédex. Referências deixadas por uma proprietária anterior (transferência 5254) nunca aparecem. Caso contrário, todas as colunas da espécie vêm nulas, indistinguível de "sem referências".
+- **Quantidades, exemplares, condição, local:** nada disso entra; a resposta não tem contagem por bolso nem por página.
+- **Correlação entre consultas:** sem identificadores estáveis (só posição na grade); a camada muda só por aplicar/remover/reordenar páginas — mudanças que o participante já observa (páginas) ou que a 5383 já devolve ao EDITOR.
+- **Divergência aceita:** o participante pode ver a referência num bolso que, para o titular, está ocupado por carta de outra coleção ou imagem. É consequência do mascaramento, não vazamento; registrar na interface ("referência visual") e no contrato.
+
+### 11.4 Alternativas
+
+| | A — Alterar a 5315/5316 | **A′ — Nova porta paginada "páginas + referências" (recomendada)** | B — Leitura só das referências | C — Derivar no cliente |
+|---|---|---|---|---|
+| Dados | colunas novas na 5315 | mesmas colunas da 5316 + `species_national_number`, `species_name`, `species_artwork_path` (nulos fora da regra) e `references_visible` | (página, linha, coluna, espécie, arte) + estado de exibição | nenhuma leitura nova; pares calculados pela grade + 5324 |
+| Autorização | a da porta (5316 / 5318) | `collection_share_role(X) ∈ {OWNER, VIEWER}` (EDITOR lê como VIEWER, como 5323/5324/5388) + barreira 5389; PUBLIC e anônimo → zero linhas | idem A′ | — |
+| Não inferência | risco: o núcleo é compartilhado com a **vitrine pública** (5318) — exporia referências a visitantes sem decisão de produto | a regra de 11.3 aplicada sobre a saída do próprio núcleo 5315, na MESMA consulta | precisa repetir a regra de 11.3 com o mesmo instantâneo (chamar o núcleo 5315 por dentro); devolver linhas só onde há referência é seguro só se a regra for a mascarada | **não confiável**: não sabe se a camada foi aplicada, se está desatualizada (páginas mudaram) nem se está visível; o VIEWER nem tem a prévia; inventaria dados — rejeitada |
+| Frontend | mínimo | troca a fonte das páginas do participante pela nova porta (com a configuração ligada); o bolso já sabe desenhar `speciesRef` (`SpeciesReferenceArt`, contexto de visibilidade) | segunda leitura por lote, junção por posição | — |
+| Concorrência | mesma chamada | um único instantâneo para páginas e referências (STABLE, uma consulta) | dois instantâneos: página e referências podem divergir por um instante | — |
+| Esforço/manutenção | alto: mudar o tipo de retorno exige recriar 5315/5316/5318 (V1-12, canônicas), retestar a vitrine | médio: uma função nova, núcleo reaproveitado, 5315/5316/5318 intactas | médio | — |
+| Dependências | reabre V1-12 | 5315 (núcleo), 5257/5258 (tabelas), 5302, 5389 | idem | — |
+
+### 11.5 Recomendação
+
+**A′ — 5393 `get_shared_collection_binder_pages_with_species(p_collection_id, p_first_page, p_page_count)`** (STABLE, SECURITY DEFINER, `search_path = ''`, porta 5389, EXECUTE só `authenticated`):
+- mesma janela e mesmas validações da 5316 (1–4 páginas); mesmas linhas e colunas da 5316, obtidas do núcleo 5315 dentro da mesma consulta;
+- colunas a mais: `species_national_number`, `species_name`, `species_artwork_path` preenchidas **só** quando `pocket_state = 'EMPTY'`, a exibição do fichário está ligada, X é a proprietária do fichário, X é Pokédex e a referência do bolso é de X; `references_visible` (boolean do fichário, repetido por linha, ou nulo quando X não é a proprietária Pokédex);
+- nada além disso; sem `slot_id`, sem ids;
+- 5315, 5316 e 5318 não mudam; a vitrine pública continua sem referências (decisão de produto à parte, se um dia desejada).
+- Benefício para o EDITOR: `references_visible` permite ao diálogo da F2 mostrar o estado real (hoje "Mostrar"/"Ocultar" são ações sem estado conhecido).
+
+Testes do harness: matriz de papéis (anon, não membro, convite pendente, VIEWER, EDITOR, titular, removido, rebaixado), barreira CLOSED (zero linhas), **prova de não inferência** (fichário com bolsos realmente vazios, com carta de convidada, com imagem e com mesclagem: as colunas da espécie são idênticas nos quatro casos), referências de outra coleção e de proprietária anterior nunca aparecem, exibição desligada → colunas nulas, linhas idênticas às da 5316 (mesmo número e mesmas colunas comuns), X convidada → nulos, coleção não Pokédex → nulos.
+
+### 11.6 Integração com o plano
+
+- **Pacote próprio (S3 / 5393), independente de S1 (5390) e de S2 (5391/5392).** Não depende de tokens, `role_epoch` nem auditoria: é leitura de um rótulo de bolso, sem escrita e sem exemplar. Pode seguir antes do S2 e entrar na mesma janela de implantação e homologação.
+- P0-A, P0-B (D-E3-8) e P0-C não mudam. As escritas de referências (5383) não geram evento (titular 5258 também não); se a D-E3-8 vier a cobrir referências de espécie, isso é decisão separada — hoje ela cobre posição e representante da Pokédex.
+
+### 11.7 Impacto na F2 e na E3-6
+
+- A F2 local continua válida (operações da 5383 inalteradas). Com a 5393: o fichário do participante passa a ler as páginas pela nova porta (configuração ligada), os bolsos mostram a arte, e o diálogo do EDITOR ganha o estado real da exibição (interruptor em vez de duas ações) e deixa de dizer que só o titular vê.
+- Mensagem atual do diálogo ("Neste fichário compartilhado, a arte de referência aparece nos bolsos só para o titular; aqui você vê o resultado pela contagem acima.") soa definitiva. Proposta para o fechamento da F2 enquanto a 5393 não existir: "Por enquanto, a arte de referência aparece nos bolsos só para o titular. Aqui você acompanha o resultado pela contagem acima." (sem prometer data).
+- A E3-6 continua aberta até F2 (com 5393), S2 e F3.
+
+### 11.8 Especificação aprovada para detalhamento (2026-11-26)
+
+A alternativa A′ foi aprovada; **D-E3-9** registrada. A especificação definitiva da 5393 (interface com tipos conferidos, regras, matriz de autorização, prova de não inferência A–E, concorrência, desempenho, harness 5897, rollback e gate STD-001 §10) está no pacote próprio **S3**: [`../2026-11-26-v1-13-e3-6-s3-species-visibility/README.md`](../2026-11-26-v1-13-e3-6-s3-species-visibility/README.md). Ajustes em relação a 11.5: barreira fechada recusa com `CAPABILITY_NOT_ENABLED` (zero linhas seria confundido com fichário vazio); `references_visible` é `NULL` quando X não é a proprietária Pokédex; espécie `NULL` com a exibição desligada. Correção C1–C4 (2026-11-26): consistência garantida só **dentro** de uma chamada (mesmo instantâneo, condicionada a 5393/5315/5302 STABLE), não entre chamadas; matriz de fallback para a 5316 (só configuração desligada, barreira e função ausente); prova de não inferência entre consultas com controles positivos; D-E3-8 ampliada às operações da 5383.
