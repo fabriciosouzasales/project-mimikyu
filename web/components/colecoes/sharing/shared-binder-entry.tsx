@@ -31,6 +31,7 @@ export function SharedBinderEntry({
   finish,
   binder,
   role = null,
+  speciesEnabled = false,
 }: {
   collectionId: string;
   collectionName: string;
@@ -39,6 +40,8 @@ export function SharedBinderEntry({
   /** V1-13 · E3-1: papel do próprio participante (5312); `null` = sem papel conhecido (texto de sempre). */
   role?: MemberRole | null;
   binder: { columns: number; rows: number; pageCount: number; ownFilled: number; identity: SharedBinderIdentity | null };
+  /** V1-13 · E3-6 / F2: páginas pela 5393 (referências de espécie), decidido no servidor da página. */
+  speciesEnabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const ready = binder.pageCount > 0;
@@ -103,6 +106,7 @@ export function SharedBinderEntry({
               pageCount={binder.pageCount}
               ownFilled={binder.ownFilled}
               memberRole={role}
+              speciesEnabled={speciesEnabled}
               onClose={close}
             />
           )}

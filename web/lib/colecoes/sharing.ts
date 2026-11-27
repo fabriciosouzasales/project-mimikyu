@@ -1,5 +1,6 @@
 import type { BinderPage, RegionImage } from "./binder.ts";
 import { isSlotImagePath } from "./binder-images.ts";
+import type { SpeciesReference } from "./binder-species.ts";
 
 /**
  * Compartilhamento de coleções (V1-12 COLLECTION-SHARING-FOUNDATION-01) —
@@ -572,6 +573,8 @@ export type SharedPocket = {
   variantLabel: string | null;
   languageCode: string | null;
   imagePath: string | null;
+  /** V1-13 · E3-6 / F2: referência de espécie autorizada (5393; só em bolso vazio mascarado). Ausente = nenhuma. */
+  species?: SpeciesReference;
 };
 
 export type SharedBinderPage = {
@@ -926,6 +929,8 @@ export function sharedPageToBinderPage(page: SharedBinderPage): BinderPage {
         expectedCollectionId: null,
         image: decorative && !regionOf.has(cell) ? { path: decorative.path, focalY: decorative.focalY, updatedAt: decorative.updatedAt, url: decorative.url } : null,
         regionId: regionOf.get(cell) ?? null,
+        // E3-6 / F2: só quando a 5393 trouxe a referência (bolso vazio mascarado); a 5316 nunca traz.
+        ...(pocket.species && pocket.kind === "empty" ? { speciesRef: pocket.species } : {}),
       };
     }),
   };

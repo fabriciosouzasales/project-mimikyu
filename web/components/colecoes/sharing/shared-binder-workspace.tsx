@@ -4,12 +4,12 @@ import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { DndContext, DragOverlay, pointerWithin } from "@dnd-kit/core";
-import { ArrowLeft, Eye, Layers, LayoutGrid, Loader2, Maximize2, Minimize2, Pencil, Sparkles, Wand2, X } from "lucide-react";
+import { ArrowLeft, Eye, Layers, LayoutGrid, Loader2, Maximize2, Minimize2, PawPrint, Pencil, Sparkles, Wand2, X } from "lucide-react";
 import { readPublicBinderPages, readSharedBinderPages } from "@/app/colecoes/compartilhar/actions";
 import { FOCUS_RING, SideArrowButton, TopNavControls } from "@/components/colecoes/fichario/binder-chrome";
 import { BINDER_SPREAD_MEDIA, BinderObjectFrame } from "@/components/colecoes/fichario/binder-object";
 import { PageGrid } from "@/components/colecoes/fichario/binder-page-grid";
-import { CardViewTransitionContext, type SlotHandlers } from "@/components/colecoes/fichario/binder-slot";
+import { CardViewTransitionContext, type SlotHandlers, SpeciesReferenceVisibleContext } from "@/components/colecoes/fichario/binder-slot";
 import { BinderCardView } from "@/components/colecoes/fichario/binder-card-view";
 import { AvailablePanel } from "@/components/colecoes/fichario/binder-available";
 import { TraySurface, TrayToggleButton } from "@/components/colecoes/fichario/binder-tray";
@@ -21,6 +21,7 @@ import { AutoArrangePanel } from "@/components/colecoes/fichario/binder-auto-arr
 import { AUTO_ARRANGE_PANEL_ID } from "@/lib/colecoes/binder-auto-arrange-view";
 import { editorArrangeFootnote, editorArrangeTarget } from "@/lib/colecoes/editor-binder-arrange";
 import { useEditorCatalog } from "@/components/colecoes/sharing/shared-binder-catalog";
+import { EditorSpeciesDialog, useEditorSpecies } from "@/components/colecoes/sharing/shared-binder-species";
 import { CatalogNoveltiesDialog } from "@/components/colecoes/fichario/binder-catalog-dialog";
 import { editorCatalogAvailable } from "@/lib/colecoes/editor-binder-catalog";
 import { GapDialog } from "@/components/colecoes/fichario/binder-layout-tools";
@@ -47,6 +48,7 @@ import {
 import { canViewCard } from "@/lib/colecoes/binder-card-view";
 import type { BinderFinish } from "@/lib/colecoes/binder-finish";
 import { ROLE_LABEL, type SharedBinderIdentity, type SharedBinderPage } from "@/lib/colecoes/sharing";
+import { type SpeciesSource, speciesReferencesShown, speciesSourceTransition, speciesVisibilityKnown } from "@/lib/colecoes/shared-binder-species-pages";
 import { usePrefersReducedMotion } from "@/lib/use-prefers-reduced-motion";
 import { canUseViewTransitions, runWithViewTransition } from "@/lib/view-transitions";
 import { cn } from "@/lib/utils";
@@ -107,6 +109,8 @@ export function SharedBinderWorkspace({
   memberRole = null,
   editorEnabled = false,
   completionPolicy = null,
+  speciesEnabled = false,
+  initialSpecies = null,
 }: {
   collectionId: string;
   collectionName: string;
@@ -143,6 +147,14 @@ export function SharedBinderWorkspace({
   editorEnabled?: boolean;
   /** E2-2: tipo da coleção (5312), só para escolher a fonte das cartas na reserva do EDITOR. */
   completionPolicy?: string | null;
+  /**
+   * V1-13 · E3-6 / F2: ler as páginas pela 5393 (com referências de espécie),
+   * para EDITOR e VIEWER. Vem do servidor da página: configuração D-E3-1 ligada
+   * + coleção Pokédex. Desligado = 5316, exatamente como antes.
+   */
+  speciesEnabled?: boolean;
+  /** Fonte do primeiro lote lido no servidor (5393 ou fallback 5316). */
+  initialSpecies?: SpeciesSource | null;
 }) {
   const reducedMotion = usePrefersReducedMotion();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -228,6 +240,34 @@ export function SharedBinderWorkspace({
   const generation = useRef(0);
 
   const [filled, setFilled] = useState(ownFilled);
+  // ---- E3-6 / F2: fonte das páginas (5393 com referências, ou 5316). Nunca misturadas na tela (C2). ----
+  const [speciesSource, setSpeciesSource] = useState<SpeciesSource | null>(source === "shared" && speciesEnabled ? initialSpecies : null);
+  const speciesMode = source === "shared" && speciesEnabled && speciesSource?.source !== "5316";
+  const speciesRef = useRef({ mode: speciesMode, source: speciesSource });
+  speciesRef.current = { mode: speciesMode, source: speciesSource };
+  /**
+   * Leitor do participante: pede a 5393 enquanto ela responde. Fallback para a
+   * 5316 (barreira/função ausente) ou mudança da exibição → cache descartado e
+   * páginas relidas da mesma fonte, nunca uma tela com lotes das duas.
+   */
+  const readShared = useCallback(
+    async (input: { collectionId: string; firstPage: number; columns: number; rows: number }) => {
+      const before = speciesRef.current;
+      const result = await readSharedBinderPages({ ...input, species: before.mode });
+      if (!result.ok || !before.mode) return result;
+      const next = result.species ?? { source: "5316" as const };
+      const step = speciesSourceTransition(before.source, next);
+      if (step !== "keep") {
+        speciesRef.current = { mode: next.source === "5393", source: next };
+        setSpeciesSource(next);
+        // Primeira resposta conhecida: o lote vale. Troca de fonte ou de exibição: descarta tudo e relê.
+        if (step === "reload") return { ok: false as const, reason: "unknown" as const, stale: true as const };
+      }
+      return result;
+    },
+    [],
+  );
+
   const load = useCallback(
     async (batch: number) => {
       if (batch < 1 || batch > totalPages || inflight.current.has(batch)) return;
@@ -239,11 +279,19 @@ export function SharedBinderWorkspace({
         next.delete(batch);
         return next;
       });
-      const read = source === "public" ? readPublicBinderPages : readSharedBinderPages;
+      const read = source === "public" ? readPublicBinderPages : readShared;
       const result = await read({ collectionId, firstPage: batch, columns, rows }).catch(() => ({ ok: false }) as const);
       if (gen !== generation.current) return;
       inflight.current.delete(batch);
       if (!result.ok) {
+        if ("stale" in result && result.stale) {
+          // E3-6 / F2: a fonte ou a exibição mudou — relê tudo da fonte nova (nenhum lote antigo fica na tela).
+          generation.current += 1;
+          inflight.current.clear();
+          setFailed(new Set());
+          setCache(new Map());
+          return;
+        }
         setFailed((prev) => new Set(prev).add(batch));
         return;
       }
@@ -253,7 +301,7 @@ export function SharedBinderWorkspace({
         return next;
       });
     },
-    [collectionId, columns, rows, totalPages, source],
+    [collectionId, columns, rows, totalPages, source, readShared],
   );
 
   const refresh = useCallback((pages: number[]) => {
@@ -297,6 +345,7 @@ export function SharedBinderWorkspace({
     replaceCache,
     invalidate,
     cachedNumbers: () => [...cacheRef.current.keys()],
+    readPages: readShared,
   });
   useEffect(() => {
     setAnchor((value) => clampPage(value, totalPages));
@@ -320,6 +369,15 @@ export function SharedBinderWorkspace({
     collectionId,
     available: editing && pages.available && editorCatalogAvailable(completionPolicy),
     syncAfter: pages.syncAfter,
+  });
+  // ---- E3-6 / F2: Pokémon nos bolsos pelo EDITOR (5383), só Pokédex, sob demanda ----
+  const species = useEditorSpecies({
+    editor,
+    collectionId,
+    available: editing && pages.available && completionPolicy === "REFERENCE_POSITION",
+    visibility: speciesVisibilityKnown(speciesSource),
+    // Depois de cada escrita confirmada (ou incerta): cabeçalho e páginas relidos da fonte atual.
+    afterWrite: () => pages.syncAfter(false),
   });
   const gapOn = editing && pages.available;
 
@@ -355,7 +413,7 @@ export function SharedBinderWorkspace({
       // E2-2: com o seletor de reserva aberto, o teclado é dele (Esc fecha o diálogo, setas não viram página).
       if (editor.reserveTarget) return;
       // E2-3A: visão geral e diálogos de página cuidam do próprio teclado.
-      if (pages.dialogOpen || gap.dialog || catalog.state) return;
+      if (pages.dialogOpen || gap.dialog || catalog.state || species.open) return;
       // E2-3C: Esc fecha o painel de organização (que não fecha enquanto posiciona).
       if (event.key === "Escape" && arrange.open) {
         event.preventDefault();
@@ -377,7 +435,7 @@ export function SharedBinderWorkspace({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [go, view, lastView, onClose, cardViewSlotId, editor, pages.dialogOpen, gap.dialog, arrange, catalog.state]);
+  }, [go, view, lastView, onClose, cardViewSlotId, editor, pages.dialogOpen, gap.dialog, arrange, catalog.state, species.open]);
 
   // ---- tela cheia (mesmo alvo do titular: a raiz do fichário) ----
   const [fullscreen, setFullscreen] = useState(false);
@@ -410,6 +468,7 @@ export function SharedBinderWorkspace({
   const sizes = `${Math.max(1, fit.pocket)}px`;
 
   return (
+    <SpeciesReferenceVisibleContext.Provider value={speciesReferencesShown(speciesSource)}>
     <CardViewTransitionContext.Provider value={cardViewSlotId ? null : cardViewTarget}>
     <div
       ref={rootRef}
@@ -494,6 +553,18 @@ export function SharedBinderWorkspace({
               title="Novidades do Catálogo"
             >
               {catalog.loading ? <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden /> : <Sparkles className="h-4 w-4" aria-hidden />}
+            </button>
+          ) : null}
+          {editing && species.available ? (
+            <button
+              type="button"
+              className={cn(ws.iconButton, FOCUS_RING)}
+              onClick={species.show}
+              aria-haspopup="dialog"
+              aria-label="Pokémon nos bolsos"
+              title="Pokémon nos bolsos"
+            >
+              <PawPrint className="h-4 w-4" aria-hidden />
             </button>
           ) : null}
           {editing && arrange.enabled ? (
@@ -772,6 +843,8 @@ export function SharedBinderWorkspace({
         />
       ) : null}
 
+      {editing && species.open ? <EditorSpeciesDialog host={rootRef.current} species={species} /> : null}
+
       {editing && gap.dialog ? <GapDialog host={rootRef.current} state={gap.dialog} onConfirm={gap.confirm} onClose={gap.close} /> : null}
 
       {editing && pages.remove ? (
@@ -795,5 +868,6 @@ export function SharedBinderWorkspace({
       />
     </div>
     </CardViewTransitionContext.Provider>
+    </SpeciesReferenceVisibleContext.Provider>
   );
 }

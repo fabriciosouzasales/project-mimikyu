@@ -142,7 +142,9 @@ test("uma escrita por confirmação; sem repetição; hint/details nunca lidos; 
   assert.equal(code.match(/editorApplyCatalog\(/g)?.length, 1, "uma chamada de incorporação");
   assert.ok(!/setTimeout\(|setInterval\(|useEffect\(/.test(code), "sem repetição nem leitura automática");
   const actions = readFileSync(new URL("../../app/colecoes/compartilhada/[id]/fichario/actions.ts", import.meta.url), "utf8");
-  const block = actions.slice(actions.indexOf("E2-3D"));
+  // O bloco das novidades termina onde começa o das referências de espécie (E3-6 / F2), se houver.
+  const end = actions.indexOf("E3-6 / F2");
+  const block = actions.slice(actions.indexOf("E2-3D"), end > 0 ? end : undefined);
   assert.ok(block.length > 0 && !/\.hint|\.details?\b/.test(block), "as ações de novidades não leem hint nem details");
   assert.equal(block.match(/rpc\(/g)?.length, 2, "prévia e incorporação: um ponto de chamada cada");
 });

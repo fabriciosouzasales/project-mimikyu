@@ -6,8 +6,9 @@ import { SharedBinderWorkspace } from "@/components/colecoes/sharing/shared-bind
 import { resolveFinish } from "@/lib/colecoes/binder-finish";
 import { canShowEditorCuration, editorCurationFlagOn } from "@/lib/colecoes/editor-binder";
 import { collectionHref, isCollectionId } from "@/lib/colecoes/colecoes";
-import { sharedBatchStart, sharedCollectionHref } from "@/lib/colecoes/sharing";
-import { getSharedCollection, getSharedCollectionBinder, getSharedCollectionBinderPages } from "@/lib/colecoes/sharing-queries";
+import { type SharedBinderPage, sharedBatchStart, sharedCollectionHref } from "@/lib/colecoes/sharing";
+import { getSharedBinderPagesWithSpecies, getSharedCollection, getSharedCollectionBinder, getSharedCollectionBinderPages } from "@/lib/colecoes/sharing-queries";
+import type { SpeciesSource } from "@/lib/colecoes/shared-binder-species-pages";
 import { createClient } from "@/lib/supabase/server";
 import { getCachedUser } from "@/lib/supabase/request-auth-cache";
 
@@ -51,8 +52,21 @@ export default async function FicharioCompartilhadoPage({
 
   const rawPage = Number(Array.isArray(query.pagina) ? query.pagina[0] : query.pagina);
   const anchor = Number.isInteger(rawPage) && rawPage >= 1 && rawPage <= Math.max(1, binder.pageCount) ? rawPage : 1;
-  const initialPages =
-    binder.pageCount > 0 ? await getSharedCollectionBinderPages(supabase, collectionId, sharedBatchStart(anchor), binder.columns, binder.rows) : [];
+  // V1-13 · E3-6 / F2: com a configuração D-E3-1 e coleção Pokédex, páginas pela 5393 (referências de espécie);
+  // barreira fechada ou função ausente → 5316 (C2). Desligada → 5316, como antes.
+  const speciesEnabled = editorCurationFlagOn(process.env) && collection.completionPolicy === "REFERENCE_POSITION";
+  let initialPages: SharedBinderPage[] | null = [];
+  let initialSpecies: SpeciesSource | null = null;
+  if (binder.pageCount > 0 && speciesEnabled) {
+    const read = await getSharedBinderPagesWithSpecies(supabase, collectionId, sharedBatchStart(anchor), binder.columns, binder.rows);
+    if ("failure" in read) initialPages = null;
+    else {
+      initialPages = read.pages;
+      initialSpecies = read.species;
+    }
+  } else if (binder.pageCount > 0) {
+    initialPages = await getSharedCollectionBinderPages(supabase, collectionId, sharedBatchStart(anchor), binder.columns, binder.rows);
+  }
 
   return (
     <AppShell title={collection.name} icon={BookOpen}>
@@ -74,6 +88,8 @@ export default async function FicharioCompartilhadoPage({
         memberRole={collection.role}
         completionPolicy={collection.completionPolicy}
         editorEnabled={canShowEditorCuration({ flagOn: editorCurationFlagOn(process.env), role: collection.role, archived: collection.archived })}
+        speciesEnabled={speciesEnabled}
+        initialSpecies={initialSpecies}
       />
     </AppShell>
   );

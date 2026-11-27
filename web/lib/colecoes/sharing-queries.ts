@@ -26,6 +26,7 @@ import {
   parseSharedWithMe,
 } from "./sharing";
 import type { SharedIdentity } from "./shared-library";
+import { SHARED_SPECIES_PAGES_FN, type SpeciesSource, parseSharedBinderPagesWithSpecies, speciesPagesFallback } from "./shared-binder-species-pages";
 
 /**
  * Leituras do compartilhamento (V1-12) — 5309/5311/5312/5313 (proposta).
@@ -253,6 +254,55 @@ export async function getSharedCollectionBinderPages(
   rows: number,
 ): Promise<SharedBinderPage[] | null> {
   return getSharedCollectionBinderPagesFrom("get_shared_collection_binder_pages", supabase, collectionId, firstPage, columns, rows);
+}
+
+/**
+ * V1-13 · E3-6 / F2 — lote de páginas do participante pela 5393 (páginas da
+ * 5316 + referências de espécie autorizadas). Fallback (C2) para a 5316 SÓ com
+ * barreira fechada (`CAPABILITY_NOT_ENABLED`) ou função ausente. Qualquer outra
+ * recusa ou resposta inválida → `null` (falha do lote, nunca páginas vazias).
+ * Quem chama decide se a configuração D-E3-1 está ligada.
+ */
+export async function getSharedBinderPagesWithSpecies(
+  supabase: SupabaseClient,
+  collectionId: string,
+  firstPage: number,
+  columns: number,
+  rows: number,
+): Promise<{ pages: SharedBinderPage[]; species: SpeciesSource } | { failure: { code?: string; message?: string } }> {
+  const startedAt = Date.now();
+  const [{ data, error }, images] = await Promise.all([
+    supabase.rpc(SHARED_SPECIES_PAGES_FN, {
+      p_collection_id: collectionId,
+      p_first_page: firstPage,
+      p_page_count: SHARED_BINDER_PAGES_PER_READ,
+    }),
+    readSharedBinderImages(supabase, "shared", collectionId, firstPage),
+  ]);
+  if (error) {
+    if (speciesPagesFallback(error.code, error.message)) {
+      const fb = await supabase.rpc("get_shared_collection_binder_pages", {
+        p_collection_id: collectionId,
+        p_first_page: firstPage,
+        p_page_count: SHARED_BINDER_PAGES_PER_READ,
+      });
+      if (fb.error) {
+        logFailure("get_shared_collection_binder_pages", startedAt, fb.error);
+        return { failure: { code: fb.error.code, message: fb.error.message } };
+      }
+      const pages = parseSharedBinderPages(fb.data, columns, rows);
+      if (!pages) return { failure: { code: "BAD_SHAPE" } };
+      return { pages: attachSharedBinderImages(pages, images), species: { source: "5316" } };
+    }
+    logFailure(SHARED_SPECIES_PAGES_FN, startedAt, error);
+    return { failure: { code: error.code, message: error.message } };
+  }
+  const parsed = parseSharedBinderPagesWithSpecies(data, columns, rows);
+  if (!parsed) {
+    logFailure(SHARED_SPECIES_PAGES_FN, startedAt, { code: "BAD_SHAPE" });
+    return { failure: { code: "BAD_SHAPE" } };
+  }
+  return { pages: attachSharedBinderImages(parsed.pages, images), species: { source: "5393", visible: parsed.visible } };
 }
 
 /** Primeiro lote da vitrine pública (5318), lido no servidor sem sessão. */

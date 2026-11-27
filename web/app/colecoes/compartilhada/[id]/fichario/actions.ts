@@ -53,6 +53,21 @@ import {
   noveltyNamesFrom,
   validEditorCatalogKeys,
 } from "@/lib/colecoes/editor-binder-catalog";
+import { isSpeciesPlanToken } from "@/lib/colecoes/binder-species";
+import {
+  type ApplyResult,
+  type ClearResult,
+  type EditorSpeciesFail,
+  type EditorSpeciesPreview,
+  type VisibilityResult,
+  classifyEditorSpeciesFailure,
+  editorSpeciesFail,
+  parseEditorSpeciesApply,
+  parseEditorSpeciesClear,
+  parseEditorSpeciesPreview,
+  parseEditorSpeciesVisibility,
+  validExpectedCount,
+} from "@/lib/colecoes/editor-binder-species";
 import type { AvailableCard } from "@/lib/colecoes/binder-share";
 import type { ReserveCandidate, ReserveScope } from "@/lib/colecoes/binder-reserve";
 import { SHARED_COLLECTION_PATH, parseSharedBinder, parseSharedCollection } from "@/lib/colecoes/sharing";
@@ -635,5 +650,104 @@ export async function editorApplyCatalog(input: {
     return { ok: true, result };
   } catch {
     return catalogEditorFail(fn, startedAt, null);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// V1-13 · E3-6 / F2 — referências de espécie pelo EDITOR (5383), só Pokédex e
+// só no fichário exclusivo de X (o banco decide). Camada inteira do fichário,
+// nunca por bolso; nenhuma escrita toca carta, reserva, imagem, página,
+// alocação ou local. `hint`/`details` nunca são lidos.
+// ---------------------------------------------------------------------------
+
+type SpeciesEditorFail = { ok: false } & EditorSpeciesFail;
+
+function speciesEditorFail(fn: string, startedAt: number, error: { code?: string; message?: string } | null): SpeciesEditorFail {
+  const reason = error ? classifyEditorSpeciesFailure(error.code, error.message) : "unknown";
+  console.error(JSON.stringify({ scope: "colecoes.editor_binder", fn, ms: Date.now() - startedAt, code: error?.code ?? "BAD_SHAPE", reason }));
+  return { ok: false, ...editorSpeciesFail(reason) };
+}
+
+function speciesGuard(collectionId: unknown): SpeciesEditorFail | null {
+  if (!enabled()) return { ok: false, ...editorSpeciesFail("unavailable") };
+  if (!isCollectionId(collectionId)) return { ok: false, ...editorSpeciesFail("invalid") };
+  return null;
+}
+
+/** Prévia (5383, não grava): plano, referências existentes e o token. */
+export async function editorPreviewSpeciesReferences(input: { collectionId: string }): Promise<{ ok: true; preview: EditorSpeciesPreview } | SpeciesEditorFail> {
+  const guard = speciesGuard(input?.collectionId);
+  if (guard) return guard;
+  const startedAt = Date.now();
+  const fn = "editor_preview_binder_species_references";
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc(fn, { p_collection_id: input.collectionId });
+    if (error) return speciesEditorFail(fn, startedAt, { code: error.code, message: error.message });
+    const preview = parseEditorSpeciesPreview(data);
+    if (!preview) return speciesEditorFail(fn, startedAt, null);
+    return { ok: true, preview };
+  } catch {
+    return speciesEditorFail(fn, startedAt, null);
+  }
+}
+
+/** Aplicar: exatamente o plano da prévia (token); plano diferente → recusa, nada gravado. */
+export async function editorApplySpeciesReferences(input: { collectionId: string; planToken: string }): Promise<{ ok: true; result: ApplyResult } | SpeciesEditorFail> {
+  const guard = speciesGuard(input?.collectionId);
+  if (guard) return guard;
+  if (!isSpeciesPlanToken(input.planToken)) return { ok: false, ...editorSpeciesFail("invalid") };
+  const startedAt = Date.now();
+  const fn = "editor_apply_binder_species_references";
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc(fn, { p_collection_id: input.collectionId, p_plan_token: input.planToken });
+    if (error) return speciesEditorFail(fn, startedAt, { code: error.code, message: error.message });
+    const result = parseEditorSpeciesApply(data);
+    if (!result) return speciesEditorFail(fn, startedAt, null);
+    done(fn, startedAt, input.collectionId, result.operation);
+    return { ok: true, result };
+  } catch {
+    return speciesEditorFail(fn, startedAt, null);
+  }
+}
+
+/** Remover: a contagem da prévia precisa bater com a atual (senão COUNT_MISMATCH, nada removido). */
+export async function editorClearSpeciesReferences(input: { collectionId: string; expectedCount: number }): Promise<{ ok: true; result: ClearResult } | SpeciesEditorFail> {
+  const guard = speciesGuard(input?.collectionId);
+  if (guard) return guard;
+  if (!validExpectedCount(input.expectedCount)) return { ok: false, ...editorSpeciesFail("invalid") };
+  const startedAt = Date.now();
+  const fn = "editor_clear_binder_species_references";
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc(fn, { p_collection_id: input.collectionId, p_expected_count: input.expectedCount });
+    if (error) return speciesEditorFail(fn, startedAt, { code: error.code, message: error.message });
+    const result = parseEditorSpeciesClear(data);
+    if (!result) return speciesEditorFail(fn, startedAt, null);
+    done(fn, startedAt, input.collectionId, "REMOVED");
+    return { ok: true, result };
+  } catch {
+    return speciesEditorFail(fn, startedAt, null);
+  }
+}
+
+/** Mostrar/ocultar: só a preferência do fichário; a associação fica. */
+export async function editorSetSpeciesReferenceVisibility(input: { collectionId: string; visible: boolean }): Promise<{ ok: true; result: VisibilityResult } | SpeciesEditorFail> {
+  const guard = speciesGuard(input?.collectionId);
+  if (guard) return guard;
+  if (typeof input.visible !== "boolean") return { ok: false, ...editorSpeciesFail("invalid") };
+  const startedAt = Date.now();
+  const fn = "editor_set_binder_species_reference_visibility";
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc(fn, { p_collection_id: input.collectionId, p_visible: input.visible });
+    if (error) return speciesEditorFail(fn, startedAt, { code: error.code, message: error.message });
+    const result = parseEditorSpeciesVisibility(data);
+    if (!result) return speciesEditorFail(fn, startedAt, null);
+    done(fn, startedAt, input.collectionId, result.changed ? "UPDATED" : "UNCHANGED");
+    return { ok: true, result };
+  } catch {
+    return speciesEditorFail(fn, startedAt, null);
   }
 }

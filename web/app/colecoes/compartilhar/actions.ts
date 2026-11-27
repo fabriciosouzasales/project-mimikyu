@@ -25,7 +25,8 @@ import {
   parseSharing,
 } from "@/lib/colecoes/sharing";
 import { editorCurationFlagOn } from "@/lib/colecoes/editor-binder";
-import { readSharedBinderImages } from "@/lib/colecoes/sharing-queries";
+import { getSharedBinderPagesWithSpecies, readSharedBinderImages } from "@/lib/colecoes/sharing-queries";
+import type { SpeciesSource } from "@/lib/colecoes/shared-binder-species-pages";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -223,11 +224,24 @@ export async function readSharedBinderPages(input: {
   firstPage: number;
   columns: number;
   rows: number;
-}): Promise<{ ok: true; pages: SharedBinderPage[] } | Fail> {
+  /**
+   * V1-13 · E3-6 / F2: pedir as referências de espécie (5393). Só vale com a
+   * configuração D-E3-1 ligada (conferida aqui); desligada → 5316, como antes.
+   */
+  species?: boolean;
+}): Promise<{ ok: true; pages: SharedBinderPage[]; species?: SpeciesSource } | Fail> {
   if (!isCollectionId(input?.collectionId)) return { ok: false, reason: "not_found" };
   const { firstPage, columns, rows } = input;
   if (![firstPage, columns, rows].every((n) => Number.isInteger(n)) || firstPage < 1 || firstPage > 100000 || columns < 1 || columns > 10 || rows < 1 || rows > 10) {
     return { ok: false, reason: "not_found" };
+  }
+  if (input.species === true && editorCurationFlagOn(process.env)) {
+    const startedAt = Date.now();
+    const supabase = await createClient();
+    const read = await getSharedBinderPagesWithSpecies(supabase, input.collectionId, firstPage, columns, rows);
+    // Falha (sessão, acesso, erro, resposta inválida): o lote falha — nunca vira página vazia nem cai na 5316.
+    if ("failure" in read) return fail("get_shared_collection_binder_pages_with_species", startedAt, read.failure);
+    return { ok: true, pages: read.pages, species: read.species };
   }
   return readBinderPagesVia("get_shared_collection_binder_pages", input.collectionId, firstPage, columns, rows);
 }

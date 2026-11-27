@@ -84,6 +84,7 @@ export function useEditorPages({
   replaceCache,
   invalidate,
   cachedNumbers,
+  readPages = readSharedBinderPages,
 }: {
   editor: SharedBinderEditor;
   collectionId: string;
@@ -98,6 +99,8 @@ export function useEditorPages({
   invalidate: () => void;
   /** Números das páginas hoje no cache (relidas no lugar depois de cada operação). */
   cachedNumbers: () => number[];
+  /** V1-13 · E3-6 / F2: leitor das páginas (o mesmo da tela, com a fonte de referências dela). Padrão: 5316. */
+  readPages?: (input: { collectionId: string; firstPage: number; columns: number; rows: number }) => Promise<{ ok: true; pages: SharedBinderPage[] } | { ok: false }>;
 }) {
   const [exclusivity, setExclusivity] = useState<Exclusivity>("UNKNOWN");
   const [overviewOpen, setOverviewOpen] = useState(false);
@@ -128,7 +131,7 @@ export function useEditorPages({
       for (let i = 0; i < batches.length && !failed; i += FRESH_READ_CONCURRENCY) {
         const slice = batches.slice(i, i + FRESH_READ_CONCURRENCY);
         const results = await Promise.all(
-          slice.map((firstPage) => readSharedBinderPages({ collectionId, firstPage, columns, rows }).catch(() => ({ ok: false }) as const)),
+          slice.map((firstPage) => readPages({ collectionId, firstPage, columns, rows }).catch(() => ({ ok: false }) as const)),
         );
         results.forEach((result, index) => {
           const firstPage = slice[index];
@@ -141,7 +144,7 @@ export function useEditorPages({
       }
       return failed ? null : out;
     },
-    [collectionId, columns, rows],
+    [collectionId, columns, readPages, rows],
   );
 
   /** Recusa: D1 (só lição inequívoca), perda de permissão (desliga a edição) e mensagem neutra. */

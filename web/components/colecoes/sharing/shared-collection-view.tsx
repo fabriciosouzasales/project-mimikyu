@@ -248,6 +248,7 @@ export function SharedCollectionView({
                 finish={finish}
                 binder={binder}
                 role={collection.role ?? "VIEWER"}
+                speciesEnabled={activity && collection.completionPolicy === "REFERENCE_POSITION"}
               />
             ) : null}
 
