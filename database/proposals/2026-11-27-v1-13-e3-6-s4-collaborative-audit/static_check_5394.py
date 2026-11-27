@@ -210,6 +210,17 @@ check("K2", re.search(r"\b(e|ev)\.(summary|actor_user_id)\b|select\s+\*", nc(pre
 check("V15", not any(re.search(r"'[^']*\\b[^']*'", nc(x)) for x in (mig, rb, pre, post))
       and "\\y'" in nc(pre),
       "regex SQL sem \\b (backspace no PostgreSQL); limite de palavra com \\y no PRE")
+# Preparação da implantação (2026-11-27): ordem D4 (5391 implantada), travas concorrentes em relatório,
+# expectativas do inventário (gate obrigatório do executor v1.4) idênticas às confirmadas no LIVE (5391).
+import json as _json
+_exp = _json.load(open(os.path.join(HERE, "S4A_5394_EXPECTATIVAS.json"), encoding="utf-8"))
+_exp91 = _json.load(open(os.path.join(ROOT, "database", "proposals", "2026-11-27-v1-13-e3-6-s2-pokedex-collaborative-editing", "S2_5391_EXPECTATIVAS.json"), encoding="utf-8"))
+check("V16", "'dependencia_5391'" in pre and "get_editor_pokedex_position_copies(uuid, uuid, text, text, integer, integer)" in pre
+      and "trg_collection_membership_epoch" in pre and "'sessoes_com_trava'" in pre and "pg_catalog.pg_locks" in pre
+      and sorted(_exp) == ["escritores_atribuicao", "escritores_representante"]
+      and len(_exp["escritores_atribuicao"]) == 5 and len(_exp["escritores_representante"]) == 4
+      and all(len(v) == len(set(v)) for v in _exp.values()) and _exp == _exp91,
+      "PRE exige a 5391 implantada (RPC, época e gatilho habilitado); travas concorrentes em relatório; expectativas 5+4 = inventário confirmado no LIVE pela 5391")
 live = re.compile(r"qjfutqujxrbzgrtkpgkg|supabase\.co|eyJ|sbp_", re.I)
 check("X1", not any(live.search(nc(x)) for x in (mig, rb, pre, post)), "nenhuma referência ao projeto, URL ou credencial")
 man = [l.split("|") for l in rd(MAN).splitlines() if l and not l.startswith("#")]

@@ -3,7 +3,7 @@
 | Campo | Valor |
 |---|---|
 | **Rodada** | `E3-6 / S2 + S4 — CONTRACT CONSOLIDATION, IMPLEMENTATION PREPARATION & GOVERNANCE OPTIMIZATION-01` (2026-11-27) |
-| **Status** | **S4-a / 5394 PREPARADA — NÃO EXECUTADA** (2026-11-27): migration v1.1 (captura derivada inerte com a capacidade fechada), rollback, PRE/POST, manifesto, static check 22/22 com mutação (§9, §9.6). S4-b / 5395 apenas especificada. |
+| **Status** | **S4-a / 5394 EXECUTADA NO LIVE / CANÔNICA (2026-11-27 13:35:15Z)**: PRE, migration e POST com PASS (executor v1.4); nenhum evento; captura inerte com a barreira CLOSED; evidências em `S4A_5394_DEPLOY_EVIDENCE_2026-11-27.md`. Sequenciamento aprovado 5394 → 5392 → 5395; **a S4 não está concluída** (D-E3-8 obrigatória). |
 | **Decisão** | D-E3-8 / P0-B: auditoria obrigatória de posição e representante da Pokédex e das referências de espécie, para titular e EDITOR. Ampliação aprovada em 2026-11-26. |
 | **Conferido** | `database/schema/` 5267–5269 (histórico do fichário), 5341 (`binder_activity_category`), 5258, 5046, 5047, 6119, 6122–6126; `g1/protected/` 5380, 5383, 5388; `e1c2-remaining-bulk-operations/5384` (gatilho `trg_bae_editor_event_type`). |
 | **Desbloqueia** | 5392 (S2), que depende da primitiva de registro desta especificação. |
@@ -232,3 +232,74 @@ A 5395 é independente da S2 e pode ser implantada antes ou junto da 5392. Numer
 A 5395 continua planejada (§6): titular explícito, referências de espécie e leituras.
 
 Static check 5394: **22/22 PASS**. Mutações da inércia detectadas: retirada na desalocação → M13; `'TEST'` no lugar de `'OPEN'` → M13; md5 de `capability_open` alterado → C1.
+
+### 9.7 Preparação da implantação (2026-11-27, `S4-a/5394 — AUDIT INFRASTRUCTURE DEPLOYMENT PREPARATION-01`)
+
+**Decisão aprovada:** sequenciamento transitório 5394 → 5392 → 5395 (§9.1). A 5394 não encerra a S4.
+
+**Expectativas do inventário** (`S4A_5394_EXPECTATIVAS.json`, sha256 `6351fb718a1e47c69da170507e04ee0a6e259426f466b4b82db2ce51185edd13`):
+- conteúdo idêntico às expectativas da 5391 e ao inventário confirmado no PRE do LIVE em 2026-11-27 (13:00:24Z): 5 escritores de atribuição e 4 de representante;
+- o executor v1.4 compara o inventário automaticamente e faz STOP em nome a mais, a menos, repetido, vazio ou ausente.
+
+**Nomes bastam para a 5394, sem enfraquecer o controle.** Os gatilhos são **por tabela**, então capturam qualquer escritor, conhecido ou não. Além disso, o retrato `escritores_md5` (precheck e postcheck da migration, e PRE → POST pelo executor) cobre o corpo de **todas** as sobrecargas desses nomes; uma assinatura nova ou alterada muda o md5. Assinaturas completas (`regprocedure`) continuam recomendadas para a 5392.
+
+**PRE ajustado** (só leitura, aceito pelo validador do executor):
+- `dependencia_5391`: a 5391 implantada, com a RPC, a tabela de épocas e o gatilho habilitado (ordem D4);
+- `sessoes_com_trava`: relatório das sessões com trava nas 3 tabelas. O `NOWAIT` recusa, sem esperar, se houver conflito.
+
+**Revisão focalizada (sem defeito; SQL inalterado):**
+
+| Item | Resultado |
+|---|---|
+| CLOSED | as 5 capturas e o acúmulo retornam na 1ª instrução; nenhum evento; operações atuais só pagam uma leitura STABLE da barreira por disparo |
+| TEST | captura só nas sessões de identidades registradas (`v1_13_capability_open`) |
+| OPEN | captura em todas as sessões. Sem sessão (`SYSTEM`) só em OPEN |
+| Duplicidade | `open()` antes da escrita; a captura ignora a coleção marcada; `record()` consome a marcação |
+| Autoria | `auth.uid()` e papel derivados no servidor; nenhum parâmetro de autor |
+| Integridade | evento na mesma transação; imutável (guarda); FK da coleção |
+| Privilégios | 9 funções definer com `search_path` vazio; nenhuma com EXECUTE para a API; tabela com RLS e sem privilégios |
+| Reversibilidade | `ROLLBACK_5394` disponível enquanto não houver eventos (garantido com CLOSED). Recusa com eventos ou com a 5392 presente |
+| 5392 | primitivas `open` e `record_pokedex` suficientes (§9.4) |
+| Travas | PRE exige `executor_dono_tabelas` (prova de que pode criar gatilho e travar as tabelas `public`) e `pode_referenciar_usuarios`; a migration usa `lock_timeout` de 3 s e NOWAIT nas 3 tabelas |
+
+**Critérios de desempenho** (a medir no TEST autorizado, com volume real; nada é comprovado antes):
+
+| Medida | Critério |
+|---|---|
+| Custo dos gatilhos com CLOSED | sem evento; diferença de tempo em operação do titular (posição/representante) dentro do ruído (≤ 2 ms p95) |
+| Captura agregada (TEST/OPEN) | exatamente 1 evento DERIVED por coleção e transação; ≤ 5 ms p95 adicionais por operação do titular |
+| Alocação/desalocação em massa (500 exemplares de uma Pokédex) | ≤ 20 % acima da mesma operação sem a 5394; 1 evento por coleção afetada |
+| Contenção | migration: nenhuma espera (NOWAIT), `sessoes_com_trava` = 0 na janela; operação: nenhuma trava nova além da linha da coleção já travada pelos caminhos atuais |
+| Crescimento | ≤ 1 evento por operação explícita e ≤ 1 por transação derivada; tamanho medido ao fim do TEST; retenção decidida na 5395 |
+
+**PASS/STOP da execução:**
+- **PRE:**
+  - todos os booleanos verdadeiros (inclusive `dependencia_5391`, `executor_dono_tabelas` e `pode_referenciar_usuarios`);
+  - barreira CLOSED e 0 identidades TEST;
+  - inventário igual às expectativas;
+  - `escritores_md5` registrado.
+- **Migration:** exit 0. Qualquer erro, inclusive 55P03 ou sintaxe, aborta tudo, sem rollback.
+- **POST:** todos os booleanos verdadeiros, `sem_eventos`, e `escritores_md5` igual ao do PRE (o executor compara).
+- **Fora do gate automático:** `sessoes_com_trava` > 0 não reprova o gate (o NOWAIT protege), mas recomenda adiar a janela.
+
+**Artefatos:**
+
+| Arquivo | sha256 |
+|---|---|
+| Manifesto `S4A_5394_MANIFEST.txt` | `24d7d8a628eb7d4fa40dbb1ccb48da2e8a0b42121157571d4fed923bf7bc17ad` |
+| PRE | `8b63e713f0d682e39936005ef9cde45a56826086e9d421a9c50f3912936c5dcd` |
+| Migration 5394 (inalterada) | `b43accc5e09dc8cf6572ad6baa3b37fdfef8fea07ae247d6bd52278842d73f5c` |
+| POST | `ad50ef0f8ce84907d2b3582bc5c9da3a2eb59f667b6f44848146a2680771b0a9` |
+| Rollback | `c613107358f670aa7d0a4a95f5c7dee078015cebbb239286bb35e9d4b32b71b5` |
+| Expectativas | `6351fb718a1e47c69da170507e04ee0a6e259426f466b4b82db2ce51185edd13` |
+
+Verificação estática: 24/24.
+
+### 9.8 Implantação confirmada (2026-11-27 13:35:15Z)
+
+PRE, migration e POST com PASS. Os `escritores_md5` são iguais no PRE e no POST. `dependencia_5391`, `executor_dono_tabelas` e `pode_referenciar_usuarios` deram verdadeiro, e `sessoes_com_trava` deu 0. Detalhe em `S4A_5394_DEPLOY_EVIDENCE_2026-11-27.md`.
+
+**Riscos residuais:**
+- captura em TEST/OPEN, duplicidade e desempenho não medidos (§9.7);
+- operações do titular registradas só como evento agregado até a 5395;
+- primitivas prontas para a 5392 (§9.4).
