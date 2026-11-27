@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Modelo de Dados — Coleções e Usuários |
 | **Arquivo** | `docs/05d-colecoes-e-usuarios.md` |
-| **Versão** | 3.69 | **V1-13 — E3-6 / S4-b: 5395 EXECUTADA NO LIVE / CANÔNICA (2026-11-27).** Anterior (3.68): 5392 executada no LIVE. |
+| **Versão** | 3.70 | **V1-13 — E3-6 / S4-c: 5396 EXECUTADA NO LIVE / CANÔNICA (2026-11-27); S4 completa no servidor.** Anterior (3.69): 5395 executada no LIVE. |
 | 3.50 | **V1-13 — E3-5, revisão final (2026-11-25, `E3-5 — SHARED ACTIVITY HISTORY | FINAL REVIEW & LOCAL CLOSEOUT-01`).** V1: "Por: Você" removido do histórico do titular (autor não comprovado pela 5269). V2: mensagens de indisponível e de acesso não confirmado sem causa afirmada. Versionada; homologação pendente. |
 | 3.51 | **V1-13 — E3-6, Master Set e Pokédex do participante (2026-11-25, `E3-6 — SHARED MASTER SET & POKÉDEX | LOCAL IMPLEMENTATION-01`).** Seção "E2–E4" registra os contratos conferidos da 5323/5324/5380, as grades do titular reutilizadas para EDITOR e VIEWER (só leitura, sem quantidades), a regra de zero linhas e o impedimento contratual da edição da Pokédex pelo EDITOR (sem id de exemplar nas leituras autorizadas), sem SQL, não homologado. |
 | 3.52 | **V1-13 — E3-6, avaliação contratual (2026-11-25, `E3-6 — FULL COLLABORATIVE EDITING | CONTRACT EVOLUTION ASSESSMENT-01`).** Registra a decisão de edição colaborativa completa, as lacunas L1–L6 e a proposta 5390–5392 (PROPOSTO, sem SQL). |
@@ -25,6 +25,7 @@
 | 3.67 | **V1-13 — E3-6 / S4-a, 5394 implantada (2026-11-27).** Histórico por coleção da Pokédex (`collection_activity_event`), primitivas `collection_activity_open`/`collection_activity_record_pokedex` e captura agregada inerte com a barreira CLOSED; PRE, migration e POST com PASS; nenhum evento. Sequenciamento aprovado 5394 → 5392 → 5395; a S4 não está concluída. |
 | 3.68 | **V1-13 — E3-6 / S2, 5392 implantada (2026-11-27).** Quatro escritas do EDITOR na Pokédex por identificador opaco, com estado esperado depois das travas, escopo de gerações, `collection_activity_open` antes e um evento por resultado efetivo; 5380 revogada; rollback seguro; complemento de emergência pronto. Provas funcionais pendentes. |
 | 3.69 | **V1-13 — E3-6 / S4-b, 5395 v1.1 implantada (2026-11-27).** As 4 funções do titular da Pokédex registram um evento explícito por operação efetiva (inerte com a barreira CLOSED; sem mudança, sem marcação); leitura `get_collection_activity` para o titular e participantes ACTIVE, sem identificadores patrimoniais. PRE, migration e POST com PASS; nenhum evento. A S4 só se conclui com a 5396 (referências de espécie, D-5395-1). |
+| 3.70 | **V1-13 — E3-6 / S4-c, 5396 v1.2 implantada (2026-11-27).** Referências de espécie no histórico do fichário: 4 tipos `SPECIES_REFERENCES_*`, categoria `SPECIES`, titular (sob a barreira) e EDITOR com um evento por operação efetiva; participante ACTIVE vê os eventos de X sem resumo (D-5396-1); filtro `SPECIES` do titular (D-5396-2). A v1.1 parou no LIVE por 22P02 no postcheck, sem persistir nada; a v1.2 passou. S4 completa no servidor. |
 | 3.18 | **V1-13 / E1-B2 — proposta local (2026-11-15, `V1-13 / E1-B2 \| EDITOR CURATION OPERATIONS-01`).** "Estado da E1" registra 5375–5377 (reservas, fixação, metadados, capa e Storage da capa), mesclagem e objetivo textual como decisões de produto em aberto, 56/56 estático e prova 5890 pendente. Nada executado. |
 | 3.19 | **V1-13 / E1-B2 — revisão de Storage e escopo (2026-11-15, `V1-13 / E1-B2 \| STORAGE HARDENING AND SCOPE REVIEW-02`).** 5377 v1.1: o teto de 3 envios do EDITOR passa a ser serializado por EDITOR e coleção (ajudante de envio volátil com trava transacional); a proteção contra envios paralelos pela API do Storage segue sem prova. Arquivos órfãos documentados, com limpeza do titular e sem rotina automática. Mesclagem e objetivo textual seguem em aberto, com propostas documentais para decisão. 59/59 estático; 5890 v1.1 (45) pendente. Nada executado. |
 | 3.20 | **V1-13 / E1-B2 — commit local e encerramento (2026-11-15, `V1-13 / E1-B2 \| LOCAL COMMIT AND CLOSEOUT-03`).** Proposta E1-B2 versionada localmente, não executada nem homologada. D9 (mesclagem não aplicável ao EDITOR), D10 (objetivo narrativo pela descrição) e D11 (limpeza futura de órfãos, sem versão) registradas como propostas aguardando aprovação; C-237/C-239 não alteradas. E3 ganha critério da capa do EDITOR (limite visível, gestão dos próprios envios não usados). Teto sob envios simultâneos: prova pela API pendente. |
@@ -1624,6 +1625,13 @@ Cenários obrigatórios entre contas, com prova dinâmica antes da publicação,
     - **Fora:** referências de espécie → 5396 (D-5395-1). Em TEST, titular sem identidade registrada não é auditado (D-5395-2).
 
     Barreira CLOSED, sem eventos. Provas funcionais pendentes. Evidências: `database/proposals/2026-11-27-v1-13-e3-6-s4-collaborative-audit/S4B_5395_DEPLOY_EVIDENCE_2026-11-27.md`.
+  - **E3-6 / S4-c / 5396 v1.2 — EXECUTADA NO LIVE / CANÔNICA (2026-11-27 15:24:37Z).** Executor v1.4, inventário de escritores conferido por assinatura (inalterado). PRE, migration e POST com PASS.
+    - **Referências de espécie:** aplicar, remover e mostrar/ocultar do titular (5258, sob `v1_13_capability_open()`) e do EDITOR (5383) gravam um evento `SPECIES_REFERENCES_APPLIED/CLEARED/SHOWN/HIDDEN` por operação efetiva. A gravação é feita pela primitiva interna `binder_activity_record_species`, com autor e resumo derivados no servidor e sem itens.
+    - **Leituras:** a 5269 aceita o filtro `SPECIES` (D-5396-2). A 5388 mostra a participantes ACTIVE os eventos `SPECIES` de X, sem resumo (D-5396-1).
+    - **Regra de tipos:** `chk_bae_event_type` com 29 tipos, trocada no fim da transação.
+    - **Tentativa anterior:** STOP-LIVE da v1.1 por 22P02 no postcheck, sem persistência (comprovado pelo PRE seguinte).
+
+    Barreira CLOSED, sem eventos. Provas funcionais pendentes. Evidências: `database/proposals/2026-11-27-v1-13-e3-6-s4-collaborative-audit/S4C_5396_DEPLOY_EVIDENCE_2026-11-27.md`.
   - metadados;
   - selo de papel na Biblioteca e em "Compartilhadas com você";
   - escolha e troca de papel em "Compartilhar";

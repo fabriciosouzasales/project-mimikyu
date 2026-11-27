@@ -1,0 +1,4 @@
+# V1-13 · S4-c / 5396 — manifesto do executor por arquivo (STD-005 §3, v1.4). passo|arquivo|sha256|modo
+1|database\proposals\2026-11-27-v1-13-e3-6-s4-collaborative-audit\S4C_5396_PRE_readonly.sql|1b67221d16658876ee0308f96ccacad51c832a565b04fdab426f623dc2af1c31|gate
+2|database\proposals\2026-11-27-v1-13-e3-6-s4-collaborative-audit\5396_audit_binder_species_references.sql|d735734e44e1396975af0d93d6c55e4da56c6189b7e908e19f9ca7e16068c1ce|write
+3|database\proposals\2026-11-27-v1-13-e3-6-s4-collaborative-audit\S4C_5396_POST_readonly.sql|761e3fa391a4a13e194e88a6cdd9fe7f99e2b9cfc78315b98df9b6a2d15d4cb8|gate

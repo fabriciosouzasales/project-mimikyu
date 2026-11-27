@@ -21,6 +21,7 @@ import {
   dayLabel,
   describeEvent,
   describeItem,
+  speciesReferenceLabel,
   emptyMessage,
   filterCategories,
   groupByDay,
@@ -69,8 +70,8 @@ function ev(type: string, items: RawItem[], over: Record<string, unknown> = {}):
 
 // ---------------------------------------------------------------------------
 
-test("vocabulário: 25 tipos, todos com categoria e frase própria (sem genérico)", () => {
-  assert.equal(ACTIVITY_EVENT_TYPES.length, 25);
+test("vocabulário: 29 tipos, todos com categoria e frase própria (sem genérico)", () => {
+  assert.equal(ACTIVITY_EVENT_TYPES.length, 29);
   const sample: Record<string, RawItem[]> = {
     BINDER_ASSEMBLED: [{ kind: "PAGE", effect: "PAGE_ADDED", to_page: 1 }],
     CARD_PLACED: [{ kind: "CARD", effect: "PLACED", ...CARD, to_page: 5, to_row: 1, to_col: 1 }],
@@ -112,7 +113,7 @@ test("vocabulário: 25 tipos, todos com categoria e frase própria (sem genéric
     assert.doesNotMatch(view.title + (view.context ?? ""), /[A-Z]{3,}_[A-Z]/, `sem enum exposto em ${type}`);
     titles.add(`${type}:${view.title}`);
   }
-  assert.equal(titles.size, 25);
+  assert.equal(titles.size, 29);
 });
 
 test("categorias espelham a 5269 e os filtros seguem a §3.3", () => {
@@ -371,4 +372,30 @@ test("regressão: eventos anteriores mantêm frases e categorias depois do tipo 
   assert.equal(categoryOf("CATALOG_NOVELTIES_INCORPORATED"), "CATALOG");
   assert.equal(categoryOf("CARD_PLACED"), "CARDS");
   assert.equal(describeEvent(ev("ALGO_NOVO", [])).title, "Atividade no fichário"); // tipo desconhecido continua genérico
+});
+
+test("referências de espécie (5396): categoria SPECIES, rótulos e só números gravados", () => {
+  assert.ok((ACTIVITY_CATEGORIES as readonly string[]).includes("SPECIES"));
+  assert.deepEqual(filterCategories("SPECIES"), ["SPECIES"]);
+  assert.equal(ACTIVITY_FILTERS.some((f) => (f.key as string) === "SPECIES"), false); // botão: F3/E3-7
+  for (const type of ["SPECIES_REFERENCES_APPLIED", "SPECIES_REFERENCES_CLEARED", "SPECIES_REFERENCES_SHOWN", "SPECIES_REFERENCES_HIDDEN"]) {
+    assert.equal(categoryOf(type), "SPECIES");
+  }
+  assert.equal(speciesReferenceLabel("SPECIES_REFERENCES_APPLIED"), "Referências de Pokémon aplicadas");
+  assert.equal(speciesReferenceLabel("SPECIES_REFERENCES_CLEARED"), "Referências de Pokémon removidas");
+  assert.equal(speciesReferenceLabel("SPECIES_REFERENCES_SHOWN"), "Referências de Pokémon exibidas");
+  assert.equal(speciesReferenceLabel("SPECIES_REFERENCES_HIDDEN"), "Referências de Pokémon ocultadas");
+  assert.equal(speciesReferenceLabel("CARD_PLACED"), null);
+  const applied = describeEvent(ev("SPECIES_REFERENCES_APPLIED", [], {
+    category: "SPECIES", summary: { reference_count: 1025, first_number: 1, last_number: 1025, visible: true },
+  }));
+  assert.equal(applied.title, "Referências de Pokémon aplicadas");
+  assert.equal(applied.context, "Coleção Caos Ascendente · 1.025 bolsos com referência · nº 1 a 1025");
+  const cleared = describeEvent(ev("SPECIES_REFERENCES_CLEARED", [], { summary: { removed_count: 3 } }));
+  assert.equal(cleared.context, "Coleção Caos Ascendente · 3 referências removidas");
+  // Sem resumo (participante): frase sem números, nada inferido.
+  const bare = describeEvent(ev("SPECIES_REFERENCES_APPLIED", [], { summary: {}, collection_name: null }));
+  assert.equal(bare.title, "Referências de Pokémon aplicadas");
+  assert.equal(bare.context, null);
+  assert.equal(headlineEvent(ev("SPECIES_REFERENCES_HIDDEN", [])), "Referências de Pokémon ocultadas");
 });

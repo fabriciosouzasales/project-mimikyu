@@ -140,3 +140,14 @@ test("estados distintos: vazio, indisponível, acesso perdido, sem fichário, fa
   assert.equal(classifySharedActivityFailure("22023"), "invalid");
   assert.equal(classifySharedActivityFailure("XX000"), "unknown");
 });
+
+test("5388 (5396, D-5396-1): evento de referências de espécie sem itens e sem resumo", () => {
+  const e = parseSharedActivityEvent(row({ event_type: "SPECIES_REFERENCES_SHOWN", category: "SPECIES", item_count: 0, items: [] }));
+  assert.ok(e);
+  assert.equal(e.category, "SPECIES");
+  assert.equal(e.itemCount, 0);
+  assert.equal(e.truncated, false);
+  assert.deepEqual(e.summary, {});
+  assert.equal(headlineEvent(e), "Referências de Pokémon exibidas");
+  assert.equal(attributionByline(e), "por Ana");
+});

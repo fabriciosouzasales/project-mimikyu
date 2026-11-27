@@ -1,0 +1,16 @@
+{
+  "escritores_referencias": [
+    "public.apply_my_binder_species_references(uuid,text)",
+    "public.clear_my_binder_species_references(uuid,integer)",
+    "public.editor_apply_binder_species_references(uuid,text)",
+    "public.editor_clear_binder_species_references(uuid,integer)",
+    "public.editor_remove_binder_page(uuid,integer,integer)",
+    "public.remove_layout_page(uuid,integer)"
+  ],
+  "escritores_preferencia": [
+    "public.apply_my_binder_species_references(uuid,text)",
+    "public.editor_apply_binder_species_references(uuid,text)",
+    "public.editor_set_binder_species_reference_visibility(uuid,boolean)",
+    "public.set_my_binder_species_reference_visibility(uuid,boolean)"
+  ]
+}

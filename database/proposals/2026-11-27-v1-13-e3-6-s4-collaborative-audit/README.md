@@ -411,3 +411,153 @@ Não havia duplicidade, autoria errada nem alteração de ordem.
 - **Cópia canônica:** `database/schema/5395_instrument_owner_pokedex_audit_and_activity_read.sql`. O corpo é idêntico; só o bloco Status difere.
 - **Não executados:** rollback e emergência E2c.
 - **Provas funcionais pendentes:** TEST/E4.
+
+## 11. S4-c / 5396 — EXECUTADA NO LIVE / CANÔNICA (v1.2, 2026-11-27 15:24:37Z; v1.1 STOP-LIVE em 15:18:41Z)
+
+### 11.1 Caminhos de escrita (repositório; o PRE confere no LIVE por assinatura)
+
+| Tabela | Escritores | Na 5396 |
+|---|---|---|
+| `collection_layout_slot_species_reference` | titular `apply_my_…`, `clear_my_…` (5258); EDITOR `editor_apply_…`, `editor_clear_…` (5383 G1) | instrumentados |
+| idem | `remove_layout_page` (5286) e `editor_remove_binder_page` (5382): apagam as referências da página removida | já auditados como `PAGE_REMOVED`; sem evento próprio |
+| `collection_layout_species_reference_setting` | `apply_my_…`/`editor_apply_…` (marca visível); `set_my_…_visibility`/`editor_set_…_visibility` | instrumentados |
+| cascatas (FK) | bolso, fichário ou coleção removidos | cobertos pelo evento da operação de origem |
+
+Abrir e fechar espaço não move referências: elas ficam presas ao bolso. A leitura (`preview_*`) não grava nada.
+
+### 11.2 Contrato
+
+| Operação | Evento (um por operação efetiva) | Sem evento |
+|---|---|---|
+| aplicar `APPLIED` | `SPECIES_REFERENCES_APPLIED` `{reference_count, first_number, last_number, visible}` | — |
+| aplicar `ALREADY_APPLIED` com referências **ocultas** (a função volta a exibi-las) | `SPECIES_REFERENCES_SHOWN` `{}` | `ALREADY_APPLIED` já visível |
+| remover `REMOVED` > 0 | `SPECIES_REFERENCES_CLEARED` `{removed_count}` | remoção de 0 |
+| mostrar/ocultar `UPDATED` | `SPECIES_REFERENCES_SHOWN` / `_HIDDEN` `{}` | `UNCHANGED` |
+| recusas | — | `PLAN_CHANGED`, `SPECIES_REFERENCES_PRESENT`, `NOTHING_TO_APPLY`, `COUNT_MISMATCH`, autorização, arquivada |
+
+- **Fluxo:** histórico do fichário (`binder_activity_event`), conforme §1. O fluxo da coleção (5394/5395) exigiria alterar o CHECK `chk_cae_event_type` da 5394. **Não** é usado.
+- **Primitiva `binder_activity_record_species`:**
+  - interna, sem EXECUTE para nenhum papel de cliente, `SECURITY DEFINER`, `search_path=''`;
+  - autor = `auth.uid()`, que precisa ser o titular do fichário ou EDITOR ACTIVE da coleção dona dele;
+  - coleção = dona ou convidada do mesmo titular;
+  - resumo montado a partir do estado gravado, só com contagens e números nacionais;
+  - grava só o cabeçalho do evento, sem itens (`item_collection_recorded = true`), na mesma transação da escrita;
+  - recusa chamada dentro de uma operação de fichário aberta.
+- **Titular:** só com `v1_13_capability_open()`, a mesma regra da 5395 (D-5395-2). Com a barreira CLOSED, o caminho é exatamente o de hoje.
+- **EDITOR:** registro sempre, porque a função já exige a barreira no início.
+- **Fora dos blocos `[5396+]…[5396-]`:** as 8 funções têm texto idêntico ao implantado (prova C2).
+- **Estruturas alteradas:**
+  - `chk_bae_event_type`: 25 → 29 tipos;
+  - `binder_activity_category`: + `SPECIES`;
+  - gatilho do EDITOR (5384): + os 4 tipos, origem FICHARIO, coleção obrigatória (regra já existente).
+- **Duplicidade:** o fluxo do fichário não tem captura derivada, e a 5394 não observa essas tabelas. Uma chamada por função, depois da escrita.
+
+### 11.3 Exibição (decisões pedidas)
+
+- **Titular (5269, inalterada):** os eventos aparecem na lista sem filtro, com `category = 'SPECIES'` e o resumo.
+  - Filtrar por `SPECIES` ainda é recusado, porque a lista de categorias da 5269 é fechada.
+  - A 5269 não devolve o autor; isso já está pendente como D-E3-2.
+  - **D-5396-2:** incluir `SPECIES` no filtro da 5269 (diff de uma lista) junto com a interface.
+- **Participantes (5388, inalterada):** os eventos **não** aparecem. A lista de permissão da C-241 não tem os tipos, e a leitura exige itens de X.
+  - **D-5396-1:** decidir se participantes ACTIVE os veem. Se sim, a 5388 precisa de um ramo sem itens para os 4 tipos de X, sem `summary` (como hoje) ou com `summary`.
+- **`get_collection_activity` (5395, inalterada):** não mostra referências de espécie; são outro fluxo. A integração visual dos dois históricos é tarefa de interface.
+- **Interface:** `web/lib/colecoes/binder-activity.ts` cai no ramo padrão para tipos desconhecidos. Os rótulos ficam para antes da abertura.
+
+### 11.4 Artefatos (sha256)
+
+| Arquivo | sha256 |
+|---|---|
+| `5396_audit_binder_species_references.sql` | `68ecdc5f16bbb91a48b8cffcbc6f67a4c69503b4a3c9fbf89715dcee94790ed0` |
+| `ROLLBACK_5396.sql` | `37edbbf437cb4b4a8ed76010bf9a64534a33785272ebe017b6fe3c119293e99e` |
+| `S4C_5396_PRE_readonly.sql` (gate) | `6bf1565d6900f1c6d247f9a15997ba5eb89be58b09d868e189368db233455d8c` |
+| `S4C_5396_POST_readonly.sql` (gate) | `e301a0504011dc604b3f186da2d8ba8a90efd3966b3daee6289ef8a544f418ea` |
+| `S4C_5396_EXPECTATIVAS.json` (6 + 4 assinaturas, do repositório) | `485ce5a47b0bf1fc7a043d594adf017004558a64dd6a1dab994255601088694d` |
+| `S4C_5396_MANIFEST.txt` | `500bb3a32b4e68e663cd80760b84c15511052afb01068547e1a64b98e119bfc8` |
+| `build_5396.py` · `static_check_5396.py` | gerador · verificação estática (24/24, 26/26 mutações) |
+
+- **Rollback:** recusa se houver qualquer evento `SPECIES_*` (CHECK antigo, histórico imutável).
+- **Emergência:** nenhuma RPC nova, por isso não há complemento. As 3 funções do EDITOR já estão no E1/E2 da G1 (`EMERGENCY_STOP_V1_13.sql`). As do titular ficam inertes com a barreira CLOSED.
+
+### 11.5 Só comprovável no LIVE ou em execução
+
+- **No PRE:**
+  - inventário real de escritores: as expectativas vêm do repositório, e divergência → STOP;
+  - md5 das 3 funções do titular (5258) e das 3 do EDITOR (5383 G1), calculados dos arquivos;
+  - formato de `pg_get_constraintdef` lido pelo PRE.
+- **Na migration:** lock `ACCESS EXCLUSIVE` em `binder_activity_event` durante a troca do CHECK, que valida a tabela inteira (lock_timeout de 3 s).
+- **Em sessão real (TEST/E4):** eventos de verdade, autoria, travas e ordem.
+
+### 11.6 Correção do contrato — v1.1 (2026-11-27, `S4-c/5396 HISTORY VISIBILITY & CONTRACT CORRECTION-01`)
+
+As decisões D-5396-1 e D-5396-2 foram aprovadas. As seções §11.3 e §11.4 ficam superadas por esta.
+
+- **Participante (5388 `get_shared_binder_activity`, D-5396-1):** 1 inserção e 6 linhas substituídas, todas declaradas e marcadas `[5396~]`.
+  - lista de categorias + `SPECIES`;
+  - um ramo na lista de permissão: `SPECIES_*` de X, atribuídos (`item_collection_recorded`), origem FICHARIO;
+  - a exigência de item de X deixa de valer **só** para os 4 tipos;
+  - `left join` no agregado, com `coalesce(n, 0)`.
+- **O que continua igual na 5388:**
+  - barreira;
+  - `collection_share_role` OWNER/VIEWER: só ACTIVE; removido, pendente ou recusado → zero linhas;
+  - titular e fichário de X;
+  - cursor e ordem `(occurred_at, id)`;
+  - colunas, **sem `summary`**;
+  - para os demais tipos, `left join` = `join`, porque eles sempre têm agregado.
+- **Inalterada:** `get_shared_binder_activity_status`.
+- **Titular (5269 `get_my_binder_activity`, D-5396-2):** só a lista do filtro ganha `'SPECIES'`. Sem filtro e os demais filtros não mudam, e o isolamento por `auth.uid()` também.
+- **Rótulos (D-5396-2):** em `web/lib/colecoes/binder-activity.ts`, a lógica de apresentação, sem tela.
+  - Os textos são "Referências de Pokémon aplicadas / removidas / exibidas / ocultadas".
+  - Com resumo, aparecem só os números gravados.
+  - A categoria `SPECIES` passa a ser reconhecida.
+  - **Sem** botão de filtro, sem ícone novo e sem mudança de tela: isso fica para F3/E3-7.
+  - Testes 29/29 e `tsc` PASS.
+- **Regra de tipos:** a troca do `chk_bae_event_type` passa para **o fim** da transação, antes do postcheck. O `ACCESS EXCLUSIVE` em `binder_activity_event` fica só da revalidação até o commit, com `lock_timeout` de 3 s: esperar mais → erro, transação inteira desfeita, STOP.
+  - A nova lista contém a antiga, então todo registro existente continua válido.
+  - O PRE e o precheck também exigem que o executor seja dono da tabela.
+- **Rollback (v1.1):** **nunca** apaga eventos e restaura o canônico das 10 funções.
+  - Sem eventos `SPECIES_*`, volta o CHECK da 5341.
+  - Com eventos, **mantém** o CHECK ampliado, porque o antigo seria incompatível com as linhas existentes.
+- **Artefatos (sha256):**
+
+| Arquivo | sha256 |
+|---|---|
+| `5396_audit_binder_species_references.sql` | `129def06fd3bf9b24b802db57a04575ec77d19056854679b179f4a6ea00baa56` |
+| `ROLLBACK_5396.sql` | `49af16f80b0c1ec6904569ca99e3e8d45530432f5a7abf3d356e26f8b5ee2636` |
+| `S4C_5396_PRE_readonly.sql` (gate) | `1b67221d16658876ee0308f96ccacad51c832a565b04fdab426f623dc2af1c31` |
+| `S4C_5396_POST_readonly.sql` (gate) | `1dca001f802033e809cb2c0134d97635b26125e88c91b1a8a08267c532d5989d` |
+| `S4C_5396_EXPECTATIVAS.json` (inalterado) | `485ce5a47b0bf1fc7a043d594adf017004558a64dd6a1dab994255601088694d` |
+| `S4C_5396_MANIFEST.txt` | `6c54b0c15ba156e4d98d76a935a41ca45f682a5024f6b5ecf99a475ef0375c6b` |
+| `build_5396.py` · `static_check_5396.py` | gerador (agora também de PRE, POST, expectativas e manifesto) · 27/27, 35/35 mutações |
+
+- **Pendente (só comprovável no LIVE):**
+  - md5 de 5269 e 5388 calculados dos arquivos; o da 5388 confere com o `md5_protected` da G1;
+  - inventário real de escritores e o formato do CHECK: o PRE confere tudo antes da escrita;
+  - eventos reais em TEST/E4.
+
+### 11.7 STOP-LIVE da v1.1 e correção — v1.2 (2026-11-27, `S4-c/5396 SQLSTATE 22P02 ROOT CAUSE & CORRECTION-01`)
+
+- **Tentativa v1.1** (`run-20261127T151841Z`): PRE PASS, migration exit 1 com `22P02`, POST não executado. Detalhe: `S4C_5396_STOP_LIVE_2026-11-27T151841Z.md`.
+- **Causa:** no `do $post$`, `'search_path=""' = any ((select p.proconfig …))` é lido como `ANY (subconsulta)`, então o literal vira `text[]`.
+- **Estado esperado:** transação única abortada no postcheck, antes do commit, com a 5396 ausente. A confirmação fica para o PRE seguinte.
+- **v1.2:** uma linha no postcheck da migration e uma no POST, as duas com pertencimento tipado `array['search_path=""'::text] <@ coalesce(proconfig, array[]::text[])`.
+  - O `POST` antigo (`= any (p.proconfig)`, sobre a coluna) não falhava. Foi trocado pela mesma forma para manter um único padrão.
+  - Nada mais mudou: blocos, substituições, D-5396-1, D-5396-2, PRE, expectativas e rollback são os mesmos.
+- **Static check:** 28/28. A nova verificação D1 proíbe `x = any ((select …))` e exige o pertencimento tipado. Mutações: 38/38.
+
+| Arquivo | sha256 |
+|---|---|
+| `5396_audit_binder_species_references.sql` (v1.2) | `d735734e44e1396975af0d93d6c55e4da56c6189b7e908e19f9ca7e16068c1ce` |
+| `S4C_5396_POST_readonly.sql` | `761e3fa391a4a13e194e88a6cdd9fe7f99e2b9cfc78315b98df9b6a2d15d4cb8` |
+| `S4C_5396_MANIFEST.txt` | `1d30bc7d4d4412a2817a30a6aa6de0a736a1cec83edd3e30b6bef051b1b5464c` |
+| `S4C_5396_PRE_readonly.sql` (inalterado) | `1b67221d16658876ee0308f96ccacad51c832a565b04fdab426f623dc2af1c31` |
+| `S4C_5396_EXPECTATIVAS.json` (inalterado) | `485ce5a47b0bf1fc7a043d594adf017004558a64dd6a1dab994255601088694d` |
+| `ROLLBACK_5396.sql` (inalterado) | `49af16f80b0c1ec6904569ca99e3e8d45530432f5a7abf3d356e26f8b5ee2636` |
+
+### 11.8 Implantação confirmada (2026-11-27 15:24:37Z)
+
+- **Execução:** executor v1.4 com o manifesto `1d30bc7d…464c` e as expectativas `485ce5a4…694d`. PRE, migration (exit 0) e POST com PASS.
+- **STOP anterior:** o PRE comprovou que a tentativa STOP da v1.1 não deixou nada gravado.
+- **Registros:** evidências em `S4C_5396_DEPLOY_EVIDENCE_2026-11-27.md`; STOP em `S4C_5396_STOP_LIVE_2026-11-27T151841Z.md`.
+- **Cópia canônica:** `database/schema/5396_audit_binder_species_references.sql`.
+- **S4 completa no servidor** (5394 → 5392 → 5395 → 5396).
+- **Pendentes:** rótulos de interface já em `web/lib/colecoes/binder-activity.ts` (sem tela); provas funcionais em TEST/E4.

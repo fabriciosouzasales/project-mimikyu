@@ -39,10 +39,16 @@ export const ACTIVITY_EVENT_TYPES = [
   "BINDER_OWNERSHIP_TRANSFERRED",
   "LEGACY_CATALOG_INCORPORATION",
   "CARDS_AUTO_ARRANGED",
+  // V1-13 · E3-6 / S4-c (5396): referências de espécie (categoria SPECIES).
+  "SPECIES_REFERENCES_APPLIED",
+  "SPECIES_REFERENCES_CLEARED",
+  "SPECIES_REFERENCES_SHOWN",
+  "SPECIES_REFERENCES_HIDDEN",
 ] as const;
 export type ActivityEventType = (typeof ACTIVITY_EVENT_TYPES)[number];
 
-export const ACTIVITY_CATEGORIES = ["CARDS", "RESERVATIONS", "LOCKS", "PAGES", "CATALOG", "BINDER"] as const;
+// SPECIES (5396, D-5396-2): reconhecida na leitura; o botão de filtro entra com a interface (F3/E3-7).
+export const ACTIVITY_CATEGORIES = ["CARDS", "RESERVATIONS", "LOCKS", "PAGES", "CATALOG", "BINDER", "SPECIES"] as const;
 export type ActivityCategory = (typeof ACTIVITY_CATEGORIES)[number];
 
 /** Filtros da §3.3, na ordem da especificação. `null` = Todas. */
@@ -95,6 +101,11 @@ export function categoryOf(type: string): ActivityCategory | null {
     case "BINDER_DELETED_EMPTY":
     case "BINDER_OWNERSHIP_TRANSFERRED":
       return "BINDER";
+    case "SPECIES_REFERENCES_APPLIED":
+    case "SPECIES_REFERENCES_CLEARED":
+    case "SPECIES_REFERENCES_SHOWN":
+    case "SPECIES_REFERENCES_HIDDEN":
+      return "SPECIES";
     default:
       return null;
   }
@@ -146,6 +157,42 @@ export type ActivityCoverage = {
   hasLegacy: boolean;
   binderIsMine: boolean;
 };
+
+/**
+ * Rótulo pt-BR dos eventos de referências de espécie (5396, D-5396-2). Sem resumo
+ * (participante, 5388) a frase não traz números; com resumo (titular, 5269) só os
+ * números que o servidor gravou — nada é inferido.
+ */
+export function speciesReferenceLabel(type: string): string | null {
+  switch (type) {
+    case "SPECIES_REFERENCES_APPLIED":
+      return "Referências de Pokémon aplicadas";
+    case "SPECIES_REFERENCES_CLEARED":
+      return "Referências de Pokémon removidas";
+    case "SPECIES_REFERENCES_SHOWN":
+      return "Referências de Pokémon exibidas";
+    case "SPECIES_REFERENCES_HIDDEN":
+      return "Referências de Pokémon ocultadas";
+    default:
+      return null;
+  }
+}
+
+function speciesReferenceContext(event: ActivityEvent): string | null {
+  const parts: string[] = [];
+  if (event.type === "SPECIES_REFERENCES_APPLIED") {
+    const n = int(event.summary.reference_count);
+    const first = int(event.summary.first_number);
+    const last = int(event.summary.last_number);
+    if (n !== null) parts.push(count(n, "bolso com referência", "bolsos com referência"));
+    if (first !== null && last !== null) parts.push(first === last ? `nº ${first}` : `nº ${first} a ${last}`);
+  } else if (event.type === "SPECIES_REFERENCES_CLEARED") {
+    const n = int(event.summary.removed_count);
+    if (n !== null) parts.push(count(n, "referência removida", "referências removidas"));
+  }
+  if (event.collectionName) parts.unshift(`Coleção ${event.collectionName}`);
+  return parts.length ? parts.join(" · ") : null;
+}
 
 // ---------------------------------------------------------------------------
 // Parse (nunca adivinha: formato inesperado → null)
@@ -631,6 +678,15 @@ export function describeEvent(event: ActivityEvent): EventView {
       context = "O histórico continua guardado";
       break;
     }
+    case "SPECIES_REFERENCES_APPLIED":
+    case "SPECIES_REFERENCES_CLEARED":
+    case "SPECIES_REFERENCES_SHOWN":
+    case "SPECIES_REFERENCES_HIDDEN":
+      // Ícone provisório (existente); o visual definitivo fica para F3/E3-7.
+      icon = "page";
+      title = speciesReferenceLabel(event.type) as string;
+      context = speciesReferenceContext(event);
+      break;
     default:
       title = "Atividade no fichário";
   }
@@ -722,6 +778,11 @@ export function headlineEvent(event: ActivityEvent): string {
       return "Fichário desmontado";
     case "BINDER_DELETED_EMPTY":
       return "Fichário vazio removido";
+    case "SPECIES_REFERENCES_APPLIED":
+    case "SPECIES_REFERENCES_CLEARED":
+    case "SPECIES_REFERENCES_SHOWN":
+    case "SPECIES_REFERENCES_HIDDEN":
+      return speciesReferenceLabel(event.type) as string;
     default:
       return "Atividade registrada";
   }
