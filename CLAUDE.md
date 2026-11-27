@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Schema do Agente (convenções operacionais para qualquer LLM que trabalhe neste repositório) |
 | **Arquivo** | `CLAUDE.md` |
-| **Versão** | 1.0 |
+| **Versão** | 1.1 |
 | **Status** | Aprovado |
 | **Criado em** | 2026-08-06, a partir da adequação ao padrão LLM Wiki (Andrej Karpathy) |
 | **Objetivo** | Documentar, de forma versionada e portável, como qualquer agente de IA deve operar neste repositório — convenções que antes existiam apenas na memória privada de sessão de um assistente específico. |
@@ -107,6 +107,32 @@ Periodicamente (a pedido de Fabrício ou quando o agente perceber sinais de deri
 
 Toda comunicação em chat com Fabrício é em português do Brasil (pt-BR). Documentação, código, comentários e mensagens de commit seguem a mesma convenção já estabelecida no repositório (pt-BR).
 
+## Regras padrão da V1-13 (2026-11-27)
+
+Valem para toda rodada da V1-13. Cada pedido traz só o que muda. Procedimento completo: `docs/standards/STD-005-controlled-live-deployment.md`.
+
+- **Escopo:** só o incremento pedido. Não reabrir entregas encerradas (F1, F2, S1, S3) nem decisões aprovadas sem um defeito concreto.
+- **Autorização:**
+  - nenhum SQL no LIVE, migration, abertura de barreira, modo TEST, commit ou push sem autorização explícita e específica da rodada;
+  - artefatos prontos não autorizam execução.
+- **Barreira:** CLOSED por padrão, com zero identidades TEST. Nada a abre ou ativa TEST automaticamente.
+- **Sem ambiente isolado:** nenhum banco descartável nem infraestrutura paralela. As provas funcionais ficam para o TEST autorizado e para a E4.
+- **Execução:** pelo executor por arquivo (STD-005 §3), com PRE → migration → POST. Sem transcrever SQL à mão.
+- **STOP:** obrigatório em qualquer divergência material. Nunca ajustar hashes, permissões, arquivos ou critérios para passar. Falha de transação única não tem rollback.
+- **Auditoria independente:** antes de qualquer execução no LIVE e antes do commit.
+- **Mínimo por pacote (rodada A):**
+  - migration transacional, rollback proporcional, PRE e POST somente leitura e manifesto;
+  - static check com testes de mutação dos controles críticos e as verificações V01–V14 que se aplicam;
+  - nada declarado validado sem execução.
+- **Rodadas:**
+  - A: contrato e artefatos;
+  - B: execução autorizada e, com PASS, cópia canônica e evidências;
+  - C: commit e publicação.
+  - Rodadas extras só diante de defeito, risco material ou decisão pendente.
+- **Documentação:**
+  - README do pacote e `docs/log.md` sempre;
+  - `05d`, `ROADMAP` e `INDEX` só em decisão aprovada, implantação confirmada ou marco, e o `INDEX` também quando um documento for criado ou removido.
+
 ---
 
 ## Revision History
@@ -114,3 +140,4 @@ Toda comunicação em chat com Fabrício é em português do Brasil (pt-BR). Doc
 | Versão | Descrição |
 |---------|-----------|
 | 1.0 | Criação deste documento (2026-08-06), como parte da adequação do projeto ao padrão LLM Wiki descrito por Andrej Karpathy — consolida em um arquivo versionado convenções que antes existiam apenas na memória de sessão privada do agente. |
+| 1.1 | **Regras padrão da V1-13 (2026-11-27).** Bloco conciso de escopo, autorização, barreira, STOP, executor por arquivo, auditoria, mínimo por pacote, rodadas A/B/C e documentação enxuta; detalhe no STD-005. |

@@ -1,0 +1,2 @@
+# V1-13 · S2 / 5391 — FASE 1: só o PRE autorizado (gate). Não contém escrita. passo|arquivo|sha256|modo
+1|database\proposals\2026-11-27-v1-13-e3-6-s2-pokedex-collaborative-editing\S2_5391_PRE_readonly.sql|1e1630f6ff0234148c5c2e76cc1d9a562fcede21ddcd37c9c5a0316df4da8574|gate

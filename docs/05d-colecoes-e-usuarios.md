@@ -4,7 +4,7 @@
 |--------|-------|
 | **Documento** | Modelo de Dados — Coleções e Usuários |
 | **Arquivo** | `docs/05d-colecoes-e-usuarios.md` |
-| **Versão** | 3.63 | **V1-13 — E3-6 / S1: 5390 EXECUTADA NO LIVE / CANÔNICA (2026-11-27).** Anterior (3.62): SQL preparado. |
+| **Versão** | 3.66 | **V1-13 — E3-6 / S2: 5391 EXECUTADA NO LIVE / CANÔNICA (2026-11-27).** Anterior (3.65): decisões D1–D4 e S4 especificada. |
 | 3.50 | **V1-13 — E3-5, revisão final (2026-11-25, `E3-5 — SHARED ACTIVITY HISTORY | FINAL REVIEW & LOCAL CLOSEOUT-01`).** V1: "Por: Você" removido do histórico do titular (autor não comprovado pela 5269). V2: mensagens de indisponível e de acesso não confirmado sem causa afirmada. Versionada; homologação pendente. |
 | 3.51 | **V1-13 — E3-6, Master Set e Pokédex do participante (2026-11-25, `E3-6 — SHARED MASTER SET & POKÉDEX | LOCAL IMPLEMENTATION-01`).** Seção "E2–E4" registra os contratos conferidos da 5323/5324/5380, as grades do titular reutilizadas para EDITOR e VIEWER (só leitura, sem quantidades), a regra de zero linhas e o impedimento contratual da edição da Pokédex pelo EDITOR (sem id de exemplar nas leituras autorizadas), sem SQL, não homologado. |
 | 3.52 | **V1-13 — E3-6, avaliação contratual (2026-11-25, `E3-6 — FULL COLLABORATIVE EDITING | CONTRACT EVOLUTION ASSESSMENT-01`).** Registra a decisão de edição colaborativa completa, as lacunas L1–L6 e a proposta 5390–5392 (PROPOSTO, sem SQL). |
@@ -19,6 +19,9 @@
 | 3.61 | **V1-13 — E3-6 / S1, auditoria e desenho da 5390 (2026-11-27).** Capacidades I1–I4, dependência do script de emergência, alternativa A (REVOKE da RPC + DROP das políticas e ajudantes), matriz e validação. PROPOSTO, sem SQL. |
 | 3.62 | **V1-13 — E3-6 / S1, SQL preparado (2026-11-27).** Migration 5390, ROLLBACK_S1, checks PRE/POST e static check 21/21; não executados. |
 | 3.63 | **V1-13 — E3-6 / S1, implantação controlada da 5390 (2026-11-27).** Tentativa 1: STOP no PRE (critério de pertencimento ao dono de `storage.objects`); critério corrigido em `PRECHECK CORRECTION-01`; tentativa 2: PRE PASS, COMMIT, POST PASS. I1 sem EXECUTE para clientes, I2–I4 removidas, titular, E3-3 e 5329 intactos, barreira CLOSED; canônica em `database/schema/`. Provas funcionais pendentes (E4). |
+| 3.64 | **V1-13 — E3-6 / S2, revisão de desenho (2026-11-27).** Contratos 5391 (leitura por identificador opaco, época do papel em tabela lateral, segredo do servidor) e 5392 (mover, retirar, escolher e restaurar representante com estado esperado depois das travas; revogação da 5380) consolidados; integração obrigatória com a S4; sem SQL. |
+| 3.65 | **V1-13 — E3-6 / S2 e S4 (2026-11-27).** D1–D4 aprovadas (época em tabela lateral; AT_POSITION/ASSIGNABLE com filtro por nome ou número nacional; arquivar não invalida, escritas revalidam; ordem 5391 → S4 → 5392 → F3); S4 especificada (fluxo por coleção para a Pokédex, fichário para referências, primitiva de registro). |
+| 3.66 | **V1-13 — E3-6 / S2, 5391 implantada (2026-11-27).** Época da participação, segredo HMAC, identificador opaco e `get_editor_pokedex_position_copies` no LIVE com a barreira CLOSED; PRE, migration e POST com PASS pelo executor por arquivo v1.4 (inventário de escritores conferido); provas funcionais pendentes. |
 | 3.18 | **V1-13 / E1-B2 — proposta local (2026-11-15, `V1-13 / E1-B2 \| EDITOR CURATION OPERATIONS-01`).** "Estado da E1" registra 5375–5377 (reservas, fixação, metadados, capa e Storage da capa), mesclagem e objetivo textual como decisões de produto em aberto, 56/56 estático e prova 5890 pendente. Nada executado. |
 | 3.19 | **V1-13 / E1-B2 — revisão de Storage e escopo (2026-11-15, `V1-13 / E1-B2 \| STORAGE HARDENING AND SCOPE REVIEW-02`).** 5377 v1.1: o teto de 3 envios do EDITOR passa a ser serializado por EDITOR e coleção (ajudante de envio volátil com trava transacional); a proteção contra envios paralelos pela API do Storage segue sem prova. Arquivos órfãos documentados, com limpeza do titular e sem rotina automática. Mesclagem e objetivo textual seguem em aberto, com propostas documentais para decisão. 59/59 estático; 5890 v1.1 (45) pendente. Nada executado. |
 | 3.20 | **V1-13 / E1-B2 — commit local e encerramento (2026-11-15, `V1-13 / E1-B2 \| LOCAL COMMIT AND CLOSEOUT-03`).** Proposta E1-B2 versionada localmente, não executada nem homologada. D9 (mesclagem não aplicável ao EDITOR), D10 (objetivo narrativo pela descrição) e D11 (limpeza futura de órfãos, sem versão) registradas como propostas aguardando aprovação; C-237/C-239 não alteradas. E3 ganha critério da capa do EDITOR (limite visível, gestão dos próprios envios não usados). Teto sob envios simultâneos: prova pela API pendente. |
@@ -1584,6 +1587,26 @@ Cenários obrigatórios entre contas, com prova dinâmica antes da publicação,
     - POST PASS: I1 `editor_set_collection_cover_logo` mantida no catálogo (por causa do script de emergência), executável só pelo dono; nenhum papel de cliente executa, inclusive por herança; 3 políticas `collection_cover_*_editor` e 2 ajudantes removidos; políticas do titular e da 5329 com hash igual; corpos e EXECUTE da E3-3 e do titular preservados; barreira CLOSED, 0 identidades.
 
     A **D-E3-6 passa a ser garantida pelo servidor**: as **quatro vias indevidas (I1–I4) estão bloqueadas**, e o corpo da I1 fica preservado só para compatibilidade com o script de emergência. O bloqueador S1 da abertura funcional está resolvido no banco. `ROLLBACK_S1.sql` está disponível e **não foi executado**. A barreira continua CLOSED. **A S1 não está homologada funcionalmente.** Provas pela API do Storage e pelo PostgREST não foram executadas (E4). Evidências: `database/proposals/2026-11-27-v1-13-e3-6-s1-cover-image-permissions/S1_DEPLOY_EVIDENCE_2026-11-27.md`.
+  - **E3-6 / S2 / 5391–5392 — contratos consolidados, SEM SQL (2026-11-27, `S2 — POKEDEX COLLABORATIVE EDITING CONTRACTS | DESIGN REVIEW-01`).**
+    - **5391:** época do papel em tabela lateral (`collection_membership_epoch`, sequência dedicada, gatilhos em `role`/`status`), segredo do servidor, identificador `pc1.` HMAC-SHA256(alocação, participação, época) e leitura `get_editor_pokedex_position_copies` (AT_POSITION/ASSIGNABLE, só exemplares de X, modo da representante CHOSEN/AUTOMATIC/NONE, sem dados patrimoniais).
+    - **5392:** `editor_move_pokedex_copy`, `editor_unassign_pokedex_copy`, `editor_choose_pokedex_representative`, `editor_restore_pokedex_automatic_representative`; estado esperado comparado depois das travas (coleção → participação → alocação → representante); `UNCHANGED` idempotente; `STATE_CHANGED`; `COPY_NOT_FOUND` neutro; revogação da 5380 para `authenticated`.
+    - **S4:** evento na mesma transação; 5392 só com a primitiva de registro da S4; `binder_activity_event` não serve como destino (por fichário).
+    - Pacote: `database/proposals/2026-11-27-v1-13-e3-6-s2-pokedex-collaborative-editing/README.md`. Quatro decisões pedidas à auditoria (§10).
+  - **E3-6 / S2 — decisões aprovadas e S4 especificada (2026-11-27, `S2 + S4 … GOVERNANCE OPTIMIZATION-01`).**
+    - **D1–D4 aprovadas:** época em tabela lateral com sequência não reutilizável; leitura AT_POSITION/ASSIGNABLE com filtro por nome ou número nacional, paginação e limite; arquivar/reativar não invalida o identificador, mas cada escrita revalida coleção, participação, vínculo, estado esperado e barreira; ordem 5391 → S4 → 5392 → F3, e a 5392 não é liberada sem a primitiva da S4.
+    - **5391 preparada, NÃO executada** (pacote S2 §13).
+    - **S4 especificada, sem SQL:**
+      - Pokédex em fluxo novo por coleção (`collection_activity_event`); referências de espécie no histórico do fichário (4 tipos novos);
+      - primitiva `collection_activity_open/record` com autor derivado do servidor;
+      - gatilhos de instrução para os efeitos indiretos de alocar e desalocar;
+      - novas versões das funções do titular com registro.
+    - **5373:** expõe `physical_card_id` global só ao EDITOR. Não concede autoridade, mas permitiria contornar o identificador pela 5380, que a 5392 revoga. Ajuste para o identificador opaco registrado com prioridade média, antes da E4.
+  - **E3-6 / S2 / 5391 — EXECUTADA NO LIVE / CANÔNICA (2026-11-27 13:00:24Z).** Pelo executor por arquivo v1.4 (`postgres`, `--yes`), em três etapas, todas com PASS:
+    - PRE, com o inventário de escritores igual às expectativas auditadas;
+    - migration, em transação única;
+    - POST: RPC só para `authenticated`, ajudantes e tabelas internas fechados, época para toda participação, segredo presente.
+
+    Barreira CLOSED, 0 identidades TEST. As duas tentativas anteriores pararam no PRE sem escrever. Provas funcionais (matriz de papéis, O1, privacidade, desempenho) pendentes. Evidências: `database/proposals/2026-11-27-v1-13-e3-6-s2-pokedex-collaborative-editing/S2_5391_DEPLOY_EVIDENCE_2026-11-27.md`.
   - metadados;
   - selo de papel na Biblioteca e em "Compartilhadas com você";
   - escolha e troca de papel em "Compartilhar";

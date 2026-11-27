@@ -104,6 +104,8 @@ Construção (substituída pela P0-A, seção 0): HMAC-SHA256 com segredo do ser
 
 ### 3.2 Contratos propostos
 
+> **2026-11-27 — consolidado em `../2026-11-27-v1-13-e3-6-s2-pokedex-collaborative-editing/README.md`** (`S2 DESIGN REVIEW-01`), que substitui o detalhe abaixo. Principais mudanças: estado esperado também na escolha de representante; época em tabela lateral com sequência; resolução do identificador limitada pelo estado esperado; `p_query` na leitura; 5392 dependente da primitiva de auditoria da S4; inclusão no `EMERGENCY_STOP`.
+
 **5391 — `get_editor_pokedex_position_copies(p_collection_id, p_pokedex_position_id, p_scope, p_limit, p_offset)`** (leitura, STABLE, SECURITY DEFINER, porta 5389)
 - Quem: papel real `collection_member_role(X) = 'EDITOR'` (5367: participação ACTIVE com role EDITOR), conferido antes de qualquer leitura e sem travas (função STABLE); qualquer outro → zero linhas. VIEWER não precisa desta leitura (a grade da 5324 basta). As escritas (5392) conferem de novo, com travas, pela `assert_collection_editor` (5376).
 - Modalidade Pokédex; posição da Pokédex de X (senão zero linhas).
