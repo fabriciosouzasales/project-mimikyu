@@ -1,0 +1,15 @@
+{
+  "escritores_atribuicao": [
+    "public.auto_assign_pokedex_position_species_match()",
+    "public.editor_remove_pokedex_position_assignment(uuid,uuid)",
+    "public.editor_set_pokedex_position_assignment(uuid,uuid,uuid,boolean)",
+    "public.remove_pokedex_position_assignment(uuid)",
+    "public.set_pokedex_position_assignment(uuid,uuid,boolean)"
+  ],
+  "escritores_representante": [
+    "public.clear_pokedex_position_primary_representative(uuid,uuid)",
+    "public.editor_clear_pokedex_position_primary_representative(uuid,uuid)",
+    "public.editor_set_pokedex_position_primary_representative(uuid,uuid)",
+    "public.set_pokedex_position_primary_representative(uuid)"
+  ]
+}

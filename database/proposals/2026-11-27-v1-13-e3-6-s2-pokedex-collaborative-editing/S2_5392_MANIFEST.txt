@@ -1,0 +1,4 @@
+# V1-13 · S2 / 5392 — manifesto do executor por arquivo (STD-005 §3, v1.4). passo|arquivo|sha256|modo
+1|database\proposals\2026-11-27-v1-13-e3-6-s2-pokedex-collaborative-editing\S2_5392_PRE_readonly.sql|db79d31a615ef4e8be7945a004755c9ce75af110d08b9c5150cf838c54b62ef3|gate
+2|database\proposals\2026-11-27-v1-13-e3-6-s2-pokedex-collaborative-editing\5392_create_editor_pokedex_copy_writes.sql|fa92d9d5c770fcc51896ff1ed7e29dbda2777015e97773a2c3964adbac678ff3|write
+3|database\proposals\2026-11-27-v1-13-e3-6-s2-pokedex-collaborative-editing\S2_5392_POST_readonly.sql|44cc42292a456405e1427dad1b940975f08851eaa2787287ef1abb9dcdf3c1f1|gate

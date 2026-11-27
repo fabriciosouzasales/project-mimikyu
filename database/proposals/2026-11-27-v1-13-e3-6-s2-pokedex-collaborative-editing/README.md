@@ -3,7 +3,7 @@
 | Campo | Valor |
 |---|---|
 | **Rodada** | `E3-6 / S2 — POKEDEX COLLABORATIVE EDITING CONTRACTS \| DESIGN REVIEW-01` (2026-11-27) |
-| **Status** | **5391 EXECUTADA NO LIVE / CANÔNICA (2026-11-27 13:00:24Z)**: PRE, migration e POST com PASS pelo executor v1.4, com inventário de escritores comparado às expectativas auditadas; barreira CLOSED; cópia em `database/schema/`; evidências em `S2_5391_DEPLOY_EVIDENCE_2026-11-27.md`. Provas funcionais e de desempenho pendentes (TEST/E4). 5392 aguarda a S4-a/5394. |
+| **Status** | **5391 e 5392 EXECUTADAS NO LIVE / CANÔNICAS (2026-11-27)**. 5391: 13:00:24Z; 5392 v1.1: 14:02:33Z. PRE, migration e POST com PASS pelo executor v1.4; barreira CLOSED. Evidências: `S2_5391_DEPLOY_EVIDENCE_2026-11-27.md` e `S2_5392_DEPLOY_EVIDENCE_2026-11-27.md`. Provas funcionais, de concorrência e de desempenho pendentes (TEST/E4). |
 | **Base** | Proposta E3-6 (`2026-11-25-v1-13-e3-6-contract-evolution/README.md`, §0 P0-A/B/C, O1–O3, §3.2) — este documento a **substitui no detalhe** de 5391/5392 e não reabre a decisão de produto (edição colaborativa completa da Pokédex). |
 | **Conferido no código implantado** | `e1e-security-evidence/g1/protected/` 5324, 5373, 5376 (`assert_collection_editor`), 5369, 5370, 5380, 5383, 5388; `g1/EMERGENCY_STOP_V1_13.sql`; `database/schema/` 5300, 5302–5306, 5046, 5047, 5165/5289, 5208, 5209, 5258, 5267–5269, 6118–6126; `000_enable_pgcrypto.sql`. |
 | **Fora do escopo** | S1 (implantada), S3/5393 (implantada), F1, F2, S4 (só os pontos de integração), F3, E3-7. |
@@ -391,3 +391,133 @@ Terceira tentativa autorizada: PASS. As duas anteriores pararam no PRE sem escre
 - 5395 (instrumentação do titular, referências de espécie, leituras) depois da 5394;
 - extensão `regprocedure` no inventário dos próximos PRE (§ correção WRITER INVENTORY GATE);
 - ajuste da 5373 para o identificador opaco (§12) antes da E4.
+
+## 17. 5392 — escritas do EDITOR preparadas (2026-11-27, `S4-a/5394 PASS-LIVE CLOSEOUT + S2/5392 IMPLEMENTATION PREPARATION-01`) — NÃO EXECUTADA
+
+**Funções (contrato §3.3–§3.6):**
+- `editor_move_pokedex_copy`: atribuir (CREATED) e mover (MOVED);
+- `editor_unassign_pokedex_copy`: REMOVED;
+- `editor_choose_pokedex_representative`: SET e REPLACED;
+- `editor_restore_pokedex_automatic_representative`: CLEARED;
+- ajudante interno `v1_13_resolve_pokedex_copy`.
+
+**Revogação:** na mesma transação, a 5392 revoga as 4 escritas da 5380 de todos os papéis de cliente. As funções ficam no catálogo.
+
+**Ordem em cada RPC** (static check M5–M9 e M13):
+1. barreira;
+2. `assert_collection_editor`, que trava a coleção (FOR UPDATE) e a participação (FOR SHARE);
+3. época vigente;
+4. resolução do identificador: primeiro no escopo esperado, depois na coleção;
+5. trava da alocação;
+6. trava da representante;
+7. `UNCHANGED`, que termina sem evento;
+8. estado esperado (`STATE_CHANGED`);
+9. espécie (`CONFIRMATION_REQUIRED`);
+10. `collection_activity_open`;
+11. escrita;
+12. **um** `collection_activity_record_pokedex` por resultado efetivo.
+
+Recusas e `UNCHANGED` acontecem antes de `open`, sem evento. A autoria é derivada no servidor, pela 5394.
+
+**Inventário por assinatura completa** (`esquema.nome(tipos)`, ordem C):
+- **PRE:** comparado pelo executor v1.4 com `S2_5392_EXPECTATIVAS.json` (os 5 + 4 escritores confirmados no LIVE, agora com assinatura).
+- **POST:** exige, como booleano, o inventário anterior **mais** as 4 RPCs novas.
+
+**Artefatos:**
+
+| Arquivo | sha256 |
+|---|---|
+| `S2_5392_MANIFEST.txt` | `db2e608b3b4e35fbe24a6bbfed17a0756976246108d3dcf48a9da480ffcdba30` |
+| PRE | `0dc02f1705abb4ef62523aaa58822631f2de991c3303ce936133337f0d3447e4` |
+| Migration | `2376c4b33a1afe72b29681a41b21166c6117781681dfbd91f029f924d20fb598` |
+| POST | `734bf6fbec1610f6b3900dfac3aa273e31d954340975c5c092a795452dbc1436` |
+| Rollback | `2329a57bee4f05fa042228d68be70e1e8888448c1607169c460081854bd923c4` |
+| Expectativas | `10d2f706929641c64564bd8e3ef5a4879795f63a027fe9c24124402732e37c68` |
+
+**Verificação estática: 23/23.** Mutações detectadas:
+
+| Mutação | Verificação que reprova |
+|---|---|
+| `open` depois da escrita | M6 |
+| `record` removido | M6 |
+| estado esperado não comparado | M8/M13 |
+| representante esperada não comparada | M9/M13 |
+| GRANT no resolvedor | M4 |
+| 5380 não revogada | M4 |
+| barreira fora da 1ª instrução | M5 |
+| `physical_card_id` na interface | M10 |
+| `UNCHANGED` depois de `open` | M7 |
+| resolvedor sem filtro da coleção | M11 |
+| `open` removido | M6/M7/M13 |
+
+**Pendentes (não medidos, nada declarado PASS):**
+- sintaxe e comportamento (sem PostgreSQL no sandbox);
+- matriz de papéis, invalidação O1, concorrência em duas sessões, desempenho da resolução (O(k) no caminho comum, O(n) em conflito), tudo no TEST;
+- inclusão das 4 RPCs novas no `EMERGENCY_STOP_V1_13.sql` antes de qualquer abertura;
+- escrita sem filtro de escopo de gerações, como o titular (6122) e a 5380 (a leitura 5391 já filtra).
+
+**Rollback:** remove as 5 funções e devolve a 5380 a `authenticated`, o que **reintroduz** o caminho sem auditoria explícita. Confira `acl_5380` no PRE para saber se `service_role` também constava.
+
+## 18. 5392 v1.1 — correções contratuais finais (2026-11-27, `FINAL CONTRACT CORRECTIONS & DEPLOYMENT READINESS-01`) — NÃO EXECUTADA
+
+**Rollback seguro.** `ROLLBACK_5392` v1.1 remove as 6 funções e **não concede nada**. O postcheck exige as 4 escritas da 5380 ainda revogadas para todo papel de cliente, e o EDITOR fica sem escrita de Pokédex.
+- Restaurar a 5380 passa a ser uma **exceção separada** (`RESTORE_5380_EXCECAO_5392.sql`), com autorização específica, 5392 ausente e barreira CLOSED.
+- Para só **suspender**, sem remover nada, usar o complemento de emergência abaixo.
+
+**Escopo de gerações.**
+- **Divergência confirmada:** a leitura 5391 e as grades 5204/5324 só aceitam posições do escopo da coleção. A 5392 v1.0 aceitava qualquer posição da Pokédex, o que permitiria, por RPC direta, atribuições invisíveis na grade.
+- **Correção:** o ajudante interno `v1_13_pokedex_position_in_scope` aplica o mesmo critério da 5391 (`FULL_REFERENCE` ou geração listada). Ele é aplicado:
+  - ao alvo de **mover**;
+  - à posição atual em **escolher**;
+  - à posição em **restaurar**.
+
+  Fora do escopo, a recusa é neutra (`POKEDEX_POSITION_NOT_FOUND`), antes das travas da representante e de `open`.
+- **Retirar** continua aceitando qualquer posição atual: é limpeza e não cria estado invisível.
+- **Titular:** as funções 6122–6126 não filtram escopo. É preexistente, não foi alterado e fica registrado para a 5395. Ambas as interfaces já mostram só o escopo, então não há diferença visível entre titular e EDITOR.
+
+**Emergência.** `EMERGENCY_STOP_V1_13_ADD_S2.sql` é um bloco E2b no mesmo formato do `g1/EMERGENCY_STOP_V1_13.sql`. Esse script é gerado e protegido e **não foi alterado**.
+- **Revoga:** as 4 RPCs da 5392 e a leitura do EDITOR da 5391, de PUBLIC, anon e authenticated.
+- **Não faz:** não concede nada (a 5380 continua revogada pelo E2 principal); não toca a 5393, porque revogá-la trocaria `CAPABILITY_NOT_ENABLED` por 42501 e quebraria o fallback C2. O E1 já a desliga.
+
+**Integridade da auditoria.** O static check M15 garante, em cada RPC:
+- um único `collection_activity_open`;
+- nenhum `return` nem `raise` entre `open` e o primeiro `record`.
+
+Qualquer erro posterior, inclusive do próprio `record`, aborta a transação inteira. A marcação é GUC local, então não sobra marcação sem registro. `UNCHANGED`, `STATE_CHANGED` e as demais recusas acontecem antes de `open`.
+
+**Artefatos v1.1:**
+
+| Arquivo | sha256 |
+|---|---|
+| Manifesto | `88bc25623308ea2028ab80b53aa53a5b737ce01124a9d89a8d5e9dcedbad5a07` |
+| Migration | `fa92d9d5c770fcc51896ff1ed7e29dbda2777015e97773a2c3964adbac678ff3` |
+| PRE | `db79d31a615ef4e8be7945a004755c9ce75af110d08b9c5150cf838c54b62ef3` |
+| POST | `44cc42292a456405e1427dad1b940975f08851eaa2787287ef1abb9dcdf3c1f1` |
+| Rollback | `f173ddda3ec5605c1ba2a7e1e7d3fe8657e84872e6f92e4399c89cf90511c7d7` |
+| Exceção 5380 | `4db1a4e64e4d206ede4e1355290a57c511b1363a5231046458d876eea3a41246` |
+| Emergência E2b | `70a9a130d6986a5c03e6deadddae3288cfe6c71c9ed060fee099b7d1a7d1f629` |
+| Expectativas (inalteradas; o ajudante novo não escreve) | `10d2f706929641c64564bd8e3ef5a4879795f63a027fe9c24124402732e37c68` |
+
+**Verificação estática: 27/27.** Mutações novas detectadas:
+
+| Mutação | Verificação que reprova |
+|---|---|
+| rollback concedendo a 5380 | R1 |
+| exceção sem exigir 5392 ausente | R2 |
+| emergência concedendo algo | E1 |
+| emergência sem uma RPC | E1 |
+| mover sem escopo | M14 |
+| restaurar só com a Pokédex | M14 |
+| escopo sem o filtro de gerações | M14 |
+| `return` entre `open` e `record` | M15 |
+| GRANT no ajudante de escopo | M4 |
+
+## 19. 5392 implantada (2026-11-27 14:02:33Z)
+
+PRE, migration e POST com PASS. As 4 RPCs e os 2 ajudantes estão presentes, a 5380 está revogada, o inventário pós-migration é exato e não há eventos. Detalhe em `S2_5392_DEPLOY_EVIDENCE_2026-11-27.md`.
+
+**Pendências:**
+- provas funcionais (TEST/E4);
+- disponibilizar `EMERGENCY_STOP_V1_13_ADD_S2.sql` antes de qualquer abertura;
+- 5395 (titular explícito, referências de espécie, leituras do histórico);
+- 5373 com identificador opaco antes da E4.
