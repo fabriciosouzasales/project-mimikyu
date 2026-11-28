@@ -3,7 +3,7 @@
 | Campo | Valor |
 |---|---|
 | **Documento** | Roteiro operacional da E4 (homologação integrada da V1-13) |
-| **Versão** | 1.2 (2026-11-27, encerramento da E4 e do reteste) |
+| **Versão** | 1.3 (2026-11-27, abertura funcional) |
 | **Status** | **EXECUTADA — PASS (2026-11-27), com pendências não bloqueantes (D-E4-4 parcial, higiene do Storage).** TEST aberto e encerrado pelo executor; barreira CLOSED com 0 identidades ao fim; D1 desligada. Resultado na seção "Resultado". Roteiro executável (sequência, identidades, ativação e encerramento, sonda, critérios, autorizações): `database/proposals/2026-11-27-v1-13-e4-homologation/README.md`. |
 | **Normas** | C-234–C-244 (matriz de papéis, segurança); `05d` §"E2–E4"; STD-005 §6 (homologação progressiva) |
 
@@ -88,6 +88,8 @@ Executada com as quatro contas reais do conjunto (titular, dois EDITOR e um VIEW
 - **Palco da Pokédex compartilhada (limitação conhecida):** o escopo do sorteio da equipe usa as gerações da primeira página lida da grade (5324, com o filtro da URL). Numa Pokédex parcial com várias gerações, a equipe pode sair de parte delas; não envolve dado de outro usuário.
 - **Dados de teste:** papéis e convites usados na homologação continuam como ficaram; limpeza opcional, a critério do proprietário.
 
+**Abertura funcional (etapa 7):** G5 = GO; barreira OPEN pelo executor (run-20261128T024029Z), D1 em Production e conferência em produção PASS. Pacote e reversão: `database/proposals/2026-11-27-v1-13-g5-barrier-open/`.
+
 **Encerramento conferido:** run-20261128T020010Z (PRE PASS, escrita exit 0, POST PASS) e conferência só leitura depois: barreira CLOSED, 0 identidades TEST, funções da barreira canônicas. D1 removida do `.env.local`; no Vercel nunca esteve ligada.
 
 ## Revision History
@@ -97,3 +99,4 @@ Executada com as quatro contas reais do conjunto (titular, dois EDITOR e um VIEW
 | 1.0 | **Criação (2026-11-27).** Matriz enxuta da E4 depois da 5397 (P0 do fichário): 31 casos (28 obrigatórios, 3 não bloqueantes), pré-requisitos e encerramento. |
 | 1.1 | **Prontidão de execução (2026-11-27).** H1 alinhado ao contrato (autor do fichário do titular = D-E3-2, pendência de publicação, não FAIL da E4); K1 com limite objetivo; vínculo ao roteiro executável do pacote E4. |
 | 1.2 | **Encerramento da E4 (2026-11-27).** Status EXECUTADA — PASS; seção Resultado por bloco, achados corrigidos no reteste, pendências não bloqueantes (D-E4-4 parcial, higiene do Storage, dados de teste) e conferência do encerramento. |
+| 1.3 | **Abertura funcional (2026-11-27).** Registro da etapa 7: G5 = GO, barreira OPEN, D1 em Production, conferência em produção PASS. |

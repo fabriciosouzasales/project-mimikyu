@@ -1,0 +1,4 @@
+# V1-13 · etapa 7 — manifesto do executor por arquivo (STD-005 §3, v1.4). passo|arquivo|sha256|modo
+1|database\proposals\2026-11-27-v1-13-g5-barrier-open\G5_CLOSE_PRE_readonly.sql|8adbd623cc5481ae5fb1fd1d985c69d4fc762ac8cff8227dec449642b877e857|gate
+2|database\proposals\2026-11-27-v1-13-g5-barrier-open\G5_BARRIER_CLOSE.sql|3fa290faaca59fc328a17d21915d801686e70fcb04feb0c6f5ee15d4036df605|write
+3|database\proposals\2026-11-27-v1-13-g5-barrier-open\G5_CLOSE_POST_readonly.sql|36f7014f219556d3af9604fd1c070e40037b572111c2738fdebcd76369fa2711|gate
