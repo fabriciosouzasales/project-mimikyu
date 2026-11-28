@@ -1,0 +1,621 @@
+{
+  "fase": "TEST — conjunto E4 registrado (S2–S9, E1–E3, F1–F3, P4-B)",
+  "_uso": "Copie para Downloads\\mmkyu-runs\\e4\\ (fora do repositório) e troque os TROCAR_*. Coleções EXISTENTES do titular: X (Pokédex com fichário exclusivo): E e E2 EDITOR, V VIEWER. Y (coleção cujo fichário recebe a convidada Y2): E EDITOR. Y2 (convidada no fichário de Y): sem participação de E. Z (outra coleção, ex.: Master Set): E VIEWER. LX_* = bolso livre em X; LY_* = bolso livre em Y; Y2_* = bolso com carta de Y2 no fichário de Y. U_V = username do VIEWER. E4-44 grava (coloca 1 carta em LX_*; desfazer depois).",
+  "sessions": {
+    "T": "TROCAR_email_titular",
+    "E": "TROCAR_email_editor",
+    "E2": "TROCAR_email_editor2",
+    "V": "TROCAR_email_viewer"
+  },
+  "vars": {
+    "X": "TROCAR",
+    "Y": "TROCAR",
+    "Y2": "TROCAR",
+    "Z": "TROCAR",
+    "U_V": "TROCAR_username_viewer",
+    "LX_P": 1,
+    "LX_R": 1,
+    "LX_C": 1,
+    "LY_P": 1,
+    "LY_R": 1,
+    "LY_C": 1,
+    "Y2_P": 1,
+    "Y2_R": 1,
+    "Y2_C": 1
+  },
+  "steps": [
+    {
+      "id": "E4-01",
+      "case": "F2/S9",
+      "as": "E",
+      "rpc": "get_shared_binder_placeable_copies",
+      "args": {
+        "p_collection_id": "{X}"
+      },
+      "expect": "ok",
+      "capture": {
+        "TK_EX": "copy_token"
+      }
+    },
+    {
+      "id": "E4-02",
+      "case": "F2/S9",
+      "as": "E",
+      "rpc": "get_shared_binder_placeable_copies",
+      "args": {
+        "p_collection_id": "{Y}"
+      },
+      "expect": "ok",
+      "capture": {
+        "TK_EY": "copy_token"
+      }
+    },
+    {
+      "id": "E4-03",
+      "case": "F2/S9",
+      "as": "E2",
+      "rpc": "get_shared_binder_placeable_copies",
+      "args": {
+        "p_collection_id": "{X}"
+      },
+      "expect": "ok",
+      "capture": {
+        "TK_E2X": "copy_token"
+      }
+    },
+    {
+      "id": "E4-04",
+      "case": "E1/S5",
+      "as": "E",
+      "rpc": "editor_place_copy_in_binder",
+      "args": {
+        "p_collection_id": "{X}",
+        "p_page": "{LX_P}",
+        "p_row": "{LX_R}",
+        "p_column": "{LX_C}",
+        "p_copy_token": "{FORGED_TOKEN}"
+      },
+      "expect": "msg:PHYSICAL_CARD_NOT_ELIGIBLE"
+    },
+    {
+      "id": "E4-05",
+      "case": "E1/S5",
+      "as": "E",
+      "rpc": "editor_place_copy_in_binder",
+      "args": {
+        "p_collection_id": "{X}",
+        "p_page": "{LX_P}",
+        "p_row": "{LX_R}",
+        "p_column": "{LX_C}",
+        "p_copy_token": "{RANDOM_UUID}"
+      },
+      "expect": "code:22023"
+    },
+    {
+      "id": "E4-06",
+      "case": "E1/S5",
+      "as": "E",
+      "rpc": "editor_place_copy_in_binder",
+      "args": {
+        "p_collection_id": "{X}",
+        "p_page": "{LX_P}",
+        "p_row": "{LX_R}",
+        "p_column": "{LX_C}",
+        "p_copy_token": "{TK_EY}"
+      },
+      "expect": "msg:PHYSICAL_CARD_NOT_ELIGIBLE"
+    },
+    {
+      "id": "E4-07",
+      "case": "E2",
+      "as": "E",
+      "rpc": "editor_place_copy_in_binder",
+      "args": {
+        "p_collection_id": "{X}",
+        "p_page": "{LX_P}",
+        "p_row": "{LX_R}",
+        "p_column": "{LX_C}",
+        "p_copy_token": "{TK_E2X}"
+      },
+      "expect": "msg:PHYSICAL_CARD_NOT_ELIGIBLE"
+    },
+    {
+      "id": "E4-08",
+      "case": "E2",
+      "as": "E2",
+      "rpc": "editor_place_copy_in_binder",
+      "args": {
+        "p_collection_id": "{X}",
+        "p_page": "{LX_P}",
+        "p_row": "{LX_R}",
+        "p_column": "{LX_C}",
+        "p_copy_token": "{TK_EX}"
+      },
+      "expect": "msg:PHYSICAL_CARD_NOT_ELIGIBLE"
+    },
+    {
+      "id": "E4-09",
+      "case": "F1",
+      "as": "E",
+      "rpc": "get_shared_binder_placeable_cards",
+      "args": {
+        "p_collection_id": "{X}"
+      },
+      "expect": "refused"
+    },
+    {
+      "id": "E4-10",
+      "case": "F1",
+      "as": "E",
+      "rpc": "editor_place_card_in_binder",
+      "args": {
+        "p_collection_id": "{X}",
+        "p_page": "{LX_P}",
+        "p_row": "{LX_R}",
+        "p_column": "{LX_C}",
+        "p_physical_card_id": "{RANDOM_UUID}"
+      },
+      "expect": "refused"
+    },
+    {
+      "id": "E4-11",
+      "case": "F1",
+      "as": "V",
+      "rpc": "editor_place_card_in_binder",
+      "args": {
+        "p_collection_id": "{X}",
+        "p_page": "{LX_P}",
+        "p_row": "{LX_R}",
+        "p_column": "{LX_C}",
+        "p_physical_card_id": "{RANDOM_UUID}"
+      },
+      "expect": "refused"
+    },
+    {
+      "id": "E4-12",
+      "case": "F2/S9",
+      "as": "E",
+      "rpc": "editor_preview_binder_auto_arrange",
+      "args": {
+        "p_collection_id": "{X}"
+      },
+      "expect": "ok"
+    },
+    {
+      "id": "E4-13",
+      "case": "F2/S9",
+      "as": "V",
+      "rpc": "get_shared_collection_binder_pages_with_species",
+      "args": {
+        "p_collection_id": "{X}",
+        "p_first_page": 1,
+        "p_page_count": 2
+      },
+      "expect": "ok"
+    },
+    {
+      "id": "E4-14",
+      "case": "F2/S9",
+      "as": "E",
+      "rpc": "get_shared_pokedex_positions",
+      "args": {
+        "p_collection_id": "{X}",
+        "p_filter": "OWNED"
+      },
+      "expect": "ok",
+      "capture": {
+        "POS": "pokedex_position_id"
+      }
+    },
+    {
+      "id": "E4-15",
+      "case": "F2/S9",
+      "as": "E",
+      "rpc": "get_editor_pokedex_position_copies",
+      "args": {
+        "p_collection_id": "{X}",
+        "p_pokedex_position_id": "{POS}",
+        "p_scope": "AT_POSITION"
+      },
+      "expect": "ok",
+      "capture": {
+        "TK_PX": "copy_token"
+      }
+    },
+    {
+      "id": "E4-16",
+      "case": "S7",
+      "as": "V",
+      "rpc": "get_editor_pokedex_position_copies",
+      "args": {
+        "p_collection_id": "{X}",
+        "p_pokedex_position_id": "{POS}",
+        "p_scope": "AT_POSITION"
+      },
+      "expect": "empty"
+    },
+    {
+      "id": "E4-17",
+      "case": "F2/S9",
+      "as": "E",
+      "rpc": "get_shared_binder_activity",
+      "args": {
+        "p_collection_id": "{X}"
+      },
+      "expect": "ok"
+    },
+    {
+      "id": "E4-18",
+      "case": "F2/S9",
+      "as": "V",
+      "rpc": "get_collection_activity",
+      "args": {
+        "p_collection_id": "{X}"
+      },
+      "expect": "ok"
+    },
+    {
+      "id": "E4-19",
+      "case": "F3/S7",
+      "as": "V",
+      "rpc": "editor_place_copy_in_binder",
+      "args": {
+        "p_collection_id": "{X}",
+        "p_page": "{LX_P}",
+        "p_row": "{LX_R}",
+        "p_column": "{LX_C}",
+        "p_copy_token": "{TK_EX}"
+      },
+      "expect": "refused"
+    },
+    {
+      "id": "E4-20",
+      "case": "F3/S7",
+      "as": "V",
+      "rpc": "editor_move_pokedex_copy",
+      "args": {
+        "p_collection_id": "{X}",
+        "p_copy_token": "{TK_PX}",
+        "p_target_position_id": "{POS}",
+        "p_expected_position_id": "{POS}"
+      },
+      "expect": "refused"
+    },
+    {
+      "id": "E4-21",
+      "case": "F3/S7",
+      "as": "V",
+      "rpc": "editor_update_collection_metadata",
+      "args": {
+        "p_collection_id": "{X}",
+        "p_name": "E4",
+        "p_description": "E4"
+      },
+      "expect": "refused"
+    },
+    {
+      "id": "E4-22",
+      "case": "S7",
+      "as": "anon",
+      "rpc": "editor_place_copy_in_binder",
+      "args": {
+        "p_collection_id": "{X}",
+        "p_page": "{LX_P}",
+        "p_row": "{LX_R}",
+        "p_column": "{LX_C}",
+        "p_copy_token": "{TK_EX}"
+      },
+      "expect": "refused"
+    },
+    {
+      "id": "E4-23",
+      "case": "S2",
+      "as": "E",
+      "rpc": "editor_place_copy_in_binder",
+      "args": {
+        "p_collection_id": "{Z}",
+        "p_page": 1,
+        "p_row": 1,
+        "p_column": 1,
+        "p_copy_token": "{TK_EX}"
+      },
+      "expect": "refused"
+    },
+    {
+      "id": "E4-24",
+      "case": "S2",
+      "as": "E",
+      "rpc": "editor_update_collection_metadata",
+      "args": {
+        "p_collection_id": "{Y2}",
+        "p_name": "E4",
+        "p_description": "E4"
+      },
+      "expect": "refused"
+    },
+    {
+      "id": "E4-25",
+      "case": "S2",
+      "as": "E",
+      "rpc": "editor_add_binder_page",
+      "args": {
+        "p_collection_id": "{Z}"
+      },
+      "expect": "refused"
+    },
+    {
+      "id": "E4-26",
+      "case": "S6",
+      "as": "E",
+      "rpc": "allocate_physical_cards_to_collection",
+      "args": {
+        "p_collection_id": "{X}",
+        "p_physical_card_ids": [
+          "{RANDOM_UUID}"
+        ]
+      },
+      "expect": "refused"
+    },
+    {
+      "id": "E4-27",
+      "case": "S6",
+      "as": "E",
+      "rpc": "set_collection_visibility",
+      "args": {
+        "p_collection_id": "{X}",
+        "p_visibility": "PRIVATE"
+      },
+      "expect": "refused"
+    },
+    {
+      "id": "E4-28",
+      "case": "S6",
+      "as": "E",
+      "rpc": "set_collection_member_role",
+      "args": {
+        "p_collection_id": "{X}",
+        "p_membership_id": "{RANDOM_UUID}",
+        "p_role": "EDITOR"
+      },
+      "expect": "refused"
+    },
+    {
+      "id": "E4-29",
+      "case": "S6",
+      "as": "E",
+      "rpc": "invite_collection_member",
+      "args": {
+        "p_collection_id": "{X}",
+        "p_username": "{U_V}",
+        "p_role": "EDITOR"
+      },
+      "expect": "refused"
+    },
+    {
+      "id": "E4-30",
+      "case": "S6",
+      "as": "E",
+      "rpc": "archive_collection",
+      "args": {
+        "p_collection_id": "{X}"
+      },
+      "expect": "refused"
+    },
+    {
+      "id": "E4-31",
+      "case": "S6",
+      "as": "E",
+      "rpc": "update_collection_metadata",
+      "args": {
+        "p_collection_id": "{X}",
+        "p_name": "E4",
+        "p_description": "E4"
+      },
+      "expect": "refused"
+    },
+    {
+      "id": "E4-32",
+      "case": "S6/D-E3-6",
+      "as": "E",
+      "storage_upload": {
+        "bucket": "collection-cover",
+        "path": "{uid:T}/{X}/{RANDOM_UUID}.png"
+      },
+      "expect": "refused"
+    },
+    {
+      "id": "E4-33",
+      "case": "S6/D-E3-6",
+      "as": "E",
+      "rpc": "editor_set_collection_cover_logo",
+      "args": {
+        "p_collection_id": "{X}",
+        "p_path": "{uid:E}/{X}/{RANDOM_UUID}.png"
+      },
+      "expect": "refused"
+    },
+    {
+      "id": "E4-34",
+      "case": "S3",
+      "as": "E",
+      "rpc": "editor_remove_binder_card",
+      "args": {
+        "p_collection_id": "{Y}",
+        "p_page": "{Y2_P}",
+        "p_row": "{Y2_R}",
+        "p_column": "{Y2_C}"
+      },
+      "expect": "refused"
+    },
+    {
+      "id": "E4-35",
+      "case": "S3",
+      "as": "E",
+      "rpc": "editor_move_binder_card",
+      "args": {
+        "p_collection_id": "{Y}",
+        "p_from_page": "{Y2_P}",
+        "p_from_row": "{Y2_R}",
+        "p_from_column": "{Y2_C}",
+        "p_to_page": "{LY_P}",
+        "p_to_row": "{LY_R}",
+        "p_to_column": "{LY_C}"
+      },
+      "expect": "refused"
+    },
+    {
+      "id": "E4-36",
+      "case": "S3",
+      "as": "E",
+      "rpc": "editor_place_copy_in_binder",
+      "args": {
+        "p_collection_id": "{Y}",
+        "p_page": "{Y2_P}",
+        "p_row": "{Y2_R}",
+        "p_column": "{Y2_C}",
+        "p_copy_token": "{TK_EY}"
+      },
+      "expect": "refused"
+    },
+    {
+      "id": "E4-37",
+      "case": "S4",
+      "as": "E",
+      "rpc": "editor_preview_binder_auto_arrange",
+      "args": {
+        "p_collection_id": "{Y}"
+      },
+      "expect": "refused"
+    },
+    {
+      "id": "E4-38",
+      "case": "S4",
+      "as": "E",
+      "rpc": "editor_remove_binder_page",
+      "args": {
+        "p_collection_id": "{Y}",
+        "p_page_number": "{Y2_P}"
+      },
+      "expect": "refused"
+    },
+    {
+      "id": "E4-39",
+      "case": "S4",
+      "as": "E",
+      "rpc": "editor_add_binder_page",
+      "args": {
+        "p_collection_id": "{Y}"
+      },
+      "expect": "refused"
+    },
+    {
+      "pause": "S8/E3 — Titular (T): em X, troque o EDITOR (E) de 'Pode organizar' para 'Pode ver'. Confirme na tela e volte aqui."
+    },
+    {
+      "id": "E4-40",
+      "case": "S8/E3",
+      "as": "E",
+      "rpc": "editor_place_copy_in_binder",
+      "args": {
+        "p_collection_id": "{X}",
+        "p_page": "{LX_P}",
+        "p_row": "{LX_R}",
+        "p_column": "{LX_C}",
+        "p_copy_token": "{TK_EX}"
+      },
+      "expect": "refused"
+    },
+    {
+      "id": "E4-41",
+      "case": "S8/E3",
+      "as": "E",
+      "rpc": "get_shared_binder_placeable_copies",
+      "args": {
+        "p_collection_id": "{X}"
+      },
+      "expect": "empty"
+    },
+    {
+      "pause": "S8/E3 — Titular (T): em X, troque o EDITOR (E) de volta para 'Pode organizar'. Confirme e volte aqui."
+    },
+    {
+      "id": "E4-42",
+      "case": "E3",
+      "as": "E",
+      "rpc": "editor_place_copy_in_binder",
+      "args": {
+        "p_collection_id": "{X}",
+        "p_page": "{LX_P}",
+        "p_row": "{LX_R}",
+        "p_column": "{LX_C}",
+        "p_copy_token": "{TK_EX}"
+      },
+      "expect": "msg:PHYSICAL_CARD_NOT_ELIGIBLE"
+    },
+    {
+      "id": "E4-43",
+      "case": "E3",
+      "as": "E",
+      "rpc": "get_shared_binder_placeable_copies",
+      "args": {
+        "p_collection_id": "{X}"
+      },
+      "expect": "ok",
+      "capture": {
+        "TK_EX2": "copy_token"
+      }
+    },
+    {
+      "id": "E4-44",
+      "case": "E3 (ESCREVE: coloca 1 carta de teste em LIVRE_X)",
+      "as": "E",
+      "rpc": "editor_place_copy_in_binder",
+      "args": {
+        "p_collection_id": "{X}",
+        "p_page": "{LX_P}",
+        "p_row": "{LX_R}",
+        "p_column": "{LX_C}",
+        "p_copy_token": "{TK_EX2}"
+      },
+      "expect": "ok"
+    },
+    {
+      "pause": "S8 — Titular (T): em X, remova o EDITOR 2 (E2) da coleção. Confirme e volte aqui."
+    },
+    {
+      "id": "E4-45",
+      "case": "S8",
+      "as": "E2",
+      "rpc": "get_shared_binder_placeable_copies",
+      "args": {
+        "p_collection_id": "{X}"
+      },
+      "expect": "empty"
+    },
+    {
+      "id": "E4-46",
+      "case": "S8",
+      "as": "E2",
+      "rpc": "editor_remove_binder_card",
+      "args": {
+        "p_collection_id": "{X}",
+        "p_page": "{LX_P}",
+        "p_row": "{LX_R}",
+        "p_column": "{LX_C}"
+      },
+      "expect": "refused"
+    },
+    {
+      "id": "E4-47",
+      "case": "S8",
+      "as": "E2",
+      "rpc": "get_shared_collection_binder_pages_with_species",
+      "args": {
+        "p_collection_id": "{X}",
+        "p_first_page": 1,
+        "p_page_count": 1
+      },
+      "expect": "refused"
+    }
+  ]
+}

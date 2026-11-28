@@ -19,3 +19,6 @@ __pycache__/
 database/proposals/2026-09-18-edition-context-axis/harness/local-pg17/
 # Exceção: log primário preservado como evidência (não é log de execução local)
 !database/proposals/2026-09-18-edition-context-axis/harness/evidence/PG17-2026-09-28/raw/out/ckrepair.log
+
+# Artefatos locais da CLI do Supabase
+supabase/.temp/

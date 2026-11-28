@@ -268,7 +268,8 @@ export function BinderOverview({
               onClose();
             }}
             onAddPages={
-              editable && layoutId && onRequestAddPages
+              // E4 (D-E4-2): o EDITOR não recebe layoutId (5382 decide pela coleção); sem isto o "Adicionar páginas" sumia para ele.
+              editable && (layoutId || audience === "editor") && onRequestAddPages
                 ? () => {
                     onClose();
                     onRequestAddPages();

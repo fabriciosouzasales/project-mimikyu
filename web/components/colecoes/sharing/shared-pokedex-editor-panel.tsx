@@ -111,7 +111,15 @@ export function SharedPokedexEditorPanel({
   // Geração das listas: toda releitura invalida tokens, respostas atrasadas e confirmações anteriores.
   const generation = useRef(0);
   const alive = useRef(true);
-  useEffect(() => () => void (alive.current = false), []);
+  // E4 (D-E4-5): no React Strict Mode (dev) o efeito monta, desmonta e monta de novo. `alive` volta a
+  // true na montagem, e a primeira leitura é refeita — sem isso o painel ficava em "Conferindo…" para sempre.
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+      firstLoad.current = true;
+    };
+  }, []);
 
   const read = useCallback(
     (scope: CopyScope, q: string, offset: number) =>

@@ -7,8 +7,11 @@
 
 .entry {
   display: flex;
+  /* Reteste E4: em coluna estreita (hero com barra lateral) o botão desce para a
+     linha de baixo em vez de espremer o texto palavra por palavra. */
+  flex-wrap: wrap;
   align-items: center;
-  gap: 1rem;
+  gap: 0.75rem 1rem;
   max-width: 34rem;
   margin-top: 1.25rem;
   padding: 0.75rem 0.75rem 0.75rem 0.875rem;
@@ -39,7 +42,7 @@
 
 .text {
   display: flex;
-  flex: 1;
+  flex: 1 1 11rem;
   flex-direction: column;
   gap: 0.15rem;
   min-width: 0;
@@ -80,6 +83,7 @@
 .cta {
   display: inline-flex;
   flex: none;
+  margin-left: auto;
   align-items: center;
   gap: 0.45rem;
   min-height: 2.5rem;

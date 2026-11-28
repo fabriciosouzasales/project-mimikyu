@@ -28,6 +28,9 @@ import { PositionTile } from "../colecoes/collection-view";
 import acervoStyles from "../acervo/acervo.module.css";
 import { BinderCover } from "../colecoes/binder-cover";
 import { CollectionHeroBackdrop, CollectionHeroFan } from "../colecoes/collection-hero-fan";
+import { PokedexHeroBackdrop, PokedexHeroStage } from "../colecoes/pokedex-hero-stage";
+import pkxStyles from "../colecoes/pokedex.module.css";
+import type { PokedexHeroPokemon } from "@/lib/colecoes/pokedex";
 import heroStyles from "../colecoes/collection-hero.module.css";
 import manageStyles from "../colecoes/collection-manage.module.css";
 import { CollectionTitle } from "../colecoes/collection-title";
@@ -73,6 +76,7 @@ export function SharedCollectionView({
   editPokedex = false,
   activity = false,
   modality = null,
+  pokedexLineup = null,
 }: {
   collection: SharedCollection;
   cards: { items: SharedCard[]; total: number } | null;
@@ -113,6 +117,12 @@ export function SharedCollectionView({
    * servidor da página. `null` = galeria de cartas de sempre (5313).
    */
   modality?: SharedModality | null;
+  /**
+   * Reteste E4: palco da Pokédex (Mimikyu + equipe de 6), idêntico ao do titular.
+   * A equipe sai dos favoritos de QUEM VÊ (os do titular nunca são compartilhados),
+   * completada pelos iniciais. `null`/vazio = leque de cartas de sempre.
+   */
+  pokedexLineup?: readonly PokedexHeroPokemon[] | null;
 }) {
   const progress = collection.progress && collection.progress.total > 0 ? collection.progress : null;
   const pages = cards ? Math.max(1, Math.ceil(cards.total / SHARED_PAGE_SIZE)) : 1;
@@ -125,12 +135,14 @@ export function SharedCollectionView({
       ? pickHeroCards(positions.hero.map(positionHeroSource), 5, collection.cardSetCode)
       : pickHeroCards((cards?.items ?? []).map(heroSource), 5, collection.cardSetCode);
   const setCode = collection.cardSetCode;
+  const pokedexStage = collection.completionPolicy === "REFERENCE_POSITION" && pokedexLineup !== null && pokedexLineup.length > 0 ? pokedexLineup : null;
+  const hasFan = pokedexStage ? true : hero.cards.length > 0;
 
   return (
     <div className={acervoStyles.root}>
-      <header className={`${acervoStyles.hero} ${heroStyles.hero}`} data-has-fan={hero.cards.length > 0 || undefined}>
+      <header className={`${acervoStyles.hero} ${heroStyles.hero}${pokedexStage ? ` ${pkxStyles.hero}` : ""}`} data-has-fan={hasFan || undefined}>
         <div className={acervoStyles.stageGlow} aria-hidden="true" />
-        <CollectionHeroBackdrop selection={hero} />
+        {pokedexStage ? <PokedexHeroBackdrop lineup={pokedexStage} /> : <CollectionHeroBackdrop selection={hero} />}
         <div className={`${manageStyles.heroBar} ${shareStyles.heroBarRaised}`}>
           {signedIn ? (
             <Link href={COLECOES_PATH} className={styles.backLink}>
@@ -167,7 +179,7 @@ export function SharedCollectionView({
             )}
           </div>
         </div>
-        <div className={heroStyles.stage}>
+        <div className={pokedexStage ? `${heroStyles.stage} ${pkxStyles.heroStage}` : heroStyles.stage}>
           <div className={heroStyles.text}>
             <div className={heroStyles.identity}>
               <div className={heroStyles.identityCover}>
@@ -254,12 +266,14 @@ export function SharedCollectionView({
                 binder={binder}
                 role={collection.role ?? "VIEWER"}
                 speciesEnabled={activity && collection.completionPolicy === "REFERENCE_POSITION"}
+                editorEnabled={editMetadata && collection.role === "EDITOR"}
+                completionPolicy={collection.completionPolicy}
               />
             ) : null}
 
           </div>
 
-          <CollectionHeroFan selection={hero} />
+          {pokedexStage ? <PokedexHeroStage lineup={pokedexStage} label="Destaques desta Pokédex" /> : <CollectionHeroFan selection={hero} />}
         </div>
       </header>
 

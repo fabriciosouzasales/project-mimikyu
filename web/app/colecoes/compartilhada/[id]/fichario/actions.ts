@@ -517,10 +517,20 @@ export async function editorCloseGap(input: { collectionId: string; undo: Editor
 // pedido; sem `hint`/`detail`. A prévia é validada aqui e chega à tela só com
 // agregados (contagens, páginas, cartas por página) — nada de ids de exemplar.
 
+// D-E4-4 (E4): uma falha de rede chegou a prender a tela por ~125 s (o banco
+// respondeu em < 1 s; a conexão HTTP ficou pendurada). O banco encerra qualquer
+// comando em 8 s (`statement_timeout` de `authenticated`), então depois de 15 s
+// o resultado já está decidido no servidor: a chamada é cortada e a tela cai no
+// caminho "incerto" de sempre (token preservado, prévia a atualizar). Sem retry
+// automático — a regra de não repetir a escrita continua valendo.
+const ARRANGE_TIMEOUT_MS = 15_000;
+
 async function callArrange(fn: string, args: Record<string, unknown>): Promise<{ data: unknown; error: { code?: string; message?: string } | null } | null> {
   try {
     const supabase = await createClient();
-    const { data, error } = await supabase.rpc(fn, args);
+    const signal = AbortSignal.timeout(ARRANGE_TIMEOUT_MS);
+    const { data, error } = await supabase.rpc(fn, args).abortSignal(signal);
+    if (error && signal.aborted) return { data: null, error: { code: "TIMEOUT", message: "TIMEOUT" } };
     return { data, error: error ? { code: error.code, message: error.message } : null };
   } catch {
     return null;

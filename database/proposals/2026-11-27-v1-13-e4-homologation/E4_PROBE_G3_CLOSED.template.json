@@ -1,0 +1,201 @@
+{
+  "fase": "G3 — barreira CLOSED, nenhuma identidade registrada (prova de negação com JWT real, contas do conjunto E4)",
+  "_uso": "Copie para Downloads\\mmkyu-runs\\e4\\ (fora do repositório) e troque os TROCAR_*: e-mails das contas do conjunto, X = id de uma coleção do titular (a Pokédex escolhida), U_E2 = username do EDITOR 2. Não exige participação prévia: a porta nega antes de qualquer outra regra. Nada é gravado (todas as chamadas são recusadas).",
+  "sessions": {
+    "T": "TROCAR_email_titular",
+    "E": "TROCAR_email_editor",
+    "V": "TROCAR_email_viewer"
+  },
+  "vars": {
+    "X": "TROCAR_uuid_da_colecao_X",
+    "U_E2": "TROCAR_username_editor2"
+  },
+  "steps": [
+    {
+      "id": "G3-01",
+      "case": "S7/F4",
+      "as": "anon",
+      "rpc": "get_shared_binder_placeable_copies",
+      "args": {
+        "p_collection_id": "{X}"
+      },
+      "expect": "refused"
+    },
+    {
+      "id": "G3-02",
+      "case": "S7/F4",
+      "as": "anon",
+      "rpc": "editor_place_copy_in_binder",
+      "args": {
+        "p_collection_id": "{X}",
+        "p_page": 1,
+        "p_row": 1,
+        "p_column": 1,
+        "p_copy_token": "{FORGED_TOKEN}"
+      },
+      "expect": "refused"
+    },
+    {
+      "id": "G3-03",
+      "case": "F4",
+      "as": "E",
+      "rpc": "get_shared_binder_placeable_copies",
+      "args": {
+        "p_collection_id": "{X}"
+      },
+      "expect": "empty"
+    },
+    {
+      "id": "G3-04",
+      "case": "F4",
+      "as": "E",
+      "rpc": "get_editor_pokedex_position_copies",
+      "args": {
+        "p_collection_id": "{X}",
+        "p_pokedex_position_id": "{RANDOM_UUID}",
+        "p_scope": "AT_POSITION"
+      },
+      "expect": "msg:CAPABILITY_NOT_ENABLED"
+    },
+    {
+      "id": "G3-05",
+      "case": "F4",
+      "as": "E",
+      "rpc": "editor_place_copy_in_binder",
+      "args": {
+        "p_collection_id": "{X}",
+        "p_page": 1,
+        "p_row": 1,
+        "p_column": 1,
+        "p_copy_token": "{FORGED_TOKEN}"
+      },
+      "expect": "msg:CAPABILITY_NOT_ENABLED"
+    },
+    {
+      "id": "G3-06",
+      "case": "F4",
+      "as": "E",
+      "rpc": "editor_move_binder_card",
+      "args": {
+        "p_collection_id": "{X}",
+        "p_from_page": 1,
+        "p_from_row": 1,
+        "p_from_column": 1,
+        "p_to_page": 1,
+        "p_to_row": 1,
+        "p_to_column": 2
+      },
+      "expect": "msg:CAPABILITY_NOT_ENABLED"
+    },
+    {
+      "id": "G3-07",
+      "case": "F4",
+      "as": "E",
+      "rpc": "editor_remove_binder_card",
+      "args": {
+        "p_collection_id": "{X}",
+        "p_page": 1,
+        "p_row": 1,
+        "p_column": 1
+      },
+      "expect": "msg:CAPABILITY_NOT_ENABLED"
+    },
+    {
+      "id": "G3-08",
+      "case": "F4",
+      "as": "E",
+      "rpc": "editor_preview_binder_auto_arrange",
+      "args": {
+        "p_collection_id": "{X}"
+      },
+      "expect": "msg:CAPABILITY_NOT_ENABLED"
+    },
+    {
+      "id": "G3-09",
+      "case": "F4",
+      "as": "E",
+      "rpc": "editor_update_collection_metadata",
+      "args": {
+        "p_collection_id": "{X}",
+        "p_name": "E4",
+        "p_description": "E4"
+      },
+      "expect": "msg:CAPABILITY_NOT_ENABLED"
+    },
+    {
+      "id": "G3-10",
+      "case": "F4",
+      "as": "E",
+      "rpc": "editor_move_pokedex_copy",
+      "args": {
+        "p_collection_id": "{X}",
+        "p_copy_token": "{FORGED_TOKEN}",
+        "p_target_position_id": "{RANDOM_UUID}",
+        "p_expected_position_id": "{RANDOM_UUID}"
+      },
+      "expect": "msg:CAPABILITY_NOT_ENABLED"
+    },
+    {
+      "id": "G3-11",
+      "case": "F4",
+      "as": "V",
+      "rpc": "editor_place_copy_in_binder",
+      "args": {
+        "p_collection_id": "{X}",
+        "p_page": 1,
+        "p_row": 1,
+        "p_column": 1,
+        "p_copy_token": "{FORGED_TOKEN}"
+      },
+      "expect": "msg:CAPABILITY_NOT_ENABLED"
+    },
+    {
+      "id": "G3-12",
+      "case": "F1",
+      "as": "E",
+      "rpc": "get_shared_binder_placeable_cards",
+      "args": {
+        "p_collection_id": "{X}"
+      },
+      "expect": "refused"
+    },
+    {
+      "id": "G3-13",
+      "case": "F1",
+      "as": "E",
+      "rpc": "editor_place_card_in_binder",
+      "args": {
+        "p_collection_id": "{X}",
+        "p_page": 1,
+        "p_row": 1,
+        "p_column": 1,
+        "p_physical_card_id": "{RANDOM_UUID}"
+      },
+      "expect": "refused"
+    },
+    {
+      "id": "G3-14",
+      "case": "F4",
+      "as": "T",
+      "rpc": "invite_collection_member",
+      "args": {
+        "p_collection_id": "{X}",
+        "p_username": "{U_E2}",
+        "p_role": "EDITOR"
+      },
+      "expect": "msg:CAPABILITY_NOT_ENABLED"
+    },
+    {
+      "id": "G3-15",
+      "case": "F4",
+      "as": "T",
+      "rpc": "set_collection_member_role",
+      "args": {
+        "p_collection_id": "{X}",
+        "p_membership_id": "{RANDOM_UUID}",
+        "p_role": "EDITOR"
+      },
+      "expect": "msg:CAPABILITY_NOT_ENABLED"
+    }
+  ]
+}

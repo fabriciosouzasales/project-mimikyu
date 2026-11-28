@@ -82,7 +82,8 @@
 }
 
 .title h1 {
-  font-size: clamp(2.25rem, 4.4vw, 3.75rem);
+  /* cqi do hero (container `acervo-hero`), não vw: a janela inclui trilho e barra lateral. */
+  font-size: clamp(2rem, 4.4cqi, 3.75rem);
   line-height: 0.95;
 }
 
@@ -342,32 +343,14 @@
 /* ---- Responsivo ---- */
 
 /* Telas largas: a coluna do leque cresce um pouco (o título tem folga). */
-@media (min-width: 1280px) {
-  .stage {
-    grid-template-columns: minmax(0, 1fr) minmax(17rem, 32rem);
-  }
-}
 
 @media (max-width: 1023px) {
-  .stage {
-    grid-template-columns: minmax(0, 1fr) minmax(14rem, 20rem);
-    gap: 1.5rem 1.5rem;
-  }
-
   .fanStage {
     --fan-max: clamp(7.5rem, 15vw, 8.9rem);
   }
 }
 
 @media (max-width: 767px) {
-  .stage {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-areas:
-      "fan"
-      "text";
-    gap: 0.75rem;
-  }
-
   .backdrop {
     left: 0;
     width: auto;
@@ -420,6 +403,35 @@
     flex-direction: column;
     align-items: stretch;
     width: 100%;
+  }
+}
+
+/* Reteste E4: as colunas seguem a LARGURA DO HERO (container `acervo-hero`), não
+   a da janela — com trilho + barra lateral, a regra por janela deixava o texto com
+   ~0 px (título letra por letra). Capa 3D + título longo pedem mais largura: abaixo
+   de 56rem o leque vai para cima. Acima, o texto tem piso e o leque cede.
+   Faixa não flexível cresce até o máximo antes do `fr`, por isso o piso vai no texto. */
+@container acervo-hero (min-width: 56rem) {
+  .stage {
+    grid-template-columns: minmax(22rem, 1fr) minmax(0, 30rem);
+    grid-template-areas: "text fan";
+    gap: 1rem 2.5rem;
+  }
+}
+
+@container acervo-hero (min-width: 72rem) {
+  .stage {
+    grid-template-columns: minmax(20rem, 1fr) minmax(0, 32rem);
+  }
+}
+
+@container acervo-hero (max-width: 55.999rem) {
+  .stage {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "fan"
+      "text";
+    gap: 0.75rem;
   }
 }
 

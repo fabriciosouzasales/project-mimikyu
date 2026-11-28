@@ -3,8 +3,8 @@
 | Campo | Valor |
 |---|---|
 | **Documento** | Roteiro operacional da E4 (homologação integrada da V1-13) |
-| **Versão** | 1.0 (2026-11-27, `E3-7b / 5397 — PASS-LIVE CLOSEOUT & E4 HANDOFF-01`) |
-| **Status** | **PREPARADA — NÃO EXECUTADA.** Exige autorização própria para o modo TEST da barreira. |
+| **Versão** | 1.2 (2026-11-27, encerramento da E4 e do reteste) |
+| **Status** | **EXECUTADA — PASS (2026-11-27), com pendências não bloqueantes (D-E4-4 parcial, higiene do Storage).** TEST aberto e encerrado pelo executor; barreira CLOSED com 0 identidades ao fim; D1 desligada. Resultado na seção "Resultado". Roteiro executável (sequência, identidades, ativação e encerramento, sonda, critérios, autorizações): `database/proposals/2026-11-27-v1-13-e4-homologation/README.md`. |
 | **Normas** | C-234–C-244 (matriz de papéis, segurança); `05d` §"E2–E4"; STD-005 §6 (homologação progressiva) |
 
 ## Pré-requisitos
@@ -41,14 +41,14 @@
 | F4 | Privacidade | Fora do TEST (barreira CLOSED), chamar as RPCs de leitura e de escrita do EDITOR | E | Leituras vazias e escritas com `CAPABILITY_NOT_ENABLED` | O |
 | G1 | Concorrência | E e E2 colocam no mesmo bolso, ou o mesmo exemplar em bolsos diferentes, ao mesmo tempo | E, E2 | Uma conclui; a outra recebe recusa clara; sem duplicata | O |
 | G2 | Concorrência | E e T editam a mesma posição da Pokédex e a mesma página ao mesmo tempo | E, T | Estado esperado protege; tela informa e recarrega | O |
-| H1 | Histórico | Cada operação efetiva de C, D e espécies aparece com o autor certo; as sem efeito não aparecem | T, E, V | Autor e tipo corretos; V vê o escopo permitido; sem resumo patrimonial | O |
+| H1 | Histórico | Cada operação efetiva de C, D e espécies aparece com o tipo certo, e com o autor onde o contrato o entrega (5388 para participantes; `get_collection_activity` para titular e participantes); as sem efeito não aparecem | T, E, V | Tipo e autor corretos; V vê o escopo permitido; sem resumo patrimonial. No histórico do **fichário do titular** (5269) o autor não é exibido: registrar "D-E3-2", sem FAIL (pendência de publicação). *Resolvido no reteste pela 5398 (2026-11-27).* | O |
 | H2 | Histórico | Filtros (incluindo `SPECIES`) e paginação "ver mais" | T, E | Coerentes com os eventos gravados | N |
 | I1 | Mobile e acessibilidade | Fluxos C1–C4 e D1 no celular (toque, alvos de 44 px), teclado, foco visível, leitor de tela nos avisos | E | Utilizável sem mouse; avisos anunciados | O |
 | I2 | Visual | Light e Dark, desktop e celular, Design System MMKYU | todos | Sem quebra visual | O |
 | I3 | Visual | Refinamentos de microcópia, densidade e motion | todos | Registrar sugestões | N |
 | J1 | Regressão | T faz posicionar, mover e retirar, organização automática, Pokédex, Acervo, Locais e compartilhamento V1-12 | T | Inalterados (o titular continua com o próprio acervo) | O |
 | J2 | Regressão | Configuração desligada: nenhuma função do EDITOR aparece | E | Coleção compartilhada só de leitura, como na V1-12 | O |
-| K1 | Desempenho | Tempo da lista de elegíveis (5397) e da colocação com coleção grande (1 HMAC por alocação) | E | Dentro do limite combinado; registrar o tempo | O |
+| K1 | Desempenho | Tempo da lista de elegíveis (5397) e da colocação com coleção grande (≥ 500 alocações; 1 HMAC por alocação), medido pela sonda | E | ≤ 1500 ms cada = PASS; 1500–3000 ms = observação; > 3000 ms = FAIL | O |
 | K2 | Desempenho | Tempos das demais RPCs com volume real | E, T | Registrar | N |
 | L1 | Segurança da E1 | Prova S1–S10 da E1 (S8 concorrente, S10, PR-04B) executada e aprovada | — | C-244: a publicação fica bloqueada sem ela | O |
 
@@ -59,8 +59,41 @@
 - Dados de teste restaurados.
 - O resultado vai para `docs/log.md` e para o `05d`. Qualquer FAIL obrigatório bloqueia a liberação e abre uma rodada de correção.
 
+## Resultado (2026-11-27)
+
+Executada com as quatro contas reais do conjunto (titular, dois EDITOR e um VIEWER; identificadas no pacote só por md5), sobre coleções existentes do titular, pelo frontend e pela sonda de JWT real. Detalhe cronológico em `docs/log.md` (entradas "V1-13 / E4").
+
+| Bloco | Casos | Resultado |
+|---|---|---|
+| Barreira e negação | F4 (sonda G3 antes e depois, 15/15 cada) | PASS |
+| Papéis e convites | A1, A2, B1–B3 | PASS |
+| Fichário pelo EDITOR | C1–C5 | PASS (achados de interface corrigidos; ver abaixo) |
+| Pokédex pelo EDITOR | D1 | PASS |
+| | D2 | Não aplicável (coleções do conjunto cobrem todas as gerações) |
+| Tokens e privacidade | E1–E3, F1–F3 (sonda TEST 47/47; E4-33 trocado por `editor_set_collection_cover_logo` → recusa, com aprovação do proprietário) | PASS |
+| Concorrência | G1, G2 | PASS |
+| Histórico | H1, H2 | PASS; autor no fichário do titular entregue pela 5398 (D-E3-2) e confirmado no reteste |
+| Celular e visual | I1, I2 | PASS depois do reteste (D-E4-7, D-E4-8 e responsividade dos heróis) |
+| | I3 | Observações aplicadas (404 com identidade MMKYU, textos de recusa e de recusados) |
+| Regressão | J1, J2 | PASS |
+| Desempenho | K1 (112 e 126 ms) | PASS |
+| Segurança da E1 | L1: S1–S10 e PR-04B na mesma conta | PASS; PR-04B entre contas não aplicável |
+
+**Achados de interface (rodada de correção e reteste, TEST reaberto pelo mesmo manifesto):** D-E4-1 (o EDITOR organiza dentro da sobreposição), D-E4-2, D-E4-3, D-E4-5, D-E4-6 (painel Compartilhar reorganizado: nome de usuário primeiro), D-E4-7 e D-E4-8 corrigidos e confirmados pelo proprietário. Também no reteste: cabeçalho da Pokédex compartilhada com o mesmo palco do titular (equipe pelos favoritos de quem vê).
+
+**Pendências registradas (não bloqueiam a E4):**
+
+- **D-E4-4 (parcial):** a aplicação da organização automática pelo EDITOR grava no banco, mas a resposta HTTP às vezes não volta ao servidor do app. A espera foi limitada a 15 s, e a tela cai no aviso "pode ter sido concluída", com "Atualizar prévia". Causa da resposta perdida em aberto; o banco respondeu em menos de 1 s.
+- **Higiene do Storage:** `collection_cover_insert_own` valida só a primeira pasta do caminho; um usuário consegue enviar para a própria pasta fora do formato esperado. Não é escrita entre contas.
+- **Palco da Pokédex compartilhada (limitação conhecida):** o escopo do sorteio da equipe usa as gerações da primeira página lida da grade (5324, com o filtro da URL). Numa Pokédex parcial com várias gerações, a equipe pode sair de parte delas; não envolve dado de outro usuário.
+- **Dados de teste:** papéis e convites usados na homologação continuam como ficaram; limpeza opcional, a critério do proprietário.
+
+**Encerramento conferido:** run-20261128T020010Z (PRE PASS, escrita exit 0, POST PASS) e conferência só leitura depois: barreira CLOSED, 0 identidades TEST, funções da barreira canônicas. D1 removida do `.env.local`; no Vercel nunca esteve ligada.
+
 ## Revision History
 
 | Versão | Descrição |
 |---|---|
 | 1.0 | **Criação (2026-11-27).** Matriz enxuta da E4 depois da 5397 (P0 do fichário): 31 casos (28 obrigatórios, 3 não bloqueantes), pré-requisitos e encerramento. |
+| 1.1 | **Prontidão de execução (2026-11-27).** H1 alinhado ao contrato (autor do fichário do titular = D-E3-2, pendência de publicação, não FAIL da E4); K1 com limite objetivo; vínculo ao roteiro executável do pacote E4. |
+| 1.2 | **Encerramento da E4 (2026-11-27).** Status EXECUTADA — PASS; seção Resultado por bloco, achados corrigidos no reteste, pendências não bloqueantes (D-E4-4 parcial, higiene do Storage, dados de teste) e conferência do encerramento. |

@@ -1,0 +1,4 @@
+# V1-13 · D-E3-2 / 5398 — manifesto do executor por arquivo (STD-005 §3, v1.4). passo|arquivo|sha256|modo
+1|database\proposals\2026-11-27-v1-13-e4-owner-history-author\D_E3_2_5398_PRE_readonly.sql|409e7d8b15dd94ca1abdf54d890d66385ec461ada27221d30fe04fcf43e36772|gate
+2|database\proposals\2026-11-27-v1-13-e4-owner-history-author\5398_owner_binder_history_author.sql|26a78c57e3f190560eafdc46f7d4338ee857a7440c7be059d4a3990b427e62db|write
+3|database\proposals\2026-11-27-v1-13-e4-owner-history-author\D_E3_2_5398_POST_readonly.sql|32a7c95189dd7261d22f0b59638cfe5d8b31372387604bde23bcc05dbd7fd02d|gate

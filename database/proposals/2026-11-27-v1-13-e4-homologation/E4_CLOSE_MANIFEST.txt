@@ -1,0 +1,4 @@
+# V1-13 · E4 — manifesto do executor por arquivo (STD-005 §3, v1.4). passo|arquivo|sha256|modo
+1|database\proposals\2026-11-27-v1-13-e4-homologation\E4_CLOSE_PRE_readonly.sql|fe867c8833e4622923cdea641802b863d16ca27c9260c27efdeff9acde2e5392|gate
+2|database\proposals\2026-11-27-v1-13-e4-homologation\E4_TEST_CLOSE.sql|007d7ca31a6e7f58d23632998bfae4b458dadb5374d990f4f3edbe79a3da6ef1|write
+3|database\proposals\2026-11-27-v1-13-e4-homologation\E4_CLOSE_POST_readonly.sql|5855ebfd5edcb885bdbb22dbd54ba9ad5697e298026033308b83f2537863bed7|gate

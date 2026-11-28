@@ -170,16 +170,12 @@ export function AutoArrangePanel({
           <ReviewBody view={view} target={target} notice={flow.kind === "review" ? flow.notice : null} writeBusy={writeBusy} onCancel={onCancelReview} onConfirm={onConfirm} />
         ) : (
           <>
-            {flow.kind === "idle" && flow.notice ? (
+            {/* E4 (D-E4-4): um aviso só. Com o aviso da revalidação, o "fichário mudou" vira o mesmo bloco
+                (com "Atualizar prévia"), em vez de dois avisos que pareciam se contradizer. */}
+            {stale || (flow.kind === "idle" && flow.notice) ? (
               <div className={styles.stale} role="note">
                 <AlertTriangle className="h-4 w-4 flex-none" aria-hidden />
-                <span>{flow.notice}</span>
-              </div>
-            ) : null}
-            {stale ? (
-              <div className={styles.stale} role="note">
-                <AlertTriangle className="h-4 w-4 flex-none" aria-hidden />
-                <span>{STALE_MESSAGE}</span>
+                <span>{flow.kind === "idle" && flow.notice ? flow.notice : STALE_MESSAGE}</span>
                 <button type="button" className={styles.action} onClick={onRefresh}>
                   <RotateCcw className="h-3.5 w-3.5" aria-hidden />
                   Atualizar prévia

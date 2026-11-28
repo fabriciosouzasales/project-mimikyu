@@ -22,7 +22,6 @@ import {
   type SharingFailure,
   type SharingState,
   ROLE_LABEL,
-  VIEWER_ROLE_HINT,
   type Visibility,
   activeOrPending,
   inviteOutcomeMessage,
@@ -258,18 +257,47 @@ export function InviteSection({ collectionId, state, busy, onBusy, onDone, edito
       <h3 id="share-invite" className={manageStyles.sectionTitle}>
         Convidar alguém
       </h3>
-      {editorRoles ? (
-        <p className={styles.lead}>
-          A pessoa recebe o convite em <strong>Minhas coleções</strong>. Escolha o que ela pode fazer ao aceitar — dá para mudar depois.
-        </p>
-      ) : (
-        <p className={styles.lead}>
-          A pessoa recebe o convite em <strong>Minhas coleções</strong> e, ao aceitar, <strong>{ROLE_LABEL.VIEWER.toLowerCase()}</strong> esta coleção:{" "}
-          {VIEWER_ROLE_HINT.charAt(0).toLowerCase() + VIEWER_ROLE_HINT.slice(1)}
-        </p>
-      )}
+      {/* E4 (D-E4-6, pedido do proprietário): primeiro QUEM recebe; o papel e o envio vêm depois do nome. */}
       <form className={styles.inviteForm} onSubmit={submit} noValidate>
-        {editorRoles ? (
+        <label htmlFor={inputId} className={styles.label}>
+          Nome de usuário
+        </label>
+        <div className={styles.handle}>
+          <span className={styles.at} aria-hidden="true">
+            @
+          </span>
+          <Input
+            ref={inputRef}
+            id={inputId}
+            value={value}
+            onChange={(event) => {
+              setValue(event.target.value);
+              if (error) setError(null);
+            }}
+            placeholder="colecionador"
+            autoComplete="off"
+            autoCapitalize="none"
+            spellCheck={false}
+            maxLength={21}
+            disabled={busy || blocked}
+            invalid={error !== null}
+            aria-describedby={error ? `${helpId} ${errorId}` : helpId}
+            className={styles.handleInput}
+          />
+        </div>
+        <p id={helpId} className={styles.help}>
+          {state.archived
+            ? "Coleção arquivada: reative-a para convidar alguém."
+            : full
+              ? `Limite de ${MEMBER_LIMIT} pessoas entre participantes e convites.`
+              : "Use o nome exato do perfil da pessoa no MMKYU — sem buscas, para ninguém ser encontrado por acaso."}
+        </p>
+        {error ? (
+          <p id={errorId} className={styles.error} role="alert">
+            {error}
+          </p>
+        ) : null}
+        {editorRoles && value.trim() !== "" ? (
           <div className={styles.options} role="radiogroup" aria-label="Papel do convite" id={roleGroupId}>
             {ROLE_CHOICES.map((choice) => {
               const Icon = choice.icon;
@@ -294,49 +322,18 @@ export function InviteSection({ collectionId, state, busy, onBusy, onDone, edito
             })}
           </div>
         ) : null}
-        <label htmlFor={inputId} className={styles.label}>
-          Nome de usuário
-        </label>
-        <div className={styles.inviteRow}>
-          <div className={styles.handle}>
-            <span className={styles.at} aria-hidden="true">
-              @
-            </span>
-            <Input
-              ref={inputRef}
-              id={inputId}
-              value={value}
-              onChange={(event) => {
-                setValue(event.target.value);
-                if (error) setError(null);
-              }}
-              placeholder="colecionador"
-              autoComplete="off"
-              autoCapitalize="none"
-              spellCheck={false}
-              maxLength={21}
-              disabled={busy || blocked}
-              invalid={error !== null}
-              aria-describedby={error ? `${helpId} ${errorId}` : helpId}
-              className={styles.handleInput}
-            />
+        {value.trim() !== "" ? (
+          <div className={styles.inviteRow}>
+            <p className={styles.help}>
+              {editorRoles
+                ? "A pessoa recebe o convite em Minhas coleções. O papel pode ser mudado depois."
+                : `A pessoa recebe o convite em Minhas coleções e, ao aceitar, ${ROLE_LABEL.VIEWER.toLowerCase()} esta coleção.`}
+            </p>
+            <Button type="submit" disabled={busy || blocked || value.trim() === ""} aria-busy={busy || undefined}>
+              {busy ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden="true" /> : <UserPlus className="mr-1.5 h-4 w-4" aria-hidden="true" />}
+              Convidar
+            </Button>
           </div>
-          <Button type="submit" disabled={busy || blocked || value.trim() === ""} aria-busy={busy || undefined}>
-            {busy ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden="true" /> : <UserPlus className="mr-1.5 h-4 w-4" aria-hidden="true" />}
-            Convidar
-          </Button>
-        </div>
-        <p id={helpId} className={styles.help}>
-          {state.archived
-            ? "Coleção arquivada: reative-a para convidar alguém."
-            : full
-              ? `Limite de ${MEMBER_LIMIT} pessoas entre participantes e convites.`
-              : "Use o nome exato do perfil da pessoa no MMKYU — sem buscas, para ninguém ser encontrado por acaso."}
-        </p>
-        {error ? (
-          <p id={errorId} className={styles.error} role="alert">
-            {error}
-          </p>
         ) : null}
       </form>
     </section>
@@ -425,19 +422,26 @@ export function MembersSection({ collectionId, state, busy, onBusy, onDone, edit
           // Coleção arquivada também aceita a troca (5370: gestão de participação, como a remoção).
           const canChangeRole = editorRoles && member.status === "ACTIVE";
           return (
-            <li key={member.membershipId} className={styles.member} data-status={member.status.toLowerCase()}>
+            <li
+              key={member.membershipId}
+              className={styles.member}
+              data-status={member.status.toLowerCase()}
+              data-expanded={isDemoting || isConfirming || undefined}
+            >
               <span className={styles.avatar} aria-hidden="true">
                 {member.displayName.charAt(0).toUpperCase()}
               </span>
               <span className={styles.memberText}>
                 <span className={styles.memberName}>{member.displayName}</span>
                 <span className={styles.memberSub}>
-                  @{member.username} · <span className={styles.chip} data-status={member.status.toLowerCase()}>{statusLabel(member.status)}</span>
-                  {member.status === "DECLINED" ? null : (
-                    <>
-                      {" "}
-                      · <span className={styles.chip} data-role={member.role.toLowerCase()}>{ROLE_LABEL[member.role]}</span>
-                    </>
+                  {/* E4 (D-E4-6): um selo só — o papel de quem participa; convite pendente ou recusado mostram a situação. */}
+                  @{member.username}{" "}
+                  {member.status === "ACTIVE" ? (
+                    <span className={styles.chip} data-role={member.role.toLowerCase()}>{ROLE_LABEL[member.role]}</span>
+                  ) : (
+                    <span className={styles.chip} data-status={member.status.toLowerCase()}>
+                      {member.status === "PENDING" ? `${statusLabel(member.status)} · ${ROLE_LABEL[member.role]}` : statusLabel(member.status)}
+                    </span>
                   )}
                 </span>
               </span>
@@ -510,7 +514,10 @@ export function MembersSection({ collectionId, state, busy, onBusy, onDone, edit
         {count === 0
           ? state.members.length === 0
             ? "Ninguém além de você vê esta coleção."
-            : "Ninguém aceitou ainda — os convites ficam esperando a resposta."
+            : // E4 (I3): só convites recusados não estão "esperando resposta".
+              state.members.some((m) => m.status === "PENDING")
+              ? "Ninguém aceitou ainda — os convites ficam esperando a resposta."
+              : "Ninguém participa desta coleção agora. Quem recusou pode ser convidado de novo."
           : count === 1
             ? "1 pessoa pode ver esta coleção. Remover o acesso vale na hora."
             : `${count} pessoas podem ver esta coleção. Remover o acesso vale na hora.`}

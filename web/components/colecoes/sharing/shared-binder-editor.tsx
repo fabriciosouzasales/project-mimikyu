@@ -420,6 +420,10 @@ export function useSharedBinderEditor({
             setToast({ tone: "info", text: `Escolha a carta para este bolso da página ${entry.page}.` });
             return;
           }
+          // E4 (D-E4-7): igual ao titular — tocar uma carta desta coleção só dá foco e revela as ações do
+          // bolso (retirar, fixar, Bandeja e "Ver carta"); antes o toque abria a ampliação e, no celular,
+          // as ações ficavam inalcançáveis.
+          if (isOccupied(slot) && editorCanTarget(slot)) return;
           base.onActivate(slot, additive);
         },
         onAddCard: (slot) => {
@@ -475,7 +479,13 @@ export function useSharedBinderEditor({
       const data = event.active.data.current as SlotDragData | undefined;
       setDragging(null);
       const overId = typeof event.over?.id === "string" ? event.over.id : null;
-      if (!data || !overId?.startsWith("pocket:")) return;
+      if (!data) return;
+      if (!overId?.startsWith("pocket:")) {
+        // E4 (D-E4-3): soltar a carta fora de um bolso que a recebe (inclusive bolso que não pode ser
+        // alterado por aqui) era silencioso; agora a tela diz que nada mudou.
+        if (data.kind === "available") setToast({ tone: "info", text: "A carta não foi colocada. Solte-a sobre um bolso vazio desta coleção." });
+        return;
+      }
       const entry = slotById(overId.slice("pocket:".length));
       if (!entry) return;
       if (data.kind === "available") {
@@ -485,7 +495,7 @@ export function useSharedBinderEditor({
       }
       void move(data.slotId, entry.slot, entry.page);
     },
-    [available.items, move, place, slotById],
+    [available.items, move, place, setToast, slotById],
   );
   const onDragCancel = useCallback(() => setDragging(null), []);
 

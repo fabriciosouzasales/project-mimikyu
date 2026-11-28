@@ -21,6 +21,9 @@ import { editorPokedexPanelOpenable } from "@/lib/colecoes/editor-pokedex-panel"
 import type { SharedModality } from "@/components/colecoes/sharing/shared-modality-gallery";
 import { SHARED_MASTER_SET_PAGE_SIZE, sharedModalityRead } from "@/lib/colecoes/shared-modalities";
 import { getSharedMasterSetPositions, getSharedPokedexPositions } from "@/lib/colecoes/shared-modalities-queries";
+import { getPokedexGenerationOptions } from "@/lib/colecoes/colecoes-queries";
+import { type PokedexHeroPokemon, pokedexHeroLineup, pokedexHeroPicks, sharedPokedexHeroOptions } from "@/lib/colecoes/pokedex";
+import { getMyPokedexFavorites, getPokedexSpeciesByNumbers } from "@/lib/pokedex/queries";
 
 export const metadata: Metadata = { title: "Coleção compartilhada", robots: { index: false, follow: false } };
 
@@ -97,6 +100,12 @@ export default async function ColecaoCompartilhadaPage({
   // V1-13 · E3-6: Master Set (5323) e Pokédex (5324) do participante, só com a configuração D-E3-1.
   // Zero linhas sem prova de vazio (progresso da 5312) = leitura indisponível (barreira, papel) → galeria de sempre.
   const flagOn = editorCurationFlagOn(process.env);
+  // Reteste E4: palco da Pokédex igual ao do titular (Mimikyu + equipe de 6). Catálogo de gerações
+  // e favoritos de QUEM VÊ saem junto com a grade; os favoritos do titular nunca são lidos.
+  const pokedexHeroRead =
+    collection.completionPolicy === "REFERENCE_POSITION"
+      ? Promise.all([getPokedexGenerationOptions(supabase, null), getMyPokedexFavorites(supabase)])
+      : null;
   let modality: SharedModality | null = null;
   if (flagOn && !setGrid && collection.completionPolicy === "MASTER_SET") {
     const data = await getSharedMasterSetPositions(supabase, collectionId, filter, page);
@@ -105,6 +114,13 @@ export default async function ColecaoCompartilhadaPage({
   } else if (flagOn && !setGrid && collection.completionPolicy === "REFERENCE_POSITION") {
     const data = await getSharedPokedexPositions(supabase, collectionId, filter, 0);
     if (data === null || sharedModalityRead(data.items.length, filter, 0, collection.progress) === "ok") modality = { kind: "POKEDEX", filter, data };
+  }
+  let pokedexLineup: PokedexHeroPokemon[] | null = null;
+  if (pokedexHeroRead) {
+    const [catalog, favorites] = await pokedexHeroRead;
+    const present = modality?.kind === "POKEDEX" && modality.data ? modality.data.items.map((item) => item.generationCode) : [];
+    const picks = pokedexHeroPicks(favorites, sharedPokedexHeroOptions(catalog, present, collection.progress?.total ?? null), null);
+    if (picks.length > 0) pokedexLineup = pokedexHeroLineup(await getPokedexSpeciesByNumbers(supabase, picks), picks);
   }
   const cards = setGrid || modality ? null : await getSharedCollectionCards(supabase, collectionId, page);
 
@@ -129,6 +145,7 @@ export default async function ColecaoCompartilhadaPage({
       activity={flagOn}
       editPokedex={modality?.kind === "POKEDEX" && editorPokedexPanelOpenable({ flagOn, role: collection.role, archived: collection.archived })}
       modality={modality}
+      pokedexLineup={pokedexLineup}
       binder={
         collection.access === "VIEWER" && binder?.hasBinder
           ? { columns: binder.columns, rows: binder.rows, pageCount: binder.pageCount, ownFilled: binder.ownFilled, identity: binder.identity }

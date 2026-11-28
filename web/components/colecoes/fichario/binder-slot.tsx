@@ -1098,11 +1098,12 @@ function EditorQuickActions({
   const can = editorPocketActions(slot, slot.locked ? "LOCKED" : "UNKNOWN", inTray);
   return (
     <TooltipPrimitive.Provider delayDuration={250} skipDelayDuration={100}>
-      <div className="absolute inset-x-0 bottom-[6%] flex items-center justify-center">
+      {/* E4 (D-E4-8): em bolso estreito (celular) a cápsula do EDITOR quebra linha em vez de cortar "Ver carta" e "Retirar". */}
+      <div className="absolute inset-x-[4%] bottom-[6%] flex items-end justify-center">
         <div
           role="toolbar"
           aria-label="Ações do bolso"
-          className="flex items-center gap-px rounded-full px-0.5 py-0.5"
+          className="flex max-w-full flex-wrap items-center justify-center gap-px rounded-[10px] px-0.5 py-0.5"
           style={{ background: "hsl(0 0% 0% / 0.62)", boxShadow: "0 2px 8px rgba(0,0,0,0.5), inset 0 1px 0 hsl(0 0% 100% / 0.06)" }}
         >
           {handlers.onViewCard && canViewCard(slot) ? <QuickButton icon={ZoomIn} label="Ver carta" onClick={() => handlers.onViewCard?.(slot)} size={size} /> : null}

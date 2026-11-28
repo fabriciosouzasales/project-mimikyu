@@ -534,6 +534,25 @@ export function pokedexHeroPicks(
   return [POKEDEX_HERO_MASCOT, ...picks];
 }
 
+/**
+ * Reteste E4 — palco da Pokédex COMPARTILHADA: o participante não lê as gerações
+ * da coleção (5201 é do titular). Parte do catálogo de gerações (5201 sem coleção)
+ * e marca como da Pokédex as gerações que aparecem na grade lida (5324); se o
+ * total da coleção é o da Pokédex inteira, todas. Nada marcado → `null` (sem palco).
+ */
+export function sharedPokedexHeroOptions(
+  options: readonly GenerationOption[] | null,
+  presentCodes: Iterable<string>,
+  total: number | null,
+): GenerationOption[] | null {
+  if (!options || options.length === 0) return null;
+  const all = options.reduce((sum, option) => sum + option.speciesCount, 0);
+  const everything = total !== null && total > 0 && total === all;
+  const present = new Set(presentCodes);
+  const marked = options.map((option) => ({ ...option, selected: everything || present.has(option.code) }));
+  return marked.some((option) => option.selected) ? marked : null;
+}
+
 /** Linhas da espécie → palco, na ordem dos sorteados; sem arte, fica de fora. */
 export function pokedexHeroLineup(
   rows: readonly { national_dex_number: number; species_name: string; artwork_path?: string | null }[] | null,

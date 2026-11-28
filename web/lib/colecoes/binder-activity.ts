@@ -960,3 +960,35 @@ export function activityFailureMessage(reason: ActivityFailure): string {
       return "Não foi possível carregar o histórico.";
   }
 }
+
+// ---------------------------------------------------------------------------
+// V1-13 · D-E3-2 (5398): autoria no histórico do fichário do TITULAR.
+// `get_my_binder_activity_actors(fichário, ids da página)` devolve (event_id, actor_role, actor_display_name)
+// só para eventos do próprio titular. Barreira fechada ou função ausente → nenhuma linha: a tela segue sem autor.
+
+const ACTOR_ROLES = new Set(["OWNER", "PARTICIPANT"]);
+
+/** Mapa evento → autoria. `null` = resposta fora do formato (descartada: a tela fica sem autor). */
+export function parseActivityActors(data: unknown): Map<number, ActivityAttribution> | null {
+  if (data === null || data === undefined) return new Map();
+  if (!Array.isArray(data)) return null;
+  const out = new Map<number, ActivityAttribution>();
+  for (const row of data) {
+    if (!row || typeof row !== "object") return null;
+    const r = row as Record<string, unknown>;
+    const id = typeof r.event_id === "number" ? r.event_id : typeof r.event_id === "string" && /^\d+$/.test(r.event_id) ? Number(r.event_id) : NaN;
+    if (!Number.isSafeInteger(id) || id <= 0) return null;
+    const role = r.actor_role === null ? null : typeof r.actor_role === "string" && ACTOR_ROLES.has(r.actor_role) ? (r.actor_role as "OWNER" | "PARTICIPANT") : undefined;
+    if (role === undefined) return null;
+    const name = r.actor_display_name === null ? null : typeof r.actor_display_name === "string" && r.actor_display_name.trim() ? r.actor_display_name.trim().slice(0, 60) : undefined;
+    if (name === undefined) return null;
+    out.set(id, { role, displayName: role === null ? null : name });
+  }
+  return out;
+}
+
+/** Junta a autoria (5398) aos eventos da página; evento sem linha fica como estava (sem autor). */
+export function withActors(events: ActivityEvent[], actors: Map<number, ActivityAttribution> | null): ActivityEvent[] {
+  if (!actors || actors.size === 0) return events;
+  return events.map((event) => (actors.has(event.id) ? { ...event, attribution: actors.get(event.id) } : event));
+}

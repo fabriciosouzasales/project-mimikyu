@@ -197,7 +197,9 @@
 
 .backLink {
   display: inline-flex;
+  flex: none;
   align-items: center;
+  white-space: nowrap;
   gap: 0.375rem;
   min-height: 2.75rem;
   margin-bottom: 0.25rem;

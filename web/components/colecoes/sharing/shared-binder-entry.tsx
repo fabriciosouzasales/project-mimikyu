@@ -32,6 +32,8 @@ export function SharedBinderEntry({
   binder,
   role = null,
   speciesEnabled = false,
+  editorEnabled = false,
+  completionPolicy = null,
 }: {
   collectionId: string;
   collectionName: string;
@@ -42,6 +44,13 @@ export function SharedBinderEntry({
   binder: { columns: number; rows: number; pageCount: number; ownFilled: number; identity: SharedBinderIdentity | null };
   /** V1-13 · E3-6 / F2: páginas pela 5393 (referências de espécie), decidido no servidor da página. */
   speciesEnabled?: boolean;
+  /**
+   * V1-13 · E4 (D-E4-1): EDITOR com a organização disponível (D1 + papel + coleção ativa, decidido no servidor
+   * da página) organiza DENTRO da sobreposição, como o titular. Não autoriza nada: cada escrita é do banco.
+   */
+  editorEnabled?: boolean;
+  /** Objetivo da coleção (reservas, organização automática e novidades dependem dele), como na rota /fichario. */
+  completionPolicy?: string | null;
 }) {
   const [open, setOpen] = useState(false);
   const ready = binder.pageCount > 0;
@@ -86,7 +95,7 @@ export function SharedBinderEntry({
         </span>
         <span className={entryStyles.cta}>
           <BookOpen aria-hidden="true" />
-          Abrir o fichário
+          {editorEnabled ? "Organizar o fichário" : "Abrir o fichário"}
           <ArrowRight className={entryStyles.arrow} aria-hidden="true" />
         </span>
       </button>
@@ -107,6 +116,8 @@ export function SharedBinderEntry({
               ownFilled={binder.ownFilled}
               memberRole={role}
               speciesEnabled={speciesEnabled}
+              editorEnabled={editorEnabled}
+              completionPolicy={completionPolicy}
               onClose={close}
             />
           )}

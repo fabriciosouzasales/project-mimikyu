@@ -137,8 +137,10 @@ import {
   classifyActivityFailure,
   filterCategories,
   isCursor,
+  parseActivityActors,
   parseActivityCoverage,
   parseActivityPage,
+  withActors,
 } from "@/lib/colecoes/binder-activity";
 import {
   type AutoArrangeApplyOutcome,
@@ -147,6 +149,7 @@ import {
   previewMyBinderAutoArrange,
 } from "@/lib/colecoes/binder-auto-arrange-queries";
 import { collectionHref, isCollectionId } from "@/lib/colecoes/colecoes";
+import { editorCurationFlagOn } from "@/lib/colecoes/editor-binder";
 import { getMyCollection, getMyCollectionsByIds } from "@/lib/colecoes/colecoes-queries";
 import {
   type ReserveCandidate,
@@ -1440,6 +1443,12 @@ export async function readBinderActivity(input: {
   if (error) return activityFail("get_my_binder_activity", startedAt, error);
   const events = parseActivityPage(data);
   if (!events) return activityFail("get_my_binder_activity", startedAt, { code: "BAD_SHAPE" });
+  // V1-13 · D-E3-2 (5398): autoria dos eventos desta página (configuração D1). Barreira fechada, função ausente
+  // ou falha → sem autor, como antes; o histórico nunca deixa de aparecer por causa disso.
+  if (editorCurationFlagOn(process.env) && events.length > 0) {
+    const actors = await supabase.rpc("get_my_binder_activity_actors", { p_layout_key: input.layoutId, p_event_ids: events.map((e) => e.id) });
+    return { ok: true, events: withActors(events, actors.error ? null : parseActivityActors(actors.data)), hasMore: events.length === ACTIVITY_PAGE_SIZE };
+  }
   return { ok: true, events, hasMore: events.length === ACTIVITY_PAGE_SIZE };
 }
 

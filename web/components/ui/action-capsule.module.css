@@ -181,6 +181,30 @@
   }
 }
 
+/* Reteste E4: dentro de um hero estreito (container `acervo-hero` — trilho e barra
+   lateral abertos encolhem a área útil sem mudar a janela), a cápsula também fica
+   só com ícones; o nome segue acessível e o `title`/tooltip das ações continua. */
+@container acervo-hero (max-width: 48rem) {
+  .item {
+    min-width: 2.5rem;
+    min-height: 2.5rem;
+    justify-content: center;
+    padding: 0 0.625rem;
+  }
+
+  .label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .indicator,
   .item,

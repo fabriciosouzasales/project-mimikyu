@@ -157,7 +157,8 @@ export function classifyEditorFailure(code: string | null | undefined, message: 
 export function editorFailureMessage(reason: EditorFailure): string {
   switch (reason) {
     case "not_editable":
-      return "Esse bolso não pode ser alterado por aqui. Ele é organizado pelo titular.";
+      // E4 (D-E4-3): sem atribuir o bolso a ninguém — pode ser do titular ou de outra coleção do fichário (C-237).
+      return "Esse bolso não pode ser alterado por aqui. Escolha um bolso desta coleção.";
     case "not_eligible":
       return "Essa carta não está disponível para este fichário.";
     case "already_placed":

@@ -66,7 +66,8 @@ function visibility(value: unknown): Visibility | null {
 
 /** Rótulo curto do estado (chip). */
 export function statusLabel(value: MembershipStatus): string {
-  if (value === "ACTIVE") return "Pode ver";
+  // E4 (D-E4-6): "Pode ver" é rótulo de PAPEL (V1-13); a situação ativa não pode repeti-lo ao lado do papel.
+  if (value === "ACTIVE") return "Participa";
   if (value === "PENDING") return "Convite enviado";
   return "Recusou";
 }
